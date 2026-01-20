@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { DialogProvider } from "@opentui-ui/dialog/react";
 import type { TVDevice, RemoteKey } from "./types/index.ts";
 import { Header } from "./components/layout/Header.tsx";
@@ -10,12 +9,10 @@ import { useUIStore } from "./store/uiStore";
 import { useDeviceHandler } from "./hooks/useDeviceHandler.ts";
 import { usePhilipsPairing } from "./hooks/usePhilipsPairing.tsx";
 import { useAppKeyboard } from "./hooks/useAppKeyboard.ts";
-import { initialDevices } from "./data/initialDevices.ts";
 
 function AppContent() {
   const devices = useDeviceStore((s) => s.devices);
   const selectedDeviceId = useDeviceStore((s) => s.selectedDeviceId);
-  const addDevice = useDeviceStore((s) => s.addDevice);
   const selectDevice = useDeviceStore((s) => s.selectDevice);
 
   const focusedSection = useUIStore((s) => s.focusedSection);
@@ -26,13 +23,6 @@ function AppContent() {
 
   const { sendKey, disconnect, isImplemented } = useDeviceHandler(activeDevice);
   const { handleConnect } = usePhilipsPairing(activeDevice);
-
-  useEffect(() => {
-    if (devices.length === 0) {
-      initialDevices.forEach((device) => addDevice(device));
-      selectDevice(initialDevices[0]!.id);
-    }
-  }, []);
 
   useAppKeyboard({
     focusedSection,

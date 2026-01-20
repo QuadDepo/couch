@@ -4,6 +4,7 @@ import type { TVDevice, ConnectionStatus, DeviceConfig } from "../types";
 import { deviceConnectionMachine } from "../machines/deviceConnectionMachine";
 import { disposeHandler } from "../devices/factory";
 import { logger } from "../utils/logger";
+import { loadDevices as loadFromStorage, saveDevices } from "../utils/storage";
 
 type MachineSnapshot = SnapshotFrom<typeof deviceConnectionMachine>;
 type ConnectionActor = Actor<typeof deviceConnectionMachine>;
@@ -12,7 +13,9 @@ interface DeviceState {
   devices: TVDevice[];
   selectedDeviceId: string | null;
   deviceActors: Map<string, ConnectionActor>;
+  isLoaded: boolean;
 
+  loadDevices: () => Promise<TVDevice[] | null>;
   addDevice: (device: TVDevice) => void;
   removeDevice: (deviceId: string) => void;
   selectDevice: (deviceId: string | null) => void;
@@ -41,6 +44,19 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   devices: [],
   selectedDeviceId: null,
   deviceActors: new Map(),
+  isLoaded: false,
+
+  loadDevices: async () => {
+    const devices = await loadFromStorage();
+    if (devices) {
+      devices.forEach((device) => get().addDevice(device));
+      if (devices.length > 0) {
+        set({ selectedDeviceId: devices[0]!.id });
+      }
+    }
+    set({ isLoaded: true });
+    return devices;
+  },
 
   addDevice: (device) => {
     const actor = createActor(deviceConnectionMachine, {
@@ -77,6 +93,10 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       devices: [...state.devices, device],
       deviceActors: new Map(state.deviceActors).set(device.id, actor),
     }));
+
+    if (get().isLoaded) {
+      saveDevices(get().devices);
+    }
   },
 
   removeDevice: (deviceId) => {
@@ -96,6 +116,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
           state.selectedDeviceId === deviceId ? null : state.selectedDeviceId,
       };
     });
+
+    saveDevices(get().devices);
   },
 
   selectDevice: (deviceId) => {
@@ -111,6 +133,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       ),
     }));
     logger.info("Store", `Updated device config`, { deviceId, config });
+
+    saveDevices(get().devices);
   },
 
   connectDevice: (deviceId) => {
