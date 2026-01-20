@@ -3,9 +3,10 @@ import type { TVDevice } from '../../types/index.ts'
 interface StatusBarProps {
   device: TVDevice | null
   isScanning?: boolean
+  isImplemented?: boolean
 }
 
-export function StatusBar({ device, isScanning = false }: StatusBarProps) {
+export function StatusBar({ device, isScanning = false, isImplemented = true }: StatusBarProps) {
   const getStatusColor = () => {
     if (!device) return '#666666'
     switch (device.status) {
@@ -58,6 +59,15 @@ export function StatusBar({ device, isScanning = false }: StatusBarProps) {
       <text fg="#FFFFFF">{getStatusText()}</text>
       {device?.status === 'connected' && (
         <text fg="#666666"> ({device.ip})</text>
+      )}
+      {device && !isImplemented && (
+        <text fg="#FF6600"> [Platform not implemented]</text>
+      )}
+      <box flexGrow={1} />
+      {device && isImplemented && (
+        <text fg="#666666">
+          {device.status === 'connected' ? '[C] Disconnect' : '[C] Connect'}
+        </text>
       )}
     </box>
   )
