@@ -1,0 +1,151 @@
+import type { TVDevice } from "../../types";
+import type { DeviceHandler, CommandResult, PairingState } from "../types";
+import { createStatusManager, createKeySender } from "../utils";
+import { keymap } from "./keymap";
+import { capabilities } from "./capabilities";
+import { pairingSteps } from "./pairing";
+import { createPhilipsConnection } from "./connection";
+
+export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
+  const statusManager = createStatusManager();
+  const connection = createPhilipsConnection(device.ip, device.config?.philips);
+
+  let pairingData: { authKey: string; timestamp: number; deviceId: string } | null = null;
+  let currentPairingStepIndex = 0;
+
+  const sendPlatformKey = async (keyCode: string | number): Promise<CommandResult> => {
+    const start = Date.now();
+    try {
+      await connection.request("POST", "/input/key", { key: String(keyCode) });
+      return { success: true, latencyMs: Date.now() - start };
+    } catch (error) {
+      return { success: false, error: String(error), latencyMs: Date.now() - start };
+    }
+  };
+
+  const sendKey = createKeySender(keymap, capabilities, sendPlatformKey);
+
+  return {
+    platform: "philips-android-tv",
+    device,
+    capabilities,
+
+    getStatus: statusManager.getStatus,
+    onStatusChange: statusManager.onStatusChange,
+
+    async connect() {
+      statusManager.setStatus("connecting");
+
+      // Check both the device config (for persisted credentials) and connection (for just-paired credentials)
+      if (device.config?.philips) {
+        connection.setCredentials(device.config.philips);
+      }
+
+      if (!connection.hasCredentials()) {
+        statusManager.setStatus("error");
+        throw new Error("Philips TV requires pairing. Please pair first.");
+      }
+
+      try {
+        const powerState = await connection.request<{ powerstate: string }>("GET", "/powerstate");
+
+        if (powerState.powerstate === "Standby") {
+          await connection.request("POST", "/powerstate", { powerstate: "On" });
+        }
+
+        statusManager.setStatus("connected");
+      } catch (error) {
+        statusManager.setStatus("error");
+        throw error;
+      }
+    },
+
+    async disconnect() {
+      statusManager.setStatus("disconnected");
+    },
+
+    sendKey,
+    isKeySupported: (key) => capabilities.supportedKeys.has(key),
+
+    async startPairing(): Promise<PairingState> {
+      statusManager.setStatus("pairing");
+      currentPairingStepIndex = 0;
+
+      try {
+        pairingData = await connection.startPairing("BaghdadRemote");
+        currentPairingStepIndex = 1;
+
+        return {
+          currentStep: pairingSteps[1]!,
+          stepIndex: 1,
+          totalSteps: pairingSteps.length,
+          inputs: {},
+          isComplete: false,
+        };
+      } catch (error) {
+        statusManager.setStatus("error");
+        return {
+          currentStep: pairingSteps[0]!,
+          stepIndex: 0,
+          totalSteps: pairingSteps.length,
+          inputs: {},
+          error: String(error),
+          isComplete: false,
+        };
+      }
+    },
+
+    async submitPairingInput(stepId: string, input: string): Promise<PairingState> {
+      if (stepId === "enter_pin" && pairingData) {
+        try {
+          const credentials = await connection.confirmPairing(
+            input,
+            pairingData.authKey,
+            pairingData.timestamp,
+            pairingData.deviceId,
+            "BaghdadRemote"
+          );
+
+          currentPairingStepIndex = 2;
+          statusManager.setStatus("disconnected");
+
+          return {
+            currentStep: pairingSteps[2]!,
+            stepIndex: 2,
+            totalSteps: pairingSteps.length,
+            inputs: { enter_pin: input },
+            isComplete: true,
+            credentials,
+          };
+        } catch (error) {
+          return {
+            currentStep: pairingSteps[1]!,
+            stepIndex: 1,
+            totalSteps: pairingSteps.length,
+            inputs: {},
+            error: `Pairing failed: ${error}`,
+            isComplete: false,
+          };
+        }
+      }
+
+      return {
+        currentStep: pairingSteps[currentPairingStepIndex]!,
+        stepIndex: currentPairingStepIndex,
+        totalSteps: pairingSteps.length,
+        inputs: {},
+        isComplete: false,
+      };
+    },
+
+    async cancelPairing() {
+      pairingData = null;
+      currentPairingStepIndex = 0;
+      statusManager.setStatus("disconnected");
+    },
+
+    dispose() {
+      statusManager.clearListeners();
+    },
+  };
+}

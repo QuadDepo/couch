@@ -1,46 +1,55 @@
-import { useState } from 'react'
-import { useKeyboard } from '@opentui/react'
-import type { TVDevice, RemoteKey } from './types/index.ts'
-import { Header } from './components/layout/Header.tsx'
-import { StatusBar } from './components/layout/StatusBar.tsx'
-import { DeviceList } from './components/devices/DeviceList.tsx'
-import { DPad } from './components/controls/DPad.tsx'
+import { DialogProvider } from "@opentui-ui/dialog/react";
+import type { TVDevice, RemoteKey } from "./types/index.ts";
+import { Header } from "./components/layout/Header.tsx";
+import { StatusBar } from "./components/layout/StatusBar.tsx";
+import { DeviceList } from "./components/devices/DeviceList.tsx";
+import { DPad } from "./components/controls/DPad.tsx";
+import { useDeviceStore } from "./store/deviceStore";
+import { useUIStore } from "./store/uiStore";
+import { useDeviceHandler } from "./hooks/useDeviceHandler.ts";
+import { usePhilipsPairing } from "./hooks/usePhilipsPairing.tsx";
+import { useAppKeyboard } from "./hooks/useAppKeyboard.ts";
 
-const SECTIONS = ['devices', 'dpad'] as const
+function AppContent() {
+  const devices = useDeviceStore((s) => s.devices);
+  const selectedDeviceId = useDeviceStore((s) => s.selectedDeviceId);
+  const selectDevice = useDeviceStore((s) => s.selectDevice);
 
-type Section = typeof SECTIONS[number]
+  const focusedSection = useUIStore((s) => s.focusedSection);
+  const setFocusedSection = useUIStore((s) => s.setFocusedSection);
 
-const mockDevices: TVDevice[] = [
-  { id: '1', name: 'Living Room LG', platform: 'lg-webos', ip: '192.168.1.42', status: 'connected' },
-  { id: '2', name: 'Bedroom Samsung', platform: 'samsung-tizen', ip: '192.168.1.43', status: 'disconnected' },
-  { id: '3', name: 'Kitchen Philips', platform: 'titan-os', ip: '192.168.1.44', status: 'disconnected' },
-]
+  const activeDevice = devices.find((d) => d.id === selectedDeviceId) ?? null;
+  const selectedDeviceIndex = devices.findIndex((d) => d.id === selectedDeviceId);
 
-export function App() {
-  const [devices] = useState<TVDevice[]>(mockDevices)
-  const [activeDevice, setActiveDevice] = useState<TVDevice | null>(mockDevices[0] ?? null)
-  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState(0)
-  const [focusedSection, setFocusedSection] = useState<Section>('dpad')
+  const { sendKey, disconnect, isImplemented } = useDeviceHandler(activeDevice);
+  const { handleConnect } = usePhilipsPairing(activeDevice);
 
-  const cycleSection = (reverse: boolean = false) => {
-    const currentIndex = SECTIONS.indexOf(focusedSection)
-    const nextIndex = reverse
-      ? (currentIndex - 1 + SECTIONS.length) % SECTIONS.length
-      : (currentIndex + 1) % SECTIONS.length
-    setFocusedSection(SECTIONS[nextIndex]!)
-  }
+  useAppKeyboard({
+    focusedSection,
+    setFocusedSection,
+    activeDevice,
+    onConnect: handleConnect,
+    onDisconnect: disconnect,
+  });
 
-  useKeyboard((event) => {
-    if (event.name === 'tab') {
-      cycleSection(event.shift)
+  const handleCommand = async (key: RemoteKey) => {
+    if (!activeDevice || activeDevice.status !== "connected") return;
+    const result = await sendKey(key);
+    if (!result.success) {
+      console.error(`Failed to send ${key}: ${result.error}`);
     }
-  })
+  };
 
-  const handleCommand = (key: RemoteKey) => {
-    if (!activeDevice || activeDevice.status !== 'connected') return
-    // TODO: Implement actual TV command sending
-    console.log(`Sending ${key} to ${activeDevice.name}`)
-  }
+  const handleSelectedIndexChange = (index: number) => {
+    const device = devices[index];
+    if (device) {
+      selectDevice(device.id);
+    }
+  };
+
+  const handleDeviceSelect = (device: TVDevice) => {
+    selectDevice(device.id);
+  };
 
   return (
     <box flexDirection="column" width="100%" height="100%">
@@ -50,20 +59,28 @@ export function App() {
         <DeviceList
           devices={devices}
           activeDevice={activeDevice}
-          selectedIndex={selectedDeviceIndex}
-          focused={focusedSection === 'devices'}
-          onSelectedIndexChange={setSelectedDeviceIndex}
-          onSelect={setActiveDevice}
+          selectedIndex={selectedDeviceIndex === -1 ? 0 : selectedDeviceIndex}
+          focused={focusedSection === "devices"}
+          onSelectedIndexChange={handleSelectedIndexChange}
+          onSelect={handleDeviceSelect}
         />
 
         <DPad
-          enabled={activeDevice?.status === 'connected'}
-          focused={focusedSection === 'dpad'}
+          enabled={activeDevice?.status === "connected"}
+          focused={focusedSection === "dpad"}
           onCommand={handleCommand}
         />
       </box>
 
-      <StatusBar device={activeDevice} />
+      <StatusBar device={activeDevice} isImplemented={isImplemented} />
     </box>
-  )
+  );
+}
+
+export function App() {
+  return (
+    <DialogProvider size="small">
+      <AppContent />
+    </DialogProvider>
+  );
 }
