@@ -12,10 +12,11 @@ interface DeviceListProps {
 }
 
 const platformLabels: Record<TVDevice['platform'], string> = {
+  'android-tv': 'Android',
+  'philips-android-tv': 'Philips',
   'lg-webos': 'LG',
   'samsung-tizen': 'Samsung',
-  'android-tv': 'Android',
-  'titan-os': 'Philips',
+  'titan-os': 'Titan',
   'apple-tv': 'Apple',
 }
 
