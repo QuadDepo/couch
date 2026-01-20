@@ -1,0 +1,64 @@
+import type { TVDevice } from '../../types/index.ts'
+
+interface StatusBarProps {
+  device: TVDevice | null
+  isScanning?: boolean
+}
+
+export function StatusBar({ device, isScanning = false }: StatusBarProps) {
+  const getStatusColor = () => {
+    if (!device) return '#666666'
+    switch (device.status) {
+      case 'connected': return '#00FF00'
+      case 'connecting': return '#FFAA00'
+      case 'pairing': return '#00AAFF'
+      case 'error': return '#FF0000'
+      default: return '#666666'
+    }
+  }
+
+  const getStatusIcon = () => {
+    if (isScanning) return '...'
+    if (!device) return ' - '
+    switch (device.status) {
+      case 'connected': return ' ● '
+      case 'connecting': return ' ○ '
+      case 'pairing': return ' ◐ '
+      case 'error': return ' ✗ '
+      default: return ' ○ '
+    }
+  }
+
+  const getStatusText = () => {
+    if (isScanning) return 'Scanning for devices...'
+    if (!device) return 'No device selected'
+    switch (device.status) {
+      case 'connected': return `Connected to ${device.name}`
+      case 'connecting': return `Connecting to ${device.name}...`
+      case 'pairing': return `Pairing with ${device.name}...`
+      case 'error': return `Error connecting to ${device.name}`
+      default: return `Disconnected from ${device.name}`
+    }
+  }
+
+  const statusColor = getStatusColor()
+
+  return (
+    <box
+      width="100%"
+      height={3}
+      borderStyle="single"
+      borderColor="#444444"
+      flexDirection="row"
+      alignItems="center"
+      paddingLeft={1}
+      paddingRight={1}
+    >
+      <text fg={statusColor}>{getStatusIcon()}</text>
+      <text fg="#FFFFFF">{getStatusText()}</text>
+      {device?.status === 'connected' && (
+        <text fg="#666666"> ({device.ip})</text>
+      )}
+    </box>
+  )
+}
