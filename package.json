@@ -15,6 +15,9 @@
   "dependencies": {
     "@opentui/core": "^0.1.72",
     "@opentui/react": "^0.1.72",
-    "react": "^19.2.3"
+    "@xstate/react": "^6.0.0",
+    "react": "^19.2.3",
+    "xstate": "^5.25.1",
+    "zustand": "^5.0.10"
   }
 }
