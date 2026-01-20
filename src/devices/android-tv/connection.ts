@@ -9,14 +9,26 @@ export interface ADBConnection {
   isConnected(): Promise<boolean>;
 }
 
+const CONNECT_TIMEOUT_MS = 5000;
+
 export function createADBConnection(ip: string): ADBConnection {
   const defaultPort = "5555";
 
-  const runAdb = async (args: string[]): Promise<string> => {
+  const runAdb = async (args: string[], timeoutMs?: number): Promise<string> => {
     const cmd = `adb ${args.join(" ")}`;
-    logger.info("adb", `Executing: ${cmd}`);
+    logger.info("adb", `Executing: ${cmd}${timeoutMs ? ` (timeout: ${timeoutMs}ms)` : ""}`);
     const start = Date.now();
-    const result = await $`adb ${args}`.quiet().nothrow();
+
+    const proc = $`adb ${args}`.quiet().nothrow();
+    const result = timeoutMs
+      ? await Promise.race([
+          proc,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs)
+          ),
+        ])
+      : await proc;
+
     const duration = Date.now() - start;
 
     if (result.exitCode !== 0) {
@@ -32,7 +44,7 @@ export function createADBConnection(ip: string): ADBConnection {
 
   return {
     async connect() {
-      const output = await runAdb(["connect", `${ip}:${defaultPort}`]);
+      const output = await runAdb(["connect", `${ip}:${defaultPort}`], CONNECT_TIMEOUT_MS);
       if (output.includes("failed to connect") || output.includes("cannot connect")) {
         throw new Error(output);
       }
