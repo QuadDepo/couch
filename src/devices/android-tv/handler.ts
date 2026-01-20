@@ -5,7 +5,6 @@ import { keymap } from "./keymap";
 import { capabilities } from "./capabilities";
 import { pairingSteps } from "./pairing";
 import { createADBConnection } from "./connection";
-import { sendWakeOnLan } from "./wol";
 
 export function createAndroidTVHandler(device: TVDevice): DeviceHandler {
   const statusManager = createStatusManager();
@@ -35,9 +34,6 @@ export function createAndroidTVHandler(device: TVDevice): DeviceHandler {
     async connect() {
       statusManager.setStatus("connecting");
       try {
-        if (device.mac) {
-          await sendWakeOnLan(device.mac);
-        }
         await adb.connect();
         statusManager.setStatus("connected");
       } catch (error) {
