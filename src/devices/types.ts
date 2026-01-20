@@ -36,6 +36,7 @@ export interface PairingState {
   inputs: Record<string, string>;
   error?: string;
   isComplete: boolean;
+  credentials?: unknown;
 }
 
 export interface CommandResult {

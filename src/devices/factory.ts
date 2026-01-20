@@ -1,5 +1,6 @@
 import type { TVDevice, TVPlatform, DeviceHandler, CreateDeviceHandler } from "./types";
 import { createAndroidTVHandler } from "./android-tv/handler";
+import { createPhilipsAndroidTVHandler } from "./philips-android-tv/handler";
 
 function notImplemented(platform: TVPlatform): CreateDeviceHandler {
   return () => {
@@ -9,6 +10,7 @@ function notImplemented(platform: TVPlatform): CreateDeviceHandler {
 
 const platformFactories: Record<TVPlatform, CreateDeviceHandler> = {
   "android-tv": createAndroidTVHandler,
+  "philips-android-tv": createPhilipsAndroidTVHandler,
   "apple-tv": notImplemented("apple-tv"),
   "lg-webos": notImplemented("lg-webos"),
   "samsung-tizen": notImplemented("samsung-tizen"),
@@ -37,5 +39,5 @@ export function disposeHandler(deviceId: string): void {
   }
 }
 export function isPlatformImplemented(platform: TVPlatform): boolean {
-  return platform === "android-tv";
+  return platform === "android-tv" || platform === "philips-android-tv";
 }
