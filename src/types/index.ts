@@ -1,7 +1,8 @@
 export type TVPlatform =
+  | "android-tv"
+  | "philips-android-tv"
   | "lg-webos"
   | "samsung-tizen"
-  | "android-tv"
   | "titan-os"
   | "apple-tv";
 
@@ -34,7 +35,15 @@ export type RemoteKey =
   | "REWIND"
   | "FAST_FORWARD";
 
-// TV Device representation
+export interface PhilipsCredentials {
+  deviceId: string;
+  authKey: string;
+}
+
+export interface DeviceConfig {
+  philips?: PhilipsCredentials;
+}
+
 export interface TVDevice {
   id: string;
   name: string;
@@ -43,4 +52,5 @@ export interface TVDevice {
   mac?: string;
   status: ConnectionStatus;
   lastSeen?: Date;
+  config?: DeviceConfig;
 }
