@@ -51,6 +51,9 @@ export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
       case "return":
         sendCommand("OK");
         break;
+      case "backspace":
+        sendCommand("BACK");
+        break;
     }
   });
 
@@ -71,8 +74,15 @@ export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
           rowGap={GAP}
           columnGap={GAP}
         >
-          <box width={CELL_WIDTH} height={CELL_HEIGHT}>
-            <text fg={DIM_COLOR}> </text>
+          <box
+            width={CELL_WIDTH}
+            height={CELL_HEIGHT}
+            borderStyle="single"
+            borderColor={border("BACK")}
+            justifyContent="center"
+            alignItems="center"
+          >
+            <text fg={c("BACK")}>←</text>
           </box>
           <box
             width={CELL_WIDTH}
