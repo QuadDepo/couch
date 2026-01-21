@@ -9,6 +9,7 @@ const supportedFeatures: DeviceFeature[] = [
   "playback",
   "input_select",
   "app_launcher",
+  "text_input",
 ];
 
 const supportedKeys: RemoteKey[] = [
@@ -38,4 +39,5 @@ export const capabilities: DeviceCapabilities = {
   supportedFeatures: new Set(supportedFeatures),
   supportedKeys: new Set(supportedKeys),
   supportsWakeOnLan: true,
+  textInputSupported: true,
 };

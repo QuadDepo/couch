@@ -50,6 +50,16 @@ export function createAndroidTVHandler(device: TVDevice): DeviceHandler {
     sendKey,
     isKeySupported: (key) => capabilities.supportedKeys.has(key),
 
+    async sendText(text: string) {
+      const start = Date.now();
+      try {
+        await adb.sendText(text);
+        return { success: true, latencyMs: Date.now() - start };
+      } catch (error) {
+        return { success: false, error: String(error), latencyMs: Date.now() - start };
+      }
+    },
+
     async startPairing() {
       statusManager.setStatus("pairing");
       return pairingManager.start();

@@ -4,6 +4,7 @@ export interface ADBConnection {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   sendKeyEvent(keyCode: string): Promise<void>;
+  sendText(text: string): Promise<void>;
   pair(port: string, code: string): Promise<void>;
   isConnected(): Promise<boolean>;
 }
@@ -48,6 +49,39 @@ export function createADBConnection(ip: string): ADBConnection {
 
     async sendKeyEvent(keyCode: string) {
       await runAdb(["-s", `${ip}:${defaultPort}`, "shell", "input", "keyevent", keyCode]);
+    },
+
+    async sendText(text: string) {
+      // Handle special characters that should be sent as key events
+      const specialChars: Record<string, string> = {
+        "\b": "KEYCODE_DEL",    // backspace
+        "\n": "KEYCODE_ENTER",  // enter/newline
+        "\t": "KEYCODE_TAB",    // tab
+        "\x1b": "KEYCODE_BACK", // escape
+      };
+
+      // Check if text is a single special character
+      if (text.length === 1 && specialChars[text]) {
+        await runAdb(["-s", `${ip}:${defaultPort}`, "shell", "input", "keyevent", specialChars[text]!]);
+        return;
+      }
+
+      // Escape text for shell - replace spaces with %s and other special chars
+      // Also escape other shell special characters
+      let escapedText = text
+        .replace(/ /g, "%s")
+        .replace(/&/g, "\\&")
+        .replace(/</g, "<")
+        .replace(/>/g, ">")
+        .replace(/\$/g, "\\$")
+        .replace(/"/g, "\\\"")
+        .replace(/'/g, "\\'")
+        .replace(/\(/g, "\\(")
+        .replace(/\)/g, "\\)")
+        .replace(/;/g, "\\;")
+        .replace(/\|/g, "\\|");
+
+      await runAdb(["-s", `${ip}:${defaultPort}`, "shell", "input", "text", escapedText]);
     },
 
     async pair(port: string, code: string) {
