@@ -1,11 +1,11 @@
-import { useState, useCallback } from "react";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
-import type { RemoteKey, TVPlatform } from "../../types/index.ts";
+import { useCallback, useState } from "react";
 import type { CommandResult } from "../../devices/types.ts";
-import { Panel } from "../shared/Panel.tsx";
+import type { RemoteKey, TVPlatform } from "../../types/index.ts";
 import { TextInputModal } from "../dialogs/TextInputModal.tsx";
+import { Panel } from "../shared/Panel.tsx";
 
 interface DPadProps {
   enabled: boolean;
@@ -23,7 +23,14 @@ const GAP = 1;
 const DIM_COLOR = "#444444";
 const ACTIVE_COLOR = "#00FF00";
 
-export function DPad({ enabled, focused = false, onCommand, sendText, deviceType, textInputSupported }: DPadProps) {
+export function DPad({
+  enabled,
+  focused = false,
+  onCommand,
+  sendText,
+  deviceType,
+  textInputSupported,
+}: DPadProps) {
   const [lastKey, setLastKey] = useState<string>();
   const dialog = useDialog();
   const isDialogOpen = useDialogState((s) => s.isOpen);
@@ -178,10 +185,8 @@ export function DPad({ enabled, focused = false, onCommand, sendText, deviceType
         </box>
       </box>
       <box width="100%" justifyContent="flex-end" marginTop="auto" paddingLeft={2} paddingRight={2}>
-          <text fg={focused ? "#AAAAAA" : DIM_COLOR}>
-            [I] Text Input
-          </text>
-        </box>
+        <text fg={focused ? "#AAAAAA" : DIM_COLOR}>[I] Text Input</text>
+      </box>
     </Panel>
   );
 }

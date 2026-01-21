@@ -1,15 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useKeyboard } from "@opentui/react";
 import { TextAttributes } from "@opentui/core";
+import { useKeyboard } from "@opentui/react";
 import type { PromptContext } from "@opentui-ui/dialog/react";
-import type { TVPlatform } from "../../types/index.ts";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../constants/colors.ts";
 import type { CommandResult } from "../../devices/types.ts";
 import { useUIStore } from "../../store/uiStore";
-import {
-  DIM_COLOR,
-  FOCUS_COLOR,
-  ERROR_COLOR,
-} from "../../constants/colors.ts";
+import type { TVPlatform } from "../../types/index.ts";
 
 interface TextInputModalProps extends PromptContext<unknown> {
   enabled: boolean;
@@ -40,9 +36,7 @@ function InputBuffer({
       justifyContent="center"
     >
       <box flexDirection="row" gap={1}>
-        <text fg={focused ? FOCUS_COLOR : DIM_COLOR}>
-          {focused ? "▶" : "▷"}
-        </text>
+        <text fg={focused ? FOCUS_COLOR : DIM_COLOR}>{focused ? "▶" : "▷"}</text>
         <text
           fg={focused ? FOCUS_COLOR : bright}
           attributes={focused ? TextAttributes.BOLD : undefined}
@@ -59,13 +53,7 @@ function InputBuffer({
   );
 }
 
-function QuickActions({
-  focused,
-  lastAction,
-}: {
-  focused: boolean;
-  lastAction: string | null;
-}) {
+function QuickActions({ focused, lastAction }: { focused: boolean; lastAction: string | null }) {
   return (
     <>
       <box>
@@ -75,25 +63,19 @@ function QuickActions({
       </box>
       <box flexDirection="row" gap={2}>
         <text
-          fg={
-            lastAction === "enter" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR
-          }
+          fg={lastAction === "enter" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR}
           attributes={lastAction === "enter" ? TextAttributes.BOLD : undefined}
         >
           [Enter]
         </text>
         <text
-          fg={
-            lastAction === "space" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR
-          }
+          fg={lastAction === "space" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR}
           attributes={lastAction === "space" ? TextAttributes.BOLD : undefined}
         >
           [Space]
         </text>
         <text
-          fg={
-            lastAction === "del" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR
-          }
+          fg={lastAction === "del" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR}
           attributes={lastAction === "del" ? TextAttributes.BOLD : undefined}
         >
           [Bs]
@@ -140,29 +122,24 @@ export function TextInputModal({
     type: "idle",
     message: "",
   });
-  const [internalFocus, setInternalFocus] = useState<"input" | "actions">(
-    "input",
-  );
+  const [internalFocus, setInternalFocus] = useState<"input" | "actions">("input");
   const [lastAction, setLastAction] = useState<string | null>(null);
 
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSendTimeRef = useRef<number>(0);
 
-  const showStatus = useCallback(
-    (msg: string, type: "idle" | "sending" | "success" | "error") => {
-      if (statusTimeoutRef.current) {
-        clearTimeout(statusTimeoutRef.current);
-      }
-      setSendState({ type, message: msg });
-      if (type !== "idle") {
-        statusTimeoutRef.current = setTimeout(() => {
-          setSendState({ type: "idle", message: "" });
-        }, STATUS_CLEAR_DELAY);
-      }
-    },
-    [],
-  );
+  const showStatus = useCallback((msg: string, type: "idle" | "sending" | "success" | "error") => {
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+    }
+    setSendState({ type, message: msg });
+    if (type !== "idle") {
+      statusTimeoutRef.current = setTimeout(() => {
+        setSendState({ type: "idle", message: "" });
+      }, STATUS_CLEAR_DELAY);
+    }
+  }, []);
 
   const sendToTV = useCallback(
     async (text: string) => {
@@ -300,11 +277,7 @@ export function TextInputModal({
           <UnsupportedMessage deviceType={deviceType} />
         ) : (
           <box flexDirection="column" gap={1}>
-            <InputBuffer
-              input={input}
-              focused={inputFocused}
-              enabled={enabled}
-            />
+            <InputBuffer input={input} focused={inputFocused} enabled={enabled} />
 
             <QuickActions focused={actionsFocused} lastAction={lastAction} />
           </box>

@@ -1,48 +1,63 @@
-import type { TVDevice } from '../../types/index.ts'
+import type { TVDevice } from "../../types/index.ts";
 
 interface StatusBarProps {
-  device: TVDevice | null
-  isScanning?: boolean
-  isImplemented?: boolean
+  device: TVDevice | null;
+  isScanning?: boolean;
+  isImplemented?: boolean;
 }
 
 export function StatusBar({ device, isScanning = false, isImplemented = true }: StatusBarProps) {
   const getStatusColor = () => {
-    if (!device) return '#666666'
+    if (!device) return "#666666";
     switch (device.status) {
-      case 'connected': return '#00FF00'
-      case 'connecting': return '#FFAA00'
-      case 'pairing': return '#00AAFF'
-      case 'error': return '#FF0000'
-      default: return '#666666'
+      case "connected":
+        return "#00FF00";
+      case "connecting":
+        return "#FFAA00";
+      case "pairing":
+        return "#00AAFF";
+      case "error":
+        return "#FF0000";
+      default:
+        return "#666666";
     }
-  }
+  };
 
   const getStatusIcon = () => {
-    if (isScanning) return '...'
-    if (!device) return ' - '
+    if (isScanning) return "...";
+    if (!device) return " - ";
     switch (device.status) {
-      case 'connected': return ' ● '
-      case 'connecting': return ' ○ '
-      case 'pairing': return ' ◐ '
-      case 'error': return ' ✗ '
-      default: return ' ○ '
+      case "connected":
+        return " ● ";
+      case "connecting":
+        return " ○ ";
+      case "pairing":
+        return " ◐ ";
+      case "error":
+        return " ✗ ";
+      default:
+        return " ○ ";
     }
-  }
+  };
 
   const getStatusText = () => {
-    if (isScanning) return 'Scanning for devices...'
-    if (!device) return 'No device selected'
+    if (isScanning) return "Scanning for devices...";
+    if (!device) return "No device selected";
     switch (device.status) {
-      case 'connected': return `Connected to ${device.name}`
-      case 'connecting': return `Connecting to ${device.name}...`
-      case 'pairing': return `Pairing with ${device.name}...`
-      case 'error': return `Error connecting to ${device.name}`
-      default: return `Disconnected from ${device.name}`
+      case "connected":
+        return `Connected to ${device.name}`;
+      case "connecting":
+        return `Connecting to ${device.name}...`;
+      case "pairing":
+        return `Pairing with ${device.name}...`;
+      case "error":
+        return `Error connecting to ${device.name}`;
+      default:
+        return `Disconnected from ${device.name}`;
     }
-  }
+  };
 
-  const statusColor = getStatusColor()
+  const statusColor = getStatusColor();
 
   return (
     <box
@@ -57,18 +72,12 @@ export function StatusBar({ device, isScanning = false, isImplemented = true }: 
     >
       <text fg={statusColor}>{getStatusIcon()}</text>
       <text fg="#FFFFFF">{getStatusText()}</text>
-      {device?.status === 'connected' && (
-        <text fg="#666666"> ({device.ip})</text>
-      )}
-      {device && !isImplemented && (
-        <text fg="#FF6600"> [Platform not implemented]</text>
-      )}
+      {device?.status === "connected" && <text fg="#666666"> ({device.ip})</text>}
+      {device && !isImplemented && <text fg="#FF6600"> [Platform not implemented]</text>}
       <box flexGrow={1} />
       {device && isImplemented && (
-        <text fg="#666666">
-          {device.status === 'connected' ? '[C] Disconnect' : '[C] Connect'}
-        </text>
+        <text fg="#666666">{device.status === "connected" ? "[C] Disconnect" : "[C] Connect"}</text>
       )}
     </box>
-  )
+  );
 }

@@ -1,12 +1,12 @@
-import { createCliRenderer } from '@opentui/core'
-import { createRoot } from '@opentui/react'
-import { App } from './App.tsx'
-import { logger } from './utils/logger'
-import { useDeviceStore } from './store/deviceStore'
+import { createCliRenderer } from "@opentui/core";
+import { createRoot } from "@opentui/react";
+import { App } from "./App.tsx";
+import { useDeviceStore } from "./store/deviceStore";
+import { logger } from "./utils/logger";
 
-logger.init()
+logger.init();
 
-await useDeviceStore.getState().loadDevices()
+await useDeviceStore.getState().loadDevices();
 
-const renderer = await createCliRenderer()
-createRoot(renderer).render(<App />)
+const renderer = await createCliRenderer();
+createRoot(renderer).render(<App />);

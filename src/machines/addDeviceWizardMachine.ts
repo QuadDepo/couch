@@ -1,9 +1,9 @@
-import { setup, assign, fromPromise, Actor } from "xstate";
-import type { TVPlatform } from "../types/index.ts";
-import type { PairingStep } from "../devices/types.ts";
-import { implementedPlatforms } from "../devices/factory.ts";
+import { type Actor, assign, fromPromise, setup } from "xstate";
 import { pairingSteps as androidTVPairingSteps } from "../devices/android-tv/pairing.ts";
+import { implementedPlatforms } from "../devices/factory.ts";
 import { pairingSteps as philipsPairingSteps } from "../devices/philips-android-tv/pairing.ts";
+import type { PairingStep } from "../devices/types.ts";
+import type { TVPlatform } from "../types/index.ts";
 import { isValidIp } from "../utils/network.ts";
 
 export { implementedPlatforms };
@@ -78,11 +78,9 @@ export const addDeviceWizardMachine = setup({
     events: {} as WizardEvent,
   },
   actors: {
-    executePairingAction: fromPromise<PairingActionResult, PairingActionInput>(
-      async () => ({})
-    ),
+    executePairingAction: fromPromise<PairingActionResult, PairingActionInput>(async () => ({})),
     submitPairingInput: fromPromise<SubmitPairingInputResult, SubmitPairingInputData>(
-      async () => ({})
+      async () => ({}),
     ),
   },
   actions: {
@@ -91,19 +89,14 @@ export const addDeviceWizardMachine = setup({
     onCancel: () => {},
     cleanupHandler: () => {},
     selectPlatformUp: assign({
-      selectedPlatformIndex: ({ context }) =>
-        Math.max(0, context.selectedPlatformIndex - 1),
+      selectedPlatformIndex: ({ context }) => Math.max(0, context.selectedPlatformIndex - 1),
     }),
     selectPlatformDown: assign({
       selectedPlatformIndex: ({ context }) =>
-        Math.min(
-          implementedPlatforms.length - 1,
-          context.selectedPlatformIndex + 1
-        ),
+        Math.min(implementedPlatforms.length - 1, context.selectedPlatformIndex + 1),
     }),
     setPlatformFromSelection: assign({
-      platform: ({ context }) =>
-        implementedPlatforms[context.selectedPlatformIndex]?.id ?? null,
+      platform: ({ context }) => implementedPlatforms[context.selectedPlatformIndex]?.id ?? null,
     }),
     appendToActiveField: assign({
       deviceName: ({ context, event }) => {
@@ -130,8 +123,7 @@ export const addDeviceWizardMachine = setup({
       error: undefined,
     }),
     toggleActiveField: assign({
-      activeField: ({ context }) =>
-        context.activeField === "name" ? "ip" : "name",
+      activeField: ({ context }) => (context.activeField === "name" ? "ip" : "name"),
     }),
     setValidationError: assign({
       error: (_, params: { error: string }) => params.error,
@@ -199,8 +191,7 @@ export const addDeviceWizardMachine = setup({
     hasDeviceName: ({ context }) => context.deviceName.trim().length > 0,
     missingDeviceName: ({ context }) => context.deviceName.trim().length === 0,
     hasInvalidIp: ({ context }) => !isValidIp(context.deviceIp),
-    hasMoreSteps: ({ context }) =>
-      context.currentStepIndex < context.pairingSteps.length - 1,
+    hasMoreSteps: ({ context }) => context.currentStepIndex < context.pairingSteps.length - 1,
     hasActionSuccess: ({ context }) => !!context.actionSuccess,
     hasActionSuccessWithCredentials: ({ context }) =>
       !!context.actionSuccess && !!context.credentials,
@@ -498,6 +489,5 @@ export const addDeviceWizardMachine = setup({
     },
   },
 });
-
 
 export type WizardActorRef = Actor<typeof addDeviceWizardMachine>;

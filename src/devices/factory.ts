@@ -1,6 +1,6 @@
-import type { TVDevice, TVPlatform, DeviceHandler, CreateDeviceHandler } from "./types";
 import { createAndroidTVHandler } from "./android-tv/handler";
 import { createPhilipsAndroidTVHandler } from "./philips-android-tv/handler";
+import type { CreateDeviceHandler, DeviceHandler, TVDevice, TVPlatform } from "./types";
 
 interface PlatformInfo {
   id: TVPlatform;

@@ -1,6 +1,6 @@
-import { setup, assign, fromPromise } from "xstate";
-import type { TVDevice, TVPlatform } from "../types";
+import { assign, fromPromise, setup } from "xstate";
 import { getDeviceHandler } from "../devices/factory";
+import type { TVDevice, TVPlatform } from "../types";
 import { logger } from "../utils/logger";
 
 interface ConnectionContext {
@@ -63,7 +63,7 @@ export const deviceConnectionMachine = setup({
     canRetry: ({ context }) => context.retryCount < context.maxRetries,
   },
   delays: {
-    retryDelay: ({ context }) => Math.min(1000 * Math.pow(2, context.retryCount), 8000),
+    retryDelay: ({ context }) => Math.min(1000 * 2 ** context.retryCount, 8000),
   },
 }).createMachine({
   id: "deviceConnection",

@@ -21,4 +21,4 @@ export const keymap: KeyMap = {
   STOP: "Stop",
   REWIND: "Rewind",
   FAST_FORWARD: "FastForward",
-}
+};
