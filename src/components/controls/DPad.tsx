@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
-import { useDialogState } from "@opentui-ui/dialog/react";
-import type { RemoteKey } from "../../types/index.ts";
+import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
+import type { RemoteKey, TVPlatform } from "../../types/index.ts";
+import type { CommandResult } from "../../devices/types.ts";
 import { Panel } from "../shared/Panel.tsx";
+import { TextInputModal } from "../dialogs/TextInputModal.tsx";
 
 interface DPadProps {
   enabled: boolean;
   focused?: boolean;
   onCommand: (key: RemoteKey) => void;
+  sendText: (text: string) => Promise<CommandResult>;
+  deviceType: TVPlatform | null;
+  textInputSupported: boolean;
 }
 
 const CELL_WIDTH = 8;
@@ -18,8 +23,9 @@ const GAP = 1;
 const DIM_COLOR = "#444444";
 const ACTIVE_COLOR = "#00FF00";
 
-export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
+export function DPad({ enabled, focused = false, onCommand, sendText, deviceType, textInputSupported }: DPadProps) {
   const [lastKey, setLastKey] = useState<string>();
+  const dialog = useDialog();
   const isDialogOpen = useDialogState((s) => s.isOpen);
 
   const bright = enabled ? "#FFFFFF" : DIM_COLOR;
@@ -33,6 +39,21 @@ export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
     onCommand(key);
     setTimeout(() => setLastKey(undefined), 200);
   };
+
+  const handleOpenTextInput = useCallback(async () => {
+    await dialog.prompt({
+      content: (ctx) => (
+        <TextInputModal
+          {...ctx}
+          enabled={enabled}
+          deviceType={deviceType}
+          onSendText={sendText}
+          textInputSupported={textInputSupported}
+        />
+      ),
+      size: "medium",
+    });
+  }, [dialog, enabled, deviceType, sendText, textInputSupported]);
 
   useKeyboard((event) => {
     if (!focused || isDialogOpen) return;
@@ -56,6 +77,10 @@ export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
       case "backspace":
         sendCommand("BACK");
         break;
+      case "i":
+        event.preventDefault();
+        handleOpenTextInput();
+        break;
     }
   });
 
@@ -68,7 +93,8 @@ export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
       alignItems="center"
       justifyContent="center"
     >
-      <box flexDirection="column">
+      <box width="100%" justifyContent="flex-end" marginTop="auto"></box>
+      <box flexDirection="column" gap={1}>
         <box
           flexDirection="row"
           flexWrap="wrap"
@@ -151,6 +177,11 @@ export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
           </box>
         </box>
       </box>
+      <box width="100%" justifyContent="flex-end" marginTop="auto" paddingLeft={2} paddingRight={2}>
+          <text fg={focused ? "#AAAAAA" : DIM_COLOR}>
+            [I] Text Input
+          </text>
+        </box>
     </Panel>
   );
 }

@@ -18,7 +18,7 @@ function AppContent() {
 
   const activeDevice = devices.find((d) => d.id === selectedDeviceId) ?? null;
 
-  const { sendKey, isImplemented } = useDeviceHandler(activeDevice);
+  const { sendKey, sendText, isImplemented, capabilities } = useDeviceHandler(activeDevice);
 
   useAppKeyboard({
     focusedSection,
@@ -44,6 +44,9 @@ function AppContent() {
           enabled={activeDevice?.status === "connected"}
           focused={focusedSection === "dpad"}
           onCommand={handleCommand}
+          sendText={sendText}
+          deviceType={activeDevice?.platform ?? null}
+          textInputSupported={capabilities?.textInputSupported ?? false}
         />
       </box>
 
