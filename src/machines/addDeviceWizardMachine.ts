@@ -62,6 +62,9 @@ export const addDeviceWizardMachine = setup({
     events: {} as WizardEvent,
   },
   actions: {
+    // Placeholder actions - provide implementations via machine.provide()
+    onComplete: () => {},
+    onCancel: () => {},
     selectPlatformUp: assign({
       selectedPlatformIndex: ({ context }) =>
         Math.max(0, context.selectedPlatformIndex - 1),
@@ -369,9 +372,11 @@ export const addDeviceWizardMachine = setup({
     },
     cancelled: {
       type: "final",
+      entry: "onCancel",
     },
     done: {
       type: "final",
+      entry: "onComplete",
     },
   },
 });
