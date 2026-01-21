@@ -9,7 +9,7 @@ function timestamp(): string {
 
 function formatMessage(level: string, category: string, message: string, data?: unknown): string {
   const dataStr = data ? ` ${JSON.stringify(data)}` : "";
-  return `[${timestamp()}] [${level}] [${category}] ${message}${dataStr}\n`;
+  return `[${timestamp()}] [${level}] [${category}] ${message}${dataStr}`;
 }
 
 export const logger = {
@@ -20,22 +20,32 @@ export const logger = {
 
   info(category: string, message: string, data?: unknown) {
     if (!ENABLED) return;
-    appendFileSync(LOG_FILE, formatMessage("INFO", category, message, data));
+    const formatted = formatMessage("INFO", category, message, data);
+    appendFileSync(LOG_FILE, formatted + "\n");
   },
 
   warn(category: string, message: string, data?: unknown) {
     if (!ENABLED) return;
-    appendFileSync(LOG_FILE, formatMessage("WARN", category, message, data));
+    const formatted = formatMessage("WARN", category, message, data);
+    appendFileSync(LOG_FILE, formatted + "\n");
   },
 
   error(category: string, message: string, data?: unknown) {
     if (!ENABLED) return;
-    appendFileSync(LOG_FILE, formatMessage("ERR ", category, message, data));
+    const formatted = formatMessage("ERR ", category, message, data);
+    appendFileSync(LOG_FILE, formatted + "\n");
+  },
+
+  debug(category: string, message: string, data?: unknown) {
+    if (!ENABLED) return;
+    const formatted = formatMessage("DEBUG", category, message, data);
+    appendFileSync(LOG_FILE, formatted + "\n");
   },
 
   state(category: string, from: string, to: string, event?: string) {
     if (!ENABLED) return;
     const eventStr = event ? ` (${event})` : "";
-    appendFileSync(LOG_FILE, formatMessage("STATE", category, `${from} → ${to}${eventStr}`));
+    const formatted = formatMessage("STATE", category, `${from} → ${to}${eventStr}`);
+    appendFileSync(LOG_FILE, formatted + "\n");
   },
 };
