@@ -1,4 +1,4 @@
-import { setup, assign, fromPromise } from "xstate";
+import { setup, assign, fromPromise, Actor } from "xstate";
 import type { TVPlatform } from "../types/index.ts";
 import type { PairingStep } from "../devices/types.ts";
 import { implementedPlatforms } from "../devices/factory.ts";
@@ -479,3 +479,6 @@ export const addDeviceWizardMachine = setup({
     },
   },
 });
+
+
+export type WizardActorRef = Actor<typeof addDeviceWizardMachine>;
