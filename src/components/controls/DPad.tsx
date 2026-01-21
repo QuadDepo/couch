@@ -51,7 +51,7 @@ export function DPad({ enabled, focused = false, onCommand, sendText, deviceType
           textInputSupported={textInputSupported}
         />
       ),
-      size: "medium",
+      size: "large",
     });
   }, [dialog, enabled, deviceType, sendText, textInputSupported]);
 

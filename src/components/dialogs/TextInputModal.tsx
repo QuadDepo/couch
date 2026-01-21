@@ -5,7 +5,11 @@ import type { PromptContext } from "@opentui-ui/dialog/react";
 import type { TVPlatform } from "../../types/index.ts";
 import type { CommandResult } from "../../devices/types.ts";
 import { useUIStore } from "../../store/uiStore";
-import { DIM_COLOR, FOCUS_COLOR, ACTIVE_COLOR, ERROR_COLOR } from "../../constants/colors.ts";
+import {
+  DIM_COLOR,
+  FOCUS_COLOR,
+  ERROR_COLOR,
+} from "../../constants/colors.ts";
 
 interface TextInputModalProps extends PromptContext<unknown> {
   enabled: boolean;
@@ -13,20 +17,19 @@ interface TextInputModalProps extends PromptContext<unknown> {
   onSendText: (text: string) => Promise<CommandResult>;
   textInputSupported: boolean;
 }
-
-const DIVIDER = "─".repeat(42);
 const STATUS_CLEAR_DELAY = 2000;
 const ACTION_HIGHLIGHT_DELAY = 200;
 const SEND_DEBOUNCE_MS = 100;
 
-const STATUS_COLORS = {
-  idle: DIM_COLOR,
-  sending: "#FFFF00",
-  success: ACTIVE_COLOR,
-  error: ERROR_COLOR,
-} as const;
-
-function InputBuffer({ input, focused, enabled }: { input: string; focused: boolean; enabled: boolean }) {
+function InputBuffer({
+  input,
+  focused,
+  enabled,
+}: {
+  input: string;
+  focused: boolean;
+  enabled: boolean;
+}) {
   const bright = enabled ? "#FFFFFF" : DIM_COLOR;
   return (
     <box
@@ -40,55 +43,64 @@ function InputBuffer({ input, focused, enabled }: { input: string; focused: bool
         <text fg={focused ? FOCUS_COLOR : DIM_COLOR}>
           {focused ? "▶" : "▷"}
         </text>
-        <text fg={focused ? FOCUS_COLOR : bright} attributes={focused ? TextAttributes.BOLD : undefined}>
+        <text
+          fg={focused ? FOCUS_COLOR : bright}
+          attributes={focused ? TextAttributes.BOLD : undefined}
+        >
           {input}
         </text>
-        {focused && <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>_</text>}
+        {focused && (
+          <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
+            _
+          </text>
+        )}
       </box>
     </box>
   );
 }
 
-function QuickActions({ focused, lastAction }: { focused: boolean; lastAction: string | null }) {
+function QuickActions({
+  focused,
+  lastAction,
+}: {
+  focused: boolean;
+  lastAction: string | null;
+}) {
   return (
     <>
-      <box justifyContent="center">
+      <box>
         <text fg={focused ? FOCUS_COLOR : DIM_COLOR}>
-          {focused ? "▶ QUICK ACTIONS" : "  Quick Actions (Tab to focus)"}
+          {focused ? "▶ QUICK ACTIONS" : "▷ QUICK ACTIONS"}
         </text>
       </box>
-      <box flexDirection="row" gap={2} justifyContent="center">
-        <text fg={lastAction === "enter" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR} attributes={lastAction === "enter" ? TextAttributes.BOLD : undefined}>[Enter]</text>
-        <text fg={lastAction === "space" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR} attributes={lastAction === "space" ? TextAttributes.BOLD : undefined}>[Space]</text>
-        <text fg={lastAction === "del" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR} attributes={lastAction === "del" ? TextAttributes.BOLD : undefined}>[Bs]</text>
+      <box flexDirection="row" gap={2}>
+        <text
+          fg={
+            lastAction === "enter" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR
+          }
+          attributes={lastAction === "enter" ? TextAttributes.BOLD : undefined}
+        >
+          [Enter]
+        </text>
+        <text
+          fg={
+            lastAction === "space" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR
+          }
+          attributes={lastAction === "space" ? TextAttributes.BOLD : undefined}
+        >
+          [Space]
+        </text>
+        <text
+          fg={
+            lastAction === "del" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR
+          }
+          attributes={lastAction === "del" ? TextAttributes.BOLD : undefined}
+        >
+          [Bs]
+        </text>
       </box>
     </>
   );
-}
-
-function StatusBar({ enabled, status, deviceType }: { enabled: boolean; status: { type: "idle" | "sending" | "success" | "error"; message: string }; deviceType: TVPlatform | null }) {
-  const fg = STATUS_COLORS[status.type];
-  const methodLabel = deviceType === "android-tv" ? "Fast (ADB)" : "N/A";
-
-  const content = useMemo(() => {
-    if (!enabled) return null;
-    if (status.type === "idle") {
-      return (
-        <box justifyContent="flex-end">
-          <text fg={DIM_COLOR}>{methodLabel}</text>
-        </box>
-      );
-    }
-    return (
-      <box justifyContent="center">
-        <text fg={fg} attributes={TextAttributes.BOLD}>
-          {status.message}
-        </text>
-      </box>
-    );
-  }, [enabled, status.type, status.message, fg, methodLabel]);
-
-  return content;
 }
 
 function UnsupportedMessage({ deviceType }: { deviceType: TVPlatform | null }) {
@@ -121,11 +133,16 @@ export function TextInputModal({
   const setFocusPath = useUIStore((s) => s.setFocusPath);
 
   const [input, setInput] = useState("");
-  const [sendState, setSendState] = useState<{ type: "idle" | "sending" | "success" | "error"; message: string }>({
+  const [sendState, setSendState] = useState<{
+    type: "idle" | "sending" | "success" | "error";
+    message: string;
+  }>({
     type: "idle",
     message: "",
   });
-  const [internalFocus, setInternalFocus] = useState<"input" | "actions">("input");
+  const [internalFocus, setInternalFocus] = useState<"input" | "actions">(
+    "input",
+  );
   const [lastAction, setLastAction] = useState<string | null>(null);
 
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,58 +254,61 @@ export function TextInputModal({
     }
   });
 
-  useEffect(
-    () => {
-      setFocusPath("modal/text-input");
-      return () => {
-        setFocusPath("app/dpad");
-        if (statusTimeoutRef.current) {
-          clearTimeout(statusTimeoutRef.current);
-        }
-        if (actionTimeoutRef.current) {
-          clearTimeout(actionTimeoutRef.current);
-        }
-      };
-    },
-    [setFocusPath],
-  );
+  useEffect(() => {
+    setFocusPath("modal/text-input");
+    return () => {
+      setFocusPath("app/dpad");
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+      if (actionTimeoutRef.current) {
+        clearTimeout(actionTimeoutRef.current);
+      }
+    };
+  }, [setFocusPath]);
 
   const inputFocused = internalFocus === "input";
   const actionsFocused = internalFocus === "actions";
 
   return (
-    <box flexDirection="column" gap={1} paddingLeft={4} paddingRight={4} paddingTop={2} paddingBottom={2}>
-      <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
-        TEXT INPUT
-      </text>
-
-      <text fg="#666666">{DIVIDER}</text>
-
-      {!textInputSupported ? (
-        <UnsupportedMessage deviceType={deviceType} />
-      ) : (
-        <box flexDirection="column" gap={1}>
-          <InputBuffer input={input} focused={inputFocused} enabled={enabled} />
-
-          <StatusBar enabled={enabled} status={sendState} deviceType={deviceType} />
-
-          <text fg={DIM_COLOR}>{DIVIDER}</text>
-
-          <QuickActions focused={actionsFocused} lastAction={lastAction} />
-
-          <box justifyContent="center">
-            <text fg={DIM_COLOR}>
-              {inputFocused
-                ? "Type, Enter=Send, Tab=Actions, Bs=Delete"
-                : "Enter/Space/Bs for action, Tab=Input"}
-            </text>
-          </box>
+    <box flexDirection="column" gap={1}>
+      <box
+        width="100%"
+        height={3}
+        borderStyle="single"
+        borderColor="#444444"
+        flexDirection="row"
+        justifyContent="space-between"
+        alignItems="center"
+        paddingLeft={1}
+        paddingRight={1}
+      >
+        <box flexDirection="row">
+          <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+            Text input
+          </text>
         </box>
-      )}
+        <box flexDirection="row">
+          <text fg="#666666">[Tab] Switch</text>
+          <text fg="#666666"> | </text>
+          <text fg="#666666">[Esc] Close</text>
+        </box>
+      </box>
 
-      <box marginTop="auto" justifyContent="center">
-        <text fg="#888888" attributes={TextAttributes.BOLD}>Esc</text>
-        <text fg="#666666"> to close</text>
+      <box>
+        {!textInputSupported ? (
+          <UnsupportedMessage deviceType={deviceType} />
+        ) : (
+          <box flexDirection="column" gap={1}>
+            <InputBuffer
+              input={input}
+              focused={inputFocused}
+              enabled={enabled}
+            />
+
+            <QuickActions focused={actionsFocused} lastAction={lastAction} />
+          </box>
+        )}
       </box>
     </box>
   );
