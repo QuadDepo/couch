@@ -71,7 +71,7 @@ export function isPlatformImplemented(platform: TVPlatform): boolean {
 
 export function wrapPlatformCredentials(
   platform: TVPlatform,
-  credentials: unknown
+  credentials: unknown,
 ): TVDevice["config"] {
   if (platform === "lg-webos") {
     return { webos: credentials as WebOSCredentials };

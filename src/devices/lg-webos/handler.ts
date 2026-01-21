@@ -79,15 +79,11 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
       connection.getInputSocket().then((socket) => {
         inputSocket = socket;
       }),
-      connection.subscribe(
-        "ssap://audio/getStatus",
-        {},
-        (data) => {
-          if (data.mute !== undefined) {
-            currentMuteState = data.mute;
-          }
+      connection.subscribe("ssap://audio/getStatus", {}, (data) => {
+        if (data.mute !== undefined) {
+          currentMuteState = data.mute;
         }
-      ),
+      }),
     ]).catch((err) => {
       logger.warn("WebOS", `Post-connect setup failed: ${err}`);
     });
@@ -228,7 +224,9 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
       };
     },
 
-    async executePairingAction(stepId: string): Promise<{ credentials?: WebOSCredentials; error?: string }> {
+    async executePairingAction(
+      stepId: string,
+    ): Promise<{ credentials?: WebOSCredentials; error?: string }> {
       if (stepId === "check_confirmation") {
         const { isPaired, clientKey } = checkPairingStatus();
 

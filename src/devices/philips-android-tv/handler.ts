@@ -12,7 +12,7 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
 
   let initialCredentials: PhilipsCredentials | undefined;
 
-const config = (device as TVDevice<"philips-android-tv">).config;
+  const config = (device as TVDevice<"philips-android-tv">).config;
 
   if (config?.philips) {
     try {

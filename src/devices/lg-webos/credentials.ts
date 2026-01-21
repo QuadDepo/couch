@@ -2,7 +2,7 @@ import * as v from "valibot";
 
 const MacAddressSchema = v.pipe(
   v.string(),
-  v.regex(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/, "Invalid MAC address format")
+  v.regex(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/, "Invalid MAC address format"),
 );
 
 export const WebOSCredentialsSchema = v.object({

@@ -50,10 +50,7 @@ const INPUT_SOCKET_KEYMAP: Partial<Record<string, RemoteCommand>> = {
 const KEYMAP: KeyMap = {
   ...LUNA_KEYMAP,
   ...Object.fromEntries(
-    Object.entries(INPUT_SOCKET_KEYMAP).map(([key, command]) => [
-      key,
-      `INPUT:${command}`,
-    ])
+    Object.entries(INPUT_SOCKET_KEYMAP).map(([key, command]) => [key, `INPUT:${command}`]),
   ),
 };
 

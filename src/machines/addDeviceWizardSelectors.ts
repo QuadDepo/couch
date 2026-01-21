@@ -68,11 +68,11 @@ export const selectProgressString = (state: WizardState): string => {
 };
 
 export const selectIsExecutingAction = (state: WizardState): boolean => {
-  return state.matches({ pairing: 'executingAction' });
+  return state.matches({ pairing: "executingAction" });
 };
 
 export const selectIsSubmittingInput = (state: WizardState): boolean => {
-  return state.matches({ pairing: 'submittingInput' });
+  return state.matches({ pairing: "submittingInput" });
 };
 
 export const selectIsBusy = (state: WizardState): boolean =>

@@ -67,9 +67,7 @@ export function AddDeviceWizard({
       ip: ctx.deviceIp,
       platform: ctx.platform,
       status: "disconnected",
-      config: ctx.credentials
-        ? wrapPlatformCredentials(ctx.platform, ctx.credentials)
-        : undefined,
+      config: ctx.credentials ? wrapPlatformCredentials(ctx.platform, ctx.credentials) : undefined,
     };
   };
 

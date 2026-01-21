@@ -73,7 +73,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
   // Request ID generator - format matches homebridge-webos-tv for compatibility
   let cidCount = 0;
-  const cidPrefix = ("0000000" + Math.floor(Math.random() * 0xFFFFFFFF).toString(16)).slice(-8);
+  const cidPrefix = ("0000000" + Math.floor(Math.random() * 0xffffffff).toString(16)).slice(-8);
 
   function getCid(): string {
     return cidPrefix + ("000" + (cidCount++).toString(16)).slice(-4);
@@ -222,7 +222,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     if (message.type === "registered") {
       // WebOS sends client-key in payload, not at top level
       const receivedClientKey = message.payload?.["client-key"] as string | undefined;
-      logger.debug("WebOS", `Registered message - has client-key: ${!!receivedClientKey}, payload keys: ${message.payload ? Object.keys(message.payload).join(", ") : "none"}`);
+      logger.debug(
+        "WebOS",
+        `Registered message - has client-key: ${!!receivedClientKey}, payload keys: ${message.payload ? Object.keys(message.payload).join(", ") : "none"}`,
+      );
       if (receivedClientKey) {
         clientKey = receivedClientKey;
         paired = true;
@@ -270,8 +273,8 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
         if (payload.errorCode || payload.errorText || !payload.returnValue) {
           req.reject(
             new Error(
-              `Request failed: ${payload.errorText || payload.errorCode || "Unknown error"}`
-            )
+              `Request failed: ${payload.errorText || payload.errorCode || "Unknown error"}`,
+            ),
           );
           return;
         }
@@ -365,7 +368,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   async function subscribe(
     uri: string,
     payload: object,
-    callback: (data: any) => void
+    callback: (data: any) => void,
   ): Promise<void> {
     if (!connected) {
       throw new Error("Not connected");
@@ -390,7 +393,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     }
 
     const payload = JSON.stringify(message);
-    logger.debug("WebOS", `Sending: ${payload.substring(0, 200)}${payload.length > 200 ? "..." : ""}`);
+    logger.debug(
+      "WebOS",
+      `Sending: ${payload.substring(0, 200)}${payload.length > 200 ? "..." : ""}`,
+    );
     ws.send(payload);
   }
 
@@ -406,9 +412,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     }
 
     // socketPath may be a full URL or just a path
-    const socketUrl = data.socketPath.startsWith("ws://") || data.socketPath.startsWith("wss://")
-      ? data.socketPath
-      : `${useSsl ? "wss" : "ws"}://${ip}:${useSsl ? WEBSOCKET_SSL_PORT : WEBSOCKET_PORT}${data.socketPath}`;
+    const socketUrl =
+      data.socketPath.startsWith("ws://") || data.socketPath.startsWith("wss://")
+        ? data.socketPath
+        : `${useSsl ? "wss" : "ws"}://${ip}:${useSsl ? WEBSOCKET_SSL_PORT : WEBSOCKET_PORT}${data.socketPath}`;
 
     logger.info("WebOS", `Connecting to input socket: ${data.socketPath}`);
 

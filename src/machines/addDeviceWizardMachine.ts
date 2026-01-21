@@ -473,7 +473,8 @@ export const addDeviceWizardMachine = setup({
       on: {
         SUBMIT: [
           {
-            guard: ({ context }) => !!(context.error?.includes("confirm") || context.error?.includes("Press Enter")),
+            guard: ({ context }) =>
+              !!(context.error?.includes("confirm") || context.error?.includes("Press Enter")),
             target: "pairing",
             actions: "clearError",
           },

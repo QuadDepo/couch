@@ -35,14 +35,13 @@ export type RemoteKey =
 import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
 import type { WebOSCredentials } from "../devices/lg-webos/credentials";
 
-type PlatformConfig<P extends TVPlatform> =
-  P extends "philips-android-tv"
-    ? { philips: PhilipsCredentials }
+type PlatformConfig<P extends TVPlatform> = P extends "philips-android-tv"
+  ? { philips: PhilipsCredentials }
   : P extends "lg-webos"
     ? { webos: WebOSCredentials }
-  : P extends "android-tv" | "samsung-tizen" | "titan-os" | "apple-tv"
-    ? Record<string, never>
-    : Record<string, unknown>;
+    : P extends "android-tv" | "samsung-tizen" | "titan-os" | "apple-tv"
+      ? Record<string, never>
+      : Record<string, unknown>;
 
 export interface TVDevice<P extends TVPlatform = TVPlatform> {
   id: string;
