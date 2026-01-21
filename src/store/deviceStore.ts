@@ -1,8 +1,8 @@
+import { type Actor, createActor, type SnapshotFrom } from "xstate";
 import { create } from "zustand";
-import { createActor, type Actor, type SnapshotFrom } from "xstate";
-import type { TVDevice, ConnectionStatus } from "../types";
-import { deviceConnectionMachine } from "../machines/deviceConnectionMachine";
 import { disposeHandler } from "../devices/factory";
+import { deviceConnectionMachine } from "../machines/deviceConnectionMachine";
+import type { ConnectionStatus, TVDevice } from "../types";
 import { logger } from "../utils/logger";
 import { loadDevices as loadFromStorage, saveDevices } from "../utils/storage";
 
@@ -81,9 +81,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       }
 
       set((state) => ({
-        devices: state.devices.map((d) =>
-          d.id === device.id ? { ...d, status } : d
-        ),
+        devices: state.devices.map((d) => (d.id === device.id ? { ...d, status } : d)),
       }));
     });
 
@@ -112,8 +110,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       return {
         devices: state.devices.filter((d) => d.id !== deviceId),
         deviceActors: newActors,
-        selectedDeviceId:
-          state.selectedDeviceId === deviceId ? null : state.selectedDeviceId,
+        selectedDeviceId: state.selectedDeviceId === deviceId ? null : state.selectedDeviceId,
       };
     });
 
@@ -127,9 +124,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   updateDeviceConfig: (deviceId, config) => {
     set((state) => ({
       devices: state.devices.map((d) =>
-        d.id === deviceId
-          ? { ...d, config: { ...d.config, ...config } }
-          : d
+        d.id === deviceId ? { ...d, config: { ...d.config, ...config } } : d,
       ),
     }));
     logger.info("Store", `Updated device config`, { deviceId, config });
