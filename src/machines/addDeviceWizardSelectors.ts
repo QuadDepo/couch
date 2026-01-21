@@ -27,7 +27,7 @@ export const selectStepLabel = (state: WizardState): string => {
 };
 
 const selectTotalSteps = (state: WizardState): number => {
-  return 2 + state.context.pairingSteps.length + 1;
+  return state.context.pairingSteps.length + 2;
 };
 
 const selectCurrentStepNumber = (state: WizardState): number => {
@@ -37,21 +37,24 @@ const selectCurrentStepNumber = (state: WizardState): number => {
 
   switch (stepState) {
     case "platformSelection":
-      return 1;
+      return 0;
     case "deviceInfo":
-      return 2;
+      return 1;
     case "pairing":
     case "error":
-      return 3 + currentStepIndex;
+      return 2 + currentStepIndex;
     case "complete":
     case "done":
       return totalSteps;
     default:
-      return 1;
+      return 0;
   }
 };
 
 export const selectProgressString = (state: WizardState): string => {
+  const stepState = selectStepState(state);
+  if (stepState === "platformSelection") return "";
+
   const current = selectCurrentStepNumber(state);
   const total = selectTotalSteps(state);
   return `${current}/${total}`;
@@ -78,3 +81,5 @@ export const selectPairingProgress = (state: WizardState): string => {
 export const selectCurrentInput = (state: WizardState) => state.context.currentInput;
 
 export const selectError = (state: WizardState) => state.context.error;
+
+export const selectActionSuccess = (state: WizardState) => state.context.actionSuccess;

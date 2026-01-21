@@ -4,12 +4,12 @@ import { useWizard } from "./WizardProvider.tsx";
 export function PairingStepRenderer() {
   const {
     currentPairingStep,
-    pairingProgress,
     isExecutingAction,
     isSubmittingInput,
     isBusy,
     currentInput,
     error,
+    actionSuccess,
   } = useWizard();
 
   if (!currentPairingStep) {
@@ -18,8 +18,6 @@ export function PairingStepRenderer() {
 
   return (
     <box flexDirection="column" gap={1}>
-      <text fg="#888888">{pairingProgress}</text>
-
       <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
         {currentPairingStep.title}
       </text>
@@ -38,7 +36,13 @@ export function PairingStepRenderer() {
         </text>
       )}
 
-      {!isBusy && currentPairingStep.type === "input" && (
+      {actionSuccess && (
+        <text fg="#00FF00" marginTop={1}>
+          Connected successfully!
+        </text>
+      )}
+
+      {!isBusy && !actionSuccess && currentPairingStep.type === "input" && (
         <box flexDirection="row" marginTop={1}>
           <text fg="#AAAAAA">Enter: </text>
           <text fg="#FFAA00" attributes={TextAttributes.BOLD}>
@@ -54,7 +58,7 @@ export function PairingStepRenderer() {
         </box>
       )}
 
-      {!isBusy && currentPairingStep.type === "waiting" && (
+      {!isBusy && !actionSuccess && currentPairingStep.type === "waiting" && (
         <text fg="#FFAA00" marginTop={1}>
           Please wait...
         </text>
@@ -67,7 +71,7 @@ export function PairingStepRenderer() {
       )}
 
       <box marginTop={1}>
-        <text fg="#666666">{getStepHint(currentPairingStep.type, isExecutingAction, isSubmittingInput)}</text>
+        <text fg="#666666">{getStepHint(currentPairingStep.type, isExecutingAction, isSubmittingInput, actionSuccess)}</text>
       </box>
     </box>
   );
@@ -82,12 +86,15 @@ function formatPinInput(input: string): string {
     .join("");
 }
 
-function getStepHint(stepType: string, isExecuting: boolean, isSubmitting: boolean): string {
+function getStepHint(stepType: string, isExecuting: boolean, isSubmitting: boolean, actionSuccess?: boolean): string {
   if (isExecuting) {
     return "Establishing connection...";
   }
   if (isSubmitting) {
     return "Sending to device...";
+  }
+  if (actionSuccess) {
+    return "Press Enter to continue";
   }
   switch (stepType) {
     case "input":

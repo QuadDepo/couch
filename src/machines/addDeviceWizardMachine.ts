@@ -19,6 +19,7 @@ export interface WizardContext {
   currentInput: string;
   credentials: unknown;
   error?: string;
+  actionSuccess?: boolean;
 }
 
 type WizardEvent =
@@ -184,6 +185,12 @@ export const addDeviceWizardMachine = setup({
     setError: assign({
       error: (_, params: { error: string }) => params.error,
     }),
+    setActionSuccess: assign({
+      actionSuccess: true,
+    }),
+    clearActionSuccess: assign({
+      actionSuccess: false,
+    }),
     resetDeviceInfo: assign({
       deviceName: "",
       deviceIp: "",
@@ -200,6 +207,11 @@ export const addDeviceWizardMachine = setup({
     hasInvalidIp: ({ context }) => !isValidIpAddress(context.deviceIp),
     hasMoreSteps: ({ context }) =>
       context.currentStepIndex < context.pairingSteps.length - 1,
+    hasActionSuccess: ({ context }) => !!context.actionSuccess,
+    hasActionSuccessWithCredentials: ({ context }) =>
+      !!context.actionSuccess && !!context.credentials,
+    hasActionSuccessWithMoreSteps: ({ context }) =>
+      !!context.actionSuccess && context.currentStepIndex < context.pairingSteps.length - 1,
     isInputStep: ({ context }) => {
       const currentStep = context.pairingSteps[context.currentStepIndex];
       return currentStep?.type === "input";
@@ -257,6 +269,7 @@ export const addDeviceWizardMachine = setup({
     currentInput: "",
     credentials: null,
     error: undefined,
+    actionSuccess: false,
   },
   states: {
     platformSelection: {
@@ -269,11 +282,11 @@ export const addDeviceWizardMachine = setup({
         },
         SELECT: {
           target: "deviceInfo",
-          actions: "setPlatformFromSelection",
+          actions: ["setPlatformFromSelection", "loadPairingSteps"],
         },
         SUBMIT: {
           target: "deviceInfo",
-          actions: "setPlatformFromSelection",
+          actions: ["setPlatformFromSelection", "loadPairingSteps"],
         },
         CANCEL: {
           target: "cancelled",
@@ -295,7 +308,6 @@ export const addDeviceWizardMachine = setup({
           {
             guard: "hasValidDeviceInfo",
             target: "pairing",
-            actions: "loadPairingSteps",
           },
           {
             guard: "missingDeviceName",
@@ -354,18 +366,19 @@ export const addDeviceWizardMachine = setup({
               },
               {
                 guard: ({ event }) => !!event.output.credentials,
-                target: "#addDeviceWizard.complete",
-                actions: {
-                  type: "setCredentials",
-                  params: ({ event }) => ({ credentials: event.output.credentials }),
-                },
+                target: "awaitingUser",
+                actions: [
+                  {
+                    type: "setCredentials",
+                    params: ({ event }) => ({ credentials: event.output.credentials }),
+                  },
+                  "setActionSuccess",
+                ],
               },
               {
-                guard: "hasMoreSteps",
-                target: "evaluating",
-                actions: "advanceToNextStep",
+                target: "awaitingUser",
+                actions: "setActionSuccess",
               },
-              { target: "#addDeviceWizard.complete" },
             ],
             onError: {
               target: "#addDeviceWizard.error",
@@ -387,6 +400,24 @@ export const addDeviceWizardMachine = setup({
               actions: "backspaceCurrentInput",
             },
             SUBMIT: [
+              // Action completed with credentials - go to complete
+              {
+                guard: "hasActionSuccessWithCredentials",
+                target: "#addDeviceWizard.complete",
+                actions: "clearActionSuccess",
+              },
+              // Action completed, more steps to go
+              {
+                guard: "hasActionSuccessWithMoreSteps",
+                target: "evaluating",
+                actions: ["clearActionSuccess", "advanceToNextStep"],
+              },
+              // Action completed, no more steps
+              {
+                guard: "hasActionSuccess",
+                target: "#addDeviceWizard.complete",
+                actions: "clearActionSuccess",
+              },
               // Input steps need to submit to device handler first
               {
                 guard: { type: "isInputStep", params: {} },

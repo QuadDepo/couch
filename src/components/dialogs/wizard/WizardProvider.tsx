@@ -11,6 +11,7 @@ import {
   selectPairingProgress,
   selectCurrentInput,
   selectError,
+  selectActionSuccess,
 } from "../../../machines/addDeviceWizardSelectors.ts";
 
 const WizardContext = createContext<WizardActorRef | null>(null);
@@ -28,6 +29,7 @@ export const useWizard = () => {
   const pairingProgress = useSelector(actorRef, selectPairingProgress);
   const currentInput = useSelector(actorRef, selectCurrentInput);
   const error = useSelector(actorRef, selectError);
+  const actionSuccess = useSelector(actorRef, selectActionSuccess);
 
   return useMemo(
     () => ({
@@ -40,6 +42,7 @@ export const useWizard = () => {
       pairingProgress,
       currentInput,
       error,
+      actionSuccess,
     }),
     [
       stepLabel,
@@ -51,6 +54,7 @@ export const useWizard = () => {
       pairingProgress,
       currentInput,
       error,
+      actionSuccess,
     ]
   );
 };
