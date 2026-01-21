@@ -89,6 +89,7 @@ export const addDeviceWizardMachine = setup({
     // Placeholder actions - provide implementations via machine.provide()
     onComplete: () => {},
     onCancel: () => {},
+    cleanupHandler: () => {},
     selectPlatformUp: assign({
       selectedPlatformIndex: ({ context }) =>
         Math.max(0, context.selectedPlatformIndex - 1),
@@ -320,7 +321,7 @@ export const addDeviceWizardMachine = setup({
     pairing: {
       initial: "evaluating",
       on: {
-        BACK: { target: "deviceInfo" },
+        BACK: { target: "deviceInfo", actions: "cleanupHandler" },
         CANCEL: { target: "cancelled" },
       },
       states: {
@@ -469,6 +470,9 @@ export const addDeviceWizardMachine = setup({
           target: "done",
         },
         DONE: {
+          target: "done",
+        },
+        CANCEL: {
           target: "done",
         },
       },
