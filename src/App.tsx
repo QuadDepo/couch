@@ -13,17 +13,13 @@ function AppContent() {
   const devices = useDeviceStore((s) => s.devices);
   const selectedDeviceId = useDeviceStore((s) => s.selectedDeviceId);
 
-  const focusedSection = useUIStore((s) => s.focusedSection);
-  const setFocusedSection = useUIStore((s) => s.setFocusedSection);
+  const focusPath = useUIStore((s) => s.focusPath);
 
   const activeDevice = devices.find((d) => d.id === selectedDeviceId) ?? null;
 
   const { sendKey, sendText, isImplemented, capabilities } = useDeviceHandler(activeDevice);
 
-  useAppKeyboard({
-    focusedSection,
-    setFocusedSection,
-  });
+  useAppKeyboard();
 
   const handleCommand = async (key: RemoteKey) => {
     if (!activeDevice || activeDevice.status !== "connected") return;
@@ -35,14 +31,14 @@ function AppContent() {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      <Header focusedSection={focusedSection} />
+      <Header focusPath={focusPath} />
 
       <box flexDirection="row" flexGrow={1} gap={1}>
-        <DeviceList focused={focusedSection === "devices"} />
+        <DeviceList focused={focusPath === "app/devices"} />
 
         <DPad
           enabled={activeDevice?.status === "connected"}
-          focused={focusedSection === "dpad"}
+          focused={focusPath === "app/dpad"}
           onCommand={handleCommand}
           sendText={sendText}
           deviceType={activeDevice?.platform ?? null}
