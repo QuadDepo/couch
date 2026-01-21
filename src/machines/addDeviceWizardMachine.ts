@@ -4,6 +4,7 @@ import type { PairingStep } from "../devices/types.ts";
 import { implementedPlatforms } from "../devices/factory.ts";
 import { pairingSteps as androidTVPairingSteps } from "../devices/android-tv/pairing.ts";
 import { pairingSteps as philipsPairingSteps } from "../devices/philips-android-tv/pairing.ts";
+import { isValidIp } from "../utils/network.ts";
 
 export { implementedPlatforms };
 
@@ -46,15 +47,6 @@ function getPairingStepsForPlatform(platform: TVPlatform): PairingStep[] {
     default:
       return [];
   }
-}
-
-function isValidIpAddress(ip: string): boolean {
-  const parts = ip.split(".");
-  if (parts.length !== 4) return false;
-  return parts.every((part) => {
-    const num = parseInt(part, 10);
-    return !isNaN(num) && num >= 0 && num <= 255 && part === String(num);
-  });
 }
 
 export interface PairingActionInput {
@@ -156,7 +148,8 @@ export const addDeviceWizardMachine = setup({
       currentInput: ({ context, event }) => {
         const e = event as { type: "CHAR_INPUT"; char: string };
         const currentStep = context.pairingSteps[context.currentStepIndex];
-        if (currentStep?.inputType === "pin" && context.currentInput.length >= 6) {
+        // Allow up to 10 characters for PINs (reasonable maximum, platform-agnostic)
+        if (currentStep?.inputType === "pin" && context.currentInput.length >= 10) {
           return context.currentInput;
         }
         return context.currentInput + e.char;
@@ -200,11 +193,11 @@ export const addDeviceWizardMachine = setup({
   },
   guards: {
     hasValidDeviceInfo: ({ context }) =>
-      context.deviceName.trim().length > 0 && isValidIpAddress(context.deviceIp),
-    hasValidIp: ({ context }) => isValidIpAddress(context.deviceIp),
+      context.deviceName.trim().length > 0 && isValidIp(context.deviceIp),
+    hasValidIp: ({ context }) => isValidIp(context.deviceIp),
     hasDeviceName: ({ context }) => context.deviceName.trim().length > 0,
     missingDeviceName: ({ context }) => context.deviceName.trim().length === 0,
-    hasInvalidIp: ({ context }) => !isValidIpAddress(context.deviceIp),
+    hasInvalidIp: ({ context }) => !isValidIp(context.deviceIp),
     hasMoreSteps: ({ context }) =>
       context.currentStepIndex < context.pairingSteps.length - 1,
     hasActionSuccess: ({ context }) => !!context.actionSuccess,
