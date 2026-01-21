@@ -237,7 +237,8 @@ export function TextInputModal({
           break;
         default:
           if (event.name.length === 1 && !event.ctrl && !event.meta) {
-            setInput((prev) => prev + event.name);
+            const char = event.shift ? event.name.toUpperCase() : event.name;
+            setInput((prev) => prev + char);
           }
       }
     } else {
