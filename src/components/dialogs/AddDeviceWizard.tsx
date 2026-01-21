@@ -6,7 +6,14 @@ import {
 } from "@opentui-ui/dialog/react";
 import { useMachine } from "@xstate/react";
 import { fromPromise } from "xstate";
-import { addDeviceWizardMachine, type WizardContext as MachineContext, type PairingActionResult, type PairingActionInput, type SubmitPairingInputData, type SubmitPairingInputResult } from "../../machines/addDeviceWizardMachine.ts";
+import {
+  addDeviceWizardMachine,
+  type WizardContext as MachineContext,
+  type PairingActionResult,
+  type PairingActionInput,
+  type SubmitPairingInputData,
+  type SubmitPairingInputResult,
+} from "../../machines/addDeviceWizardMachine.ts";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import { DeviceInfoStep } from "./wizard/DeviceInfoStep.tsx";
 import { PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
@@ -48,17 +55,20 @@ export function AddDeviceWizard({
     handlerRef.current = null;
   }, []);
 
-  const buildDevice = useCallback((ctx: MachineContext): TVDevice => ({
-    id: crypto.randomUUID(),
-    name: ctx.deviceName,
-    ip: ctx.deviceIp,
-    platform: ctx.platform as TVPlatform,
-    status: "disconnected",
-    config:
-      ctx.platform === "philips-android-tv" && ctx.credentials
-        ? { philips: ctx.credentials as { deviceId: string; authKey: string } }
-        : undefined,
-  }), []);
+  const buildDevice = (ctx: MachineContext): TVDevice => {
+    if (!ctx.platform) {
+      throw new Error("Platform not selected");
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      name: ctx.deviceName,
+      ip: ctx.deviceIp,
+      platform: ctx.platform,
+      status: "disconnected",
+      config: ctx.credentials as TVDevice["config"],
+    };
+  };
 
   const [state, send, actorRef] = useMachine(
     addDeviceWizardMachine.provide({

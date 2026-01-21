@@ -35,22 +35,22 @@ export type RemoteKey =
   | "REWIND"
   | "FAST_FORWARD";
 
-export interface PhilipsCredentials {
-  deviceId: string;
-  authKey: string;
-}
+import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
 
-export interface DeviceConfig {
-  philips?: PhilipsCredentials;
-}
+type PlatformConfig<P extends TVPlatform> =
+  P extends "philips-android-tv"
+    ? { philips: PhilipsCredentials }
+  : P extends "android-tv" | "lg-webos" | "samsung-tizen" | "titan-os" | "apple-tv"
+    ? Record<string, never>
+  : Record<string, unknown>;
 
-export interface TVDevice {
+export interface TVDevice<P extends TVPlatform = TVPlatform> {
   id: string;
   name: string;
-  platform: TVPlatform;
+  platform: P;
   ip: string;
   mac?: string;
   status: ConnectionStatus;
   lastSeen?: Date;
-  config?: DeviceConfig;
+  config?: PlatformConfig<P>;
 }

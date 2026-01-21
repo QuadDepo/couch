@@ -1,7 +1,7 @@
 // Inspired by https://github.com/suborb/philips_android_tv
 
 import crypto from "crypto";
-import type { PhilipsCredentials } from "../../types";
+import { validatePhilipsCredentials, type PhilipsCredentials } from "./credentials";
 import { logger } from "../../utils/logger";
 
 const API_PORT = 1926;
@@ -212,8 +212,9 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
       const text = await initialResponse.text();
       logger.info("Philips", "Unexpected response (expected 401)", { body: text });
       if (initialResponse.ok) {
-        credentials = { deviceId, authKey };
-        return credentials;
+        const validated = validatePhilipsCredentials({ deviceId, authKey });
+        credentials = validated;
+        return validated;
       }
       throw new Error(`Pairing failed: unexpected status ${initialResponse.status}`);
     }
@@ -247,8 +248,9 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
     if (!text || text.trim() === "") {
       if (authResponse.ok) {
         logger.info("Philips", "Empty response with OK status, treating as success");
-        credentials = { deviceId, authKey };
-        return credentials;
+        const validated = validatePhilipsCredentials({ deviceId, authKey });
+        credentials = validated;
+        return validated;
       }
       throw new Error(`Pairing failed with status ${authResponse.status}`);
     }
@@ -260,8 +262,9 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
       // If we can't parse but response was OK, assume success
       if (authResponse.ok) {
         logger.info("Philips", "Non-JSON response with OK status, treating as success");
-        credentials = { deviceId, authKey };
-        return credentials;
+        const validated = validatePhilipsCredentials({ deviceId, authKey });
+        credentials = validated;
+        return validated;
       }
       throw new Error(`Pairing failed: invalid response - ${text}`);
     }
@@ -270,8 +273,9 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
       throw new Error(`Pairing confirmation failed: ${data.error_id}`);
     }
 
-    credentials = { deviceId, authKey };
-    return credentials;
+    const validated = validatePhilipsCredentials({ deviceId, authKey });
+    credentials = validated;
+    return validated;
   }
 
   function setCredentials(creds: PhilipsCredentials): void {
