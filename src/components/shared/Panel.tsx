@@ -1,23 +1,25 @@
-import type { BoxProps } from '@opentui/react'
-import type { ReactNode } from 'react'
+import type { BoxProps } from "@opentui/react";
+import type { ReactNode } from "react";
 
-interface PanelProps extends Omit<BoxProps, 'borderStyle' | 'borderColor' | 'flexDirection'> {
-  title?: string
-  focused?: boolean
-  children: ReactNode
+interface PanelProps extends Omit<BoxProps, "borderStyle" | "borderColor" | "flexDirection"> {
+  title?: string;
+  focused?: boolean;
+  children: ReactNode;
 }
 
-export function Panel({ title, focused = false, children, alignItems, justifyContent, ...boxProps }: PanelProps) {
-  const borderColor = focused ? '#00AAFF' : '#444444'
-  const titleColor = focused ? '#00AAFF' : '#888888'
+export function Panel({
+  title,
+  focused = false,
+  children,
+  alignItems,
+  justifyContent,
+  ...boxProps
+}: PanelProps) {
+  const borderColor = focused ? "#00AAFF" : "#444444";
+  const titleColor = focused ? "#00AAFF" : "#888888";
 
   return (
-    <box
-      flexDirection="column"
-      borderStyle="single"
-      borderColor={borderColor}
-      {...boxProps}
-    >
+    <box flexDirection="column" borderStyle="single" borderColor={borderColor} {...boxProps}>
       {title && (
         <box paddingLeft={1} paddingRight={1}>
           <text fg={titleColor}>{title}</text>
@@ -33,5 +35,5 @@ export function Panel({ title, focused = false, children, alignItems, justifyCon
         {children}
       </box>
     </box>
-  )
+  );
 }

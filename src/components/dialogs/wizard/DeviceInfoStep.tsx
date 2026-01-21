@@ -55,13 +55,21 @@ export function DeviceInfoStep({ context }: DeviceInfoStepProps) {
       )}
 
       <box marginTop={1} flexDirection="row">
-        <text fg="#888888" attributes={TextAttributes.BOLD}>Esc</text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>
+          Esc
+        </text>
         <text fg="#666666"> to close, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>Ctrl+Bksp</text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>
+          Ctrl+Bksp
+        </text>
         <text fg="#666666"> to go back, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>Tab</text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>
+          Tab
+        </text>
         <text fg="#666666"> to switch, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>Enter</text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>
+          Enter
+        </text>
         <text fg="#666666"> to continue</text>
       </box>
     </box>

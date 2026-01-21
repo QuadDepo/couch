@@ -1,10 +1,10 @@
 import type { TVDevice } from "../../types";
-import type { DeviceHandler, CommandResult } from "../types";
-import { createStatusManager, createKeySender, createPairingManager } from "../utils";
-import { keymap } from "./keymap";
+import type { CommandResult, DeviceHandler } from "../types";
+import { createKeySender, createPairingManager, createStatusManager } from "../utils";
 import { capabilities } from "./capabilities";
-import { pairingSteps } from "./pairing";
 import { createADBConnection } from "./connection";
+import { keymap } from "./keymap";
+import { pairingSteps } from "./pairing";
 
 export function createAndroidTVHandler(device: TVDevice): DeviceHandler {
   const statusManager = createStatusManager();

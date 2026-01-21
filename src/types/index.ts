@@ -6,12 +6,7 @@ export type TVPlatform =
   | "titan-os"
   | "apple-tv";
 
-export type ConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "pairing"
-  | "error";
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "pairing" | "error";
 
 export type RemoteKey =
   | "UP"
@@ -37,12 +32,11 @@ export type RemoteKey =
 
 import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
 
-type PlatformConfig<P extends TVPlatform> =
-  P extends "philips-android-tv"
-    ? { philips: PhilipsCredentials }
+type PlatformConfig<P extends TVPlatform> = P extends "philips-android-tv"
+  ? { philips: PhilipsCredentials }
   : P extends "android-tv" | "lg-webos" | "samsung-tizen" | "titan-os" | "apple-tv"
     ? Record<string, never>
-  : Record<string, unknown>;
+    : Record<string, unknown>;
 
 export interface TVDevice<P extends TVPlatform = TVPlatform> {
   id: string;

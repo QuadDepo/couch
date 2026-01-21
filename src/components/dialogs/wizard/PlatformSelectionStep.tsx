@@ -24,18 +24,24 @@ export function PlatformSelectionStep({ context }: PlatformSelectionStepProps) {
                 {isSelected ? "> " : "  "}
                 {platform.name}
               </text>
-              <text fg="#666666">    {platform.description}</text>
+              <text fg="#666666"> {platform.description}</text>
             </box>
           );
         })}
       </box>
 
       <box marginTop={1} flexDirection="row">
-        <text fg="#888888" attributes={TextAttributes.BOLD}>Esc</text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>
+          Esc
+        </text>
         <text fg="#666666"> to close, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>↑↓</text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>
+          ↑↓
+        </text>
         <text fg="#666666"> to select, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>Enter</text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>
+          Enter
+        </text>
         <text fg="#666666"> to continue</text>
       </box>
     </box>

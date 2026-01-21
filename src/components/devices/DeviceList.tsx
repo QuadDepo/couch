@@ -1,10 +1,10 @@
-import { useCallback } from "react";
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
-import type { TVDevice } from "../../types/index.ts";
-import { useDeviceStore } from "../../store/deviceStore.ts";
+import { useCallback } from "react";
 import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
-import { AddDeviceWizard, type AddDeviceResult } from "../dialogs/AddDeviceWizard.tsx";
+import { useDeviceStore } from "../../store/deviceStore.ts";
+import type { TVDevice } from "../../types/index.ts";
+import { type AddDeviceResult, AddDeviceWizard } from "../dialogs/AddDeviceWizard.tsx";
 import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog.tsx";
 import { Panel } from "../shared/Panel.tsx";
 
@@ -97,10 +97,11 @@ export function DeviceList({ focused = false }: DeviceListProps) {
           if (device) selectDevice(device.id);
         }
         break;
-      case "return":
+      case "return": {
         const device = devices[safeSelectedIndex];
         if (device) selectDevice(device.id);
         break;
+      }
       case "a":
         handleAddDevice();
         break;

@@ -1,4 +1,4 @@
-import type { DeviceCapabilities, RemoteKey, DeviceFeature } from "../types";
+import type { DeviceCapabilities, DeviceFeature, RemoteKey } from "../types";
 
 const supportedFeatures: DeviceFeature[] = [
   "power",

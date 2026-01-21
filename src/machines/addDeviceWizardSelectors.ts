@@ -3,7 +3,14 @@ import type { addDeviceWizardMachine } from "./addDeviceWizardMachine.ts";
 
 type WizardState = StateFrom<typeof addDeviceWizardMachine>;
 
-type StepState = "platformSelection" | "deviceInfo" | "pairing" | "complete" | "error" | "done" | "cancelled";
+type StepState =
+  | "platformSelection"
+  | "deviceInfo"
+  | "pairing"
+  | "complete"
+  | "error"
+  | "done"
+  | "cancelled";
 
 const STEP_LABELS: Record<StepState, string> = {
   platformSelection: "Select Platform",
@@ -86,5 +93,10 @@ export const selectActionSuccess = (state: WizardState) => state.context.actionS
 
 export const selectCanGoBack = (state: WizardState): boolean => {
   const stepState = selectStepState(state);
-  return stepState !== "platformSelection" && stepState !== "complete" && stepState !== "done" && stepState !== "cancelled";
+  return (
+    stepState !== "platformSelection" &&
+    stepState !== "complete" &&
+    stepState !== "done" &&
+    stepState !== "cancelled"
+  );
 };

@@ -1,13 +1,13 @@
 import { DialogProvider } from "@opentui-ui/dialog/react";
-import type { RemoteKey } from "./types/index.ts";
+import { DPad } from "./components/controls/DPad.tsx";
+import { DeviceList } from "./components/devices/DeviceList.tsx";
 import { Header } from "./components/layout/Header.tsx";
 import { StatusBar } from "./components/layout/StatusBar.tsx";
-import { DeviceList } from "./components/devices/DeviceList.tsx";
-import { DPad } from "./components/controls/DPad.tsx";
+import { useAppKeyboard } from "./hooks/useAppKeyboard.ts";
+import { useDeviceHandler } from "./hooks/useDeviceHandler.ts";
 import { useDeviceStore } from "./store/deviceStore";
 import { useUIStore } from "./store/uiStore";
-import { useDeviceHandler } from "./hooks/useDeviceHandler.ts";
-import { useAppKeyboard } from "./hooks/useAppKeyboard.ts";
+import type { RemoteKey } from "./types/index.ts";
 
 function AppContent() {
   const devices = useDeviceStore((s) => s.devices);

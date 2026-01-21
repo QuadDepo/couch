@@ -1,8 +1,8 @@
-import { useMemo, useCallback } from "react";
-import type { TVDevice, RemoteKey } from "../types";
-import type { DeviceCapabilities, CommandResult, PairingState } from "../devices/types";
+import { useCallback, useMemo } from "react";
 import { getDeviceHandler, isPlatformImplemented } from "../devices/factory";
+import type { CommandResult, DeviceCapabilities, PairingState } from "../devices/types";
 import { useDeviceStore } from "../store/deviceStore";
+import type { RemoteKey, TVDevice } from "../types";
 
 interface UseDeviceHandlerResult {
   status: TVDevice["status"];
@@ -39,14 +39,14 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
       }
       return handler.sendKey(key);
     },
-    [handler]
+    [handler],
   );
 
   const isKeySupported = useCallback(
     (key: RemoteKey): boolean => {
       return handler?.isKeySupported(key) ?? false;
     },
-    [handler]
+    [handler],
   );
 
   const sendText = useCallback(
@@ -56,7 +56,7 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
       }
       return handler.sendText(text);
     },
-    [handler]
+    [handler],
   );
 
   const connect = useCallback(() => {
@@ -79,7 +79,7 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     async (stepId: string, input: string): Promise<PairingState | null> => {
       return handler?.submitPairingInput(stepId, input) ?? null;
     },
-    [handler]
+    [handler],
   );
 
   const cancelPairing = useCallback(async () => {
