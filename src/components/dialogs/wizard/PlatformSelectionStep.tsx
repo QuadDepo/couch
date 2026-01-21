@@ -30,15 +30,12 @@ export function PlatformSelectionStep({ context }: PlatformSelectionStepProps) {
         })}
       </box>
 
-      <box marginTop={1}>
-        <text fg="#666666">Use </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          arrow keys
-        </text>
+      <box marginTop={1} flexDirection="row">
+        <text fg="#888888" attributes={TextAttributes.BOLD}>Esc</text>
+        <text fg="#666666"> to close, </text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>↑↓</text>
         <text fg="#666666"> to select, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Enter
-        </text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>Enter</text>
         <text fg="#666666"> to continue</text>
       </box>
     </box>
