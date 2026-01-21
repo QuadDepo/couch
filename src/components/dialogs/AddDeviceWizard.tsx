@@ -4,7 +4,7 @@ import {
   useDialogKeyboard,
   type PromptContext,
 } from "@opentui-ui/dialog/react";
-import { useMachine } from "@xstate/react";
+import { useMachine, useSelector } from "@xstate/react";
 import { fromPromise } from "xstate";
 import {
   addDeviceWizardMachine,
@@ -14,6 +14,7 @@ import {
   type SubmitPairingInputData,
   type SubmitPairingInputResult,
 } from "../../machines/addDeviceWizardMachine.ts";
+import { selectCanGoBack } from "../../machines/addDeviceWizardSelectors.ts";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import { DeviceInfoStep } from "./wizard/DeviceInfoStep.tsx";
 import { PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
@@ -119,6 +120,9 @@ export function AddDeviceWizard({
           cleanupHandler();
           dismiss();
         },
+        cleanupHandler: () => {
+          cleanupHandler();
+        },
       },
     })
   );
@@ -128,6 +132,8 @@ export function AddDeviceWizard({
   useEffect(() => {
     return () => cleanupHandler();
   }, [cleanupHandler]);
+
+  const canGoBack = useSelector(actorRef, selectCanGoBack);
 
   useDialogKeyboard((event) => {
     switch (event.name) {
@@ -141,13 +147,17 @@ export function AddDeviceWizard({
         send({ type: "SUBMIT" });
         break;
       case "escape":
-        send(state.matches("platformSelection") ? { type: "CANCEL" } : { type: "BACK" });
+        send({ type: "CANCEL" });
         break;
       case "tab":
         send({ type: "TAB" });
         break;
       case "backspace":
-        send({ type: "BACKSPACE" });
+        if (event.ctrl && canGoBack) {
+          send({ type: "BACK" });
+        } else {
+          send({ type: "BACKSPACE" });
+        }
         break;
       default:
         if (event.sequence?.length === 1) {
@@ -173,8 +183,9 @@ export function AddDeviceWizard({
               </text>
               <text fg="#AAAAAA">{error || "An error occurred"}</text>
               <box marginTop={1} flexDirection="row">
-                <text fg="#666666">Press </text>
                 <text fg="#888888" attributes={TextAttributes.BOLD}>Esc</text>
+                <text fg="#666666"> to close, </text>
+                <text fg="#888888" attributes={TextAttributes.BOLD}>Ctrl+Bksp</text>
                 <text fg="#666666"> to go back and try again</text>
               </box>
             </box>

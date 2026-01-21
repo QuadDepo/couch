@@ -83,3 +83,8 @@ export const selectCurrentInput = (state: WizardState) => state.context.currentI
 export const selectError = (state: WizardState) => state.context.error;
 
 export const selectActionSuccess = (state: WizardState) => state.context.actionSuccess;
+
+export const selectCanGoBack = (state: WizardState): boolean => {
+  const stepState = selectStepState(state);
+  return stepState !== "platformSelection" && stepState !== "complete" && stepState !== "done" && stepState !== "cancelled";
+};
