@@ -5,10 +5,21 @@ import { keymap } from "./keymap";
 import { capabilities } from "./capabilities";
 import { pairingSteps } from "./pairing";
 import { createPhilipsConnection } from "./connection";
+import { validatePhilipsCredentials, type PhilipsCredentials } from "./credentials";
 
 export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
   const statusManager = createStatusManager();
-  const connection = createPhilipsConnection(device.ip, device.config?.philips);
+
+  let initialCredentials: PhilipsCredentials | undefined;
+  if (device.config?.philips) {
+    try {
+      initialCredentials = validatePhilipsCredentials(device.config.philips);
+    } catch {
+      initialCredentials = undefined;
+    }
+  }
+
+  const connection = createPhilipsConnection(device.ip, initialCredentials);
 
   let pairingData: { authKey: string; timestamp: number; deviceId: string } | null = null;
   let currentPairingStepIndex = 0;
@@ -36,11 +47,8 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
     async connect() {
       statusManager.setStatus("connecting");
 
-      // Check both the device config (for persisted credentials) and connection (for just-paired credentials)
-      if (device.config?.philips) {
-        connection.setCredentials(device.config.philips);
-      }
-
+      // Credentials are set during handler initialization
+      // Verify we have valid credentials before attempting connection
       if (!connection.hasCredentials()) {
         statusManager.setStatus("error");
         throw new Error("Philips TV requires pairing. Please pair first.");

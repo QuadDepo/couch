@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createActor, type Actor, type SnapshotFrom } from "xstate";
-import type { TVDevice, ConnectionStatus, DeviceConfig } from "../types";
+import type { TVDevice, ConnectionStatus } from "../types";
 import { deviceConnectionMachine } from "../machines/deviceConnectionMachine";
 import { disposeHandler } from "../devices/factory";
 import { logger } from "../utils/logger";
@@ -19,7 +19,7 @@ interface DeviceState {
   addDevice: (device: TVDevice) => void;
   removeDevice: (deviceId: string) => void;
   selectDevice: (deviceId: string | null) => void;
-  updateDeviceConfig: (deviceId: string, config: Partial<DeviceConfig>) => void;
+  updateDeviceConfig: (deviceId: string, config: Partial<TVDevice["config"]>) => void;
 
   connectDevice: (deviceId: string) => void;
   disconnectDevice: (deviceId: string) => void;

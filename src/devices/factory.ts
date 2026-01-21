@@ -2,6 +2,25 @@ import type { TVDevice, TVPlatform, DeviceHandler, CreateDeviceHandler } from ".
 import { createAndroidTVHandler } from "./android-tv/handler";
 import { createPhilipsAndroidTVHandler } from "./philips-android-tv/handler";
 
+interface PlatformInfo {
+  id: TVPlatform;
+  name: string;
+  description: string;
+}
+
+export const implementedPlatforms: PlatformInfo[] = [
+  {
+    id: "android-tv",
+    name: "Android TV",
+    description: "Google, Sony, TCL, Hisense (via ADB)",
+  },
+  {
+    id: "philips-android-tv",
+    name: "Philips Android TV",
+    description: "Philips TVs (via JointSpace API)",
+  },
+];
+
 function notImplemented(platform: TVPlatform): CreateDeviceHandler {
   return () => {
     throw new Error(`Platform ${platform} is not yet implemented`);
@@ -39,5 +58,5 @@ export function disposeHandler(deviceId: string): void {
   }
 }
 export function isPlatformImplemented(platform: TVPlatform): boolean {
-  return platform === "android-tv" || platform === "philips-android-tv";
+  return implementedPlatforms.some((p) => p.id === platform);
 }

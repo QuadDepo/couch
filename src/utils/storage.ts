@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
-import type { TVDevice, TVPlatform, DeviceConfig } from "../types";
+import type { TVDevice, TVPlatform } from "../types";
 import { logger } from "./logger";
 
 const CONFIG_DIR = join(homedir(), ".couch");
@@ -13,7 +13,7 @@ interface PersistedDevice {
   platform: TVPlatform;
   ip: string;
   mac?: string;
-  config?: DeviceConfig;
+  config?: TVDevice["config"];
 }
 
 interface StorageSchema {
