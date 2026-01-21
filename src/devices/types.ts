@@ -62,6 +62,7 @@ export interface DeviceHandler {
 
   startPairing(): Promise<PairingState>;
   submitPairingInput(stepId: string, input: string): Promise<PairingState>;
+  executePairingAction?(stepId: string): Promise<{ credentials?: unknown; error?: string }>;
   cancelPairing(): Promise<void>;
 
   onStatusChange(callback: (status: ConnectionStatus) => void): () => void;

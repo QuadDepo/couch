@@ -17,6 +17,8 @@ export type RemoteKey =
   | "BACK"
   | "HOME"
   | "MENU"
+  | "EXIT"
+  | "INFO"
   | "POWER"
   | "VOLUME_UP"
   | "VOLUME_DOWN"
@@ -31,12 +33,15 @@ export type RemoteKey =
   | "FAST_FORWARD";
 
 import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
+import type { WebOSCredentials } from "../devices/lg-webos/credentials";
 
 type PlatformConfig<P extends TVPlatform> = P extends "philips-android-tv"
   ? { philips: PhilipsCredentials }
-  : P extends "android-tv" | "lg-webos" | "samsung-tizen" | "titan-os" | "apple-tv"
-    ? Record<string, never>
-    : Record<string, unknown>;
+  : P extends "lg-webos"
+    ? { webos: WebOSCredentials }
+    : P extends "android-tv" | "samsung-tizen" | "titan-os" | "apple-tv"
+      ? Record<string, never>
+      : Record<string, unknown>;
 
 export interface TVDevice<P extends TVPlatform = TVPlatform> {
   id: string;

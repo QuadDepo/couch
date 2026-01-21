@@ -14,13 +14,15 @@ import {
   type SubmitPairingInputData,
   type SubmitPairingInputResult,
 } from "../../machines/addDeviceWizardMachine.ts";
-import { selectCanGoBack } from "../../machines/addDeviceWizardSelectors.ts";
-import type { TVDevice, TVPlatform } from "../../types/index.ts";
+import { selectCanGoBack, selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
+import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
+import type { TVDevice } from "../../types/index.ts";
 import { CompletionStep } from "./wizard/CompletionStep.tsx";
 import { DeviceInfoStep } from "./wizard/DeviceInfoStep.tsx";
 import { PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
-import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import { WizardHeader } from "./wizard/WizardHeader.tsx";
+import { createWebOSHandler } from "../../devices/lg-webos/handler.ts";
+import { wrapPlatformCredentials } from "../../devices/factory.ts";
 import { WizardProvider } from "./wizard/WizardProvider.tsx";
 
 export interface AddDeviceResult {
@@ -38,6 +40,7 @@ function createHandlerFromInput(input: PairingActionInput): DeviceHandler | null
   };
   if (input.platform === "philips-android-tv") return createPhilipsAndroidTVHandler(tempDevice);
   if (input.platform === "android-tv") return createAndroidTVHandler(tempDevice);
+  if (input.platform === "lg-webos") return createWebOSHandler(tempDevice);
   return null;
 }
 
@@ -64,7 +67,7 @@ export function AddDeviceWizard({
       ip: ctx.deviceIp,
       platform: ctx.platform,
       status: "disconnected",
-      config: ctx.credentials as TVDevice["config"],
+      config: ctx.credentials ? wrapPlatformCredentials(ctx.platform, ctx.credentials) : undefined,
     };
   };
 
@@ -73,13 +76,19 @@ export function AddDeviceWizard({
       actors: {
         executePairingAction: fromPromise<PairingActionResult, PairingActionInput>(
           async ({ input }) => {
-            const handler = createHandlerFromInput(input);
-            if (!handler) {
-              return { error: `Platform ${input.platform} is not yet supported` };
-            }
-            handlerRef.current = handler;
-
             try {
+              // Reuse existing handler if it has executePairingAction (maintains state between steps)
+              if (handlerRef.current?.executePairingAction) {
+                return await handlerRef.current.executePairingAction(input.stepId);
+              }
+
+              // Otherwise create new handler and use startPairing for first step
+              const handler = createHandlerFromInput(input);
+              if (!handler) {
+                return { error: `Platform ${input.platform} is not yet supported` };
+              }
+              handlerRef.current = handler;
+
               if (input.stepId === "start_pairing" && handler.startPairing) {
                 const result = await handler.startPairing();
                 if (result.error) {
@@ -131,6 +140,7 @@ export function AddDeviceWizard({
   }, [cleanupHandler]);
 
   const canGoBack = useSelector(actorRef, selectCanGoBack);
+  const stepState = useSelector(actorRef, selectStepState);
 
   useDialogKeyboard((event) => {
     switch (event.name) {
@@ -176,11 +186,11 @@ export function AddDeviceWizard({
         <WizardHeader />
 
         <box marginTop={1}>
-          {state.matches("platformSelection") && <PlatformSelectionStep context={state.context} />}
-          {state.matches("deviceInfo") && <DeviceInfoStep context={state.context} />}
-          {state.matches("pairing") && <PairingStepRenderer />}
-          {state.matches("complete") && <CompletionStep context={state.context} />}
-          {state.matches("error") && (
+          {stepState === "platformSelection" && <PlatformSelectionStep context={state.context} />}
+          {stepState === "deviceInfo" && <DeviceInfoStep context={state.context} />}
+          {stepState === "pairing" && <PairingStepRenderer />}
+          {stepState === "complete" && <CompletionStep context={state.context} />}
+          {stepState === "error" && (
             <box flexDirection="column" gap={1}>
               <text fg="#FF4444" attributes={TextAttributes.BOLD}>
                 Error

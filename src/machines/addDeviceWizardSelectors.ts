@@ -22,7 +22,7 @@ const STEP_LABELS: Record<StepState, string> = {
   cancelled: "Cancelled",
 };
 
-const selectStepState = (state: WizardState): StepState => {
+export const selectStepState = (state: WizardState): StepState => {
   const value = state.value;
   if (typeof value === "string") return value as StepState;
   return Object.keys(value)[0] as StepState;
@@ -67,11 +67,13 @@ export const selectProgressString = (state: WizardState): string => {
   return `${current}/${total}`;
 };
 
-export const selectIsExecutingAction = (state: WizardState): boolean =>
-  state.matches({ pairing: "executingAction" });
+export const selectIsExecutingAction = (state: WizardState): boolean => {
+  return state.matches({ pairing: "executingAction" });
+};
 
-export const selectIsSubmittingInput = (state: WizardState): boolean =>
-  state.matches({ pairing: "submittingInput" });
+export const selectIsSubmittingInput = (state: WizardState): boolean => {
+  return state.matches({ pairing: "submittingInput" });
+};
 
 export const selectIsBusy = (state: WizardState): boolean =>
   selectIsExecutingAction(state) || selectIsSubmittingInput(state);

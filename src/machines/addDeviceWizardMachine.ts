@@ -2,11 +2,10 @@ import { type Actor, assign, fromPromise, setup } from "xstate";
 import { pairingSteps as androidTVPairingSteps } from "../devices/android-tv/pairing.ts";
 import { implementedPlatforms } from "../devices/factory.ts";
 import { pairingSteps as philipsPairingSteps } from "../devices/philips-android-tv/pairing.ts";
+import { pairingSteps as webosPairingSteps } from "../devices/lg-webos/pairing.ts";
 import type { PairingStep } from "../devices/types.ts";
 import type { TVPlatform } from "../types/index.ts";
 import { isValidIp } from "../utils/network.ts";
-
-export { implementedPlatforms };
 
 export interface WizardContext {
   platform: TVPlatform | null;
@@ -44,6 +43,8 @@ function getPairingStepsForPlatform(platform: TVPlatform): PairingStep[] {
       return androidTVPairingSteps;
     case "philips-android-tv":
       return philipsPairingSteps;
+    case "lg-webos":
+      return webosPairingSteps;
     default:
       return [];
   }
@@ -470,6 +471,14 @@ export const addDeviceWizardMachine = setup({
     },
     error: {
       on: {
+        SUBMIT: [
+          {
+            guard: ({ context }) =>
+              !!(context.error?.includes("confirm") || context.error?.includes("Press Enter")),
+            target: "pairing",
+            actions: "clearError",
+          },
+        ],
         BACK: {
           target: "deviceInfo",
           actions: "clearError",

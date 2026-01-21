@@ -11,9 +11,12 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
   const statusManager = createStatusManager();
 
   let initialCredentials: PhilipsCredentials | undefined;
-  if (device.config?.philips) {
+
+  const config = (device as TVDevice<"philips-android-tv">).config;
+
+  if (config?.philips) {
     try {
-      initialCredentials = validatePhilipsCredentials(device.config.philips);
+      initialCredentials = validatePhilipsCredentials(config.philips);
     } catch {
       initialCredentials = undefined;
     }
