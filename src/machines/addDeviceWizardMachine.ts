@@ -1,4 +1,4 @@
-import { setup, assign } from "xstate";
+import { setup, assign, fromPromise } from "xstate";
 import type { TVPlatform } from "../types/index.ts";
 import type { PairingStep } from "../devices/types.ts";
 import { implementedPlatforms } from "../devices/factory.ts";
@@ -56,10 +56,41 @@ function isValidIpAddress(ip: string): boolean {
   });
 }
 
+export interface PairingActionInput {
+  stepId: string;
+  platform: TVPlatform;
+  deviceIp: string;
+  deviceName: string;
+}
+
+export interface PairingActionResult {
+  credentials?: unknown;
+  error?: string;
+}
+
+export interface SubmitPairingInputData {
+  stepId: string;
+  input: string;
+}
+
+export interface SubmitPairingInputResult {
+  error?: string;
+  isComplete?: boolean;
+  credentials?: unknown;
+}
+
 export const addDeviceWizardMachine = setup({
   types: {
     context: {} as WizardContext,
     events: {} as WizardEvent,
+  },
+  actors: {
+    executePairingAction: fromPromise<PairingActionResult, PairingActionInput>(
+      async () => ({})
+    ),
+    submitPairingInput: fromPromise<SubmitPairingInputResult, SubmitPairingInputData>(
+      async () => ({})
+    ),
   },
   actions: {
     // Placeholder actions - provide implementations via machine.provide()
@@ -291,58 +322,126 @@ export const addDeviceWizardMachine = setup({
       },
     },
     pairing: {
+      initial: "evaluating",
       on: {
-        CHAR_INPUT: [
-          {
-            guard: "isInputStep",
-            actions: "appendToCurrentInput",
-          },
-        ],
-        BACKSPACE: [
-          {
-            guard: "isInputStep",
-            actions: "backspaceCurrentInput",
-          },
-        ],
-        SUBMIT: [
-          {
-            guard: "canAdvanceStep",
-            actions: ["recordPairingInput", "advanceToNextStep"],
-          },
-          {
-            guard: "canCompleteStep",
-            target: "complete",
-            actions: "recordPairingInput",
-          },
-        ],
-        NEXT_STEP: [
-          {
-            guard: "hasMoreSteps",
-            actions: "advanceToNextStep",
-          },
-          {
-            target: "complete",
-          },
-        ],
-        PAIRING_COMPLETE: {
-          target: "complete",
-          actions: {
-            type: "setCredentials",
-            params: ({ event }) => ({ credentials: event.credentials }),
+        BACK: { target: "deviceInfo" },
+        CANCEL: { target: "cancelled" },
+      },
+      states: {
+        evaluating: {
+          always: [
+            { guard: "isActionStep", target: "executingAction" },
+            { target: "awaitingUser" },
+          ],
+        },
+        executingAction: {
+          invoke: {
+            src: "executePairingAction",
+            input: ({ context }) => ({
+              stepId: context.pairingSteps[context.currentStepIndex]?.id ?? "",
+              platform: context.platform!,
+              deviceIp: context.deviceIp,
+              deviceName: context.deviceName,
+            }),
+            onDone: [
+              {
+                guard: ({ event }) => !!event.output.error,
+                target: "#addDeviceWizard.error",
+                actions: {
+                  type: "setError",
+                  params: ({ event }) => ({ error: event.output.error! }),
+                },
+              },
+              {
+                guard: ({ event }) => !!event.output.credentials,
+                target: "#addDeviceWizard.complete",
+                actions: {
+                  type: "setCredentials",
+                  params: ({ event }) => ({ credentials: event.output.credentials }),
+                },
+              },
+              {
+                guard: "hasMoreSteps",
+                target: "evaluating",
+                actions: "advanceToNextStep",
+              },
+              { target: "#addDeviceWizard.complete" },
+            ],
+            onError: {
+              target: "#addDeviceWizard.error",
+              actions: {
+                type: "setError",
+                params: ({ event }) => ({ error: String(event.error) }),
+              },
+            },
           },
         },
-        PAIRING_ERROR: {
-          target: "error",
-          actions: {
-            type: "setError",
-            params: ({ event }) => ({ error: event.error }),
+        awaitingUser: {
+          on: {
+            CHAR_INPUT: {
+              guard: "isInputStep",
+              actions: "appendToCurrentInput",
+            },
+            BACKSPACE: {
+              guard: "isInputStep",
+              actions: "backspaceCurrentInput",
+            },
+            SUBMIT: [
+              // Input steps need to submit to device handler first
+              {
+                guard: { type: "isInputStep", params: {} },
+                target: "submittingInput",
+                actions: "recordPairingInput",
+              },
+              // Non-input steps can advance directly
+              {
+                guard: "hasMoreSteps",
+                target: "evaluating",
+                actions: "advanceToNextStep",
+              },
+              { target: "#addDeviceWizard.complete" },
+            ],
           },
         },
-        BACK: {
-          target: "deviceInfo",
-        },
-        CANCEL: {
-          target: "cancelled",
+        submittingInput: {
+          invoke: {
+            src: "submitPairingInput",
+            input: ({ context }) => ({
+              stepId: context.pairingSteps[context.currentStepIndex]?.id ?? "",
+              input: context.currentInput,
+            }),
+            onDone: [
+              {
+                guard: ({ event }) => !!event.output.error,
+                target: "#addDeviceWizard.error",
+                actions: {
+                  type: "setError",
+                  params: ({ event }) => ({ error: event.output.error! }),
+                },
+              },
+              {
+                guard: ({ event }) => !!event.output.isComplete && !!event.output.credentials,
+                target: "#addDeviceWizard.complete",
+                actions: {
+                  type: "setCredentials",
+                  params: ({ event }) => ({ credentials: event.output.credentials }),
+                },
+              },
+              {
+                guard: "hasMoreSteps",
+                target: "evaluating",
+                actions: "advanceToNextStep",
+              },
+              { target: "#addDeviceWizard.complete" },
+            ],
+            onError: {
+              target: "#addDeviceWizard.error",
+              actions: {
+                type: "setError",
+                params: ({ event }) => ({ error: String(event.error) }),
+              },
+            },
+          },
         },
       },
     },
