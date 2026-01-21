@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { TextAttributes } from "@opentui/core";
 import {
   useDialogKeyboard,
@@ -77,7 +77,7 @@ export function AddDeviceWizard({
           async ({ input }) => {
             const handler = createHandlerFromInput(input);
             if (!handler) {
-              return { error: "Failed to create device handler" };
+              return { error: `Platform ${input.platform} is not yet supported` };
             }
             handlerRef.current = handler;
 
@@ -124,6 +124,10 @@ export function AddDeviceWizard({
   );
 
   const { error } = state.context;
+
+  useEffect(() => {
+    return () => cleanupHandler();
+  }, [cleanupHandler]);
 
   useDialogKeyboard((event) => {
     switch (event.name) {
