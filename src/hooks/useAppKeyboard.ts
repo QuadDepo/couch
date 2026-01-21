@@ -25,7 +25,9 @@ export function useAppKeyboard({
   useKeyboard((event) => {
     if (isDialogOpen) return;
 
+    // Tab cycles through sections (in both directions)
     if (event.name === "tab") {
+      event.preventDefault();
       cycleSection(event.shift);
     }
   });
