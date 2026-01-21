@@ -1,38 +1,48 @@
 import { TextAttributes } from "@opentui/core";
-import type { WizardContext } from "../../../machines/addDeviceWizardMachine.ts";
+import { useWizard } from "./WizardProvider.tsx";
 
-interface PairingStepRendererProps {
-  context: WizardContext;
-}
+export function PairingStepRenderer() {
+  const {
+    currentPairingStep,
+    pairingProgress,
+    isExecutingAction,
+    isSubmittingInput,
+    isBusy,
+    currentInput,
+    error,
+  } = useWizard();
 
-export function PairingStepRenderer({ context }: PairingStepRendererProps) {
-  const { pairingSteps, currentStepIndex, currentInput, error } = context;
-  const currentStep = pairingSteps[currentStepIndex];
-
-  if (!currentStep) {
+  if (!currentPairingStep) {
     return <text fg="#FF4444">Error: No pairing step found</text>;
   }
 
-  const stepNumber = currentStepIndex + 1;
-  const totalSteps = pairingSteps.length;
-
   return (
     <box flexDirection="column" gap={1}>
-      <text fg="#888888">
-        Step {stepNumber} of {totalSteps}
-      </text>
+      <text fg="#888888">{pairingProgress}</text>
 
       <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
-        {currentStep.title}
+        {currentPairingStep.title}
       </text>
 
-      <text fg="#AAAAAA">{currentStep.description}</text>
+      <text fg="#AAAAAA">{currentPairingStep.description}</text>
 
-      {currentStep.type === "input" && (
+      {isExecutingAction && (
+        <text fg="#FFAA00" marginTop={1}>
+          Connecting to TV...
+        </text>
+      )}
+
+      {isSubmittingInput && (
+        <text fg="#FFAA00" marginTop={1}>
+          Submitting...
+        </text>
+      )}
+
+      {!isBusy && currentPairingStep.type === "input" && (
         <box flexDirection="row" marginTop={1}>
           <text fg="#AAAAAA">Enter: </text>
           <text fg="#FFAA00" attributes={TextAttributes.BOLD}>
-            {currentStep.inputType === "pin"
+            {currentPairingStep.inputType === "pin"
               ? formatPinInput(currentInput)
               : currentInput || "_"}
           </text>
@@ -44,15 +54,9 @@ export function PairingStepRenderer({ context }: PairingStepRendererProps) {
         </box>
       )}
 
-      {currentStep.type === "waiting" && (
+      {!isBusy && currentPairingStep.type === "waiting" && (
         <text fg="#FFAA00" marginTop={1}>
           Please wait...
-        </text>
-      )}
-
-      {currentStep.type === "action" && (currentStep.id === "start_pairing" || currentStep.id === "connecting") && (
-        <text fg="#FFAA00" marginTop={1}>
-          Connecting to TV...
         </text>
       )}
 
@@ -63,7 +67,7 @@ export function PairingStepRenderer({ context }: PairingStepRendererProps) {
       )}
 
       <box marginTop={1}>
-        <text fg="#666666">{getStepHint(currentStep.type, currentStep.id)}</text>
+        <text fg="#666666">{getStepHint(currentPairingStep.type, isExecutingAction, isSubmittingInput)}</text>
       </box>
     </box>
   );
@@ -78,16 +82,19 @@ function formatPinInput(input: string): string {
     .join("");
 }
 
-function getStepHint(stepType: string, stepId?: string): string {
+function getStepHint(stepType: string, isExecuting: boolean, isSubmitting: boolean): string {
+  if (isExecuting) {
+    return "Establishing connection...";
+  }
+  if (isSubmitting) {
+    return "Sending to device...";
+  }
   switch (stepType) {
     case "input":
       return "Enter value and press Enter";
     case "waiting":
       return "Processing...";
     case "action":
-      if (stepId === "start_pairing" || stepId === "connecting") {
-        return "Establishing connection...";
-      }
       return "Complete the action on your TV, then press Enter";
     case "info":
       return "Press Enter to continue";
