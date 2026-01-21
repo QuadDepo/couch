@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
 import { useDeviceStore } from "../../store/deviceStore.ts";
 import type { TVDevice } from "../../types/index.ts";
+import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 import { type AddDeviceResult, AddDeviceWizard } from "../dialogs/AddDeviceWizard.tsx";
 import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog.tsx";
 import { Panel } from "../shared/Panel.tsx";
@@ -125,16 +126,18 @@ export function DeviceList({ focused = false }: DeviceListProps) {
   return (
     <Panel title="DEVICES" width={32} focused={focused}>
       {devices.map((device, index) => {
-        const isActive = device.id === activeDevice?.id;
         const isSelected = index === safeSelectedIndex;
-        const statusIcon = isActive ? "*" : " ";
         const prefix = isSelected && focused ? ">" : " ";
+        const status = getStatusIndicator(device.status);
 
         return (
           <box key={device.id} flexDirection="row">
             <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}>
               {prefix}
-              {statusIcon} {device.name}
+            </text>
+            <text fg={status.color}>{status.icon}</text>
+            <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}>
+              {" "}{device.name}
             </text>
             <text fg="#666666"> [{platformLabels[device.platform]}]</text>
           </box>
