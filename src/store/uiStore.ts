@@ -1,13 +1,18 @@
 import { create } from "zustand";
 
-type Section = "devices" | "dpad";
+type FocusPath =
+  | "app/dpad"
+  | "app/devices"
+  | "modal/text-input"
+  | "modal/wizard"
+  | "modal/add-device";
 
 interface UIState {
-  focusedSection: Section;
-  setFocusedSection: (section: Section) => void;
+  focusPath: FocusPath;
+  setFocusPath: (path: FocusPath) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  focusedSection: "dpad",
-  setFocusedSection: (section) => set({ focusedSection: section }),
+  focusPath: "app/dpad",
+  setFocusPath: (path) => set({ focusPath: path }),
 }));

@@ -1,17 +1,23 @@
 import { TextAttributes } from '@opentui/core'
 
-type Section = 'devices' | 'dpad'
+type FocusPath = "app/dpad" | "app/devices" | "modal/text-input" | "modal/wizard" | "modal/add-device";
 
 interface HeaderProps {
-  focusedSection: Section
+  focusPath: FocusPath
 }
 
-const sectionLabels: Record<Section, string> = {
-  devices: 'DEVICES',
-  dpad: 'D-PAD',
+const getSectionLabel = (path: FocusPath): string => {
+  if (path.startsWith("app/")) {
+    const section = path.split("/")[1];
+    return section === "devices" ? "DEVICES" : "D-PAD";
+  }
+  return "MODAL";
 }
 
-export function Header({ focusedSection }: HeaderProps) {
+export function Header({ focusPath }: HeaderProps) {
+  const showFocus = focusPath.startsWith("app/");
+  const sectionLabel = getSectionLabel(focusPath);
+
   return (
     <box
       width="100%"
@@ -29,10 +35,15 @@ export function Header({ focusedSection }: HeaderProps) {
         <text fg="#666666"> - Smart TV Remote</text>
       </box>
       <box flexDirection="row">
-        <text fg="#666666">[Tab] Switch | Focus: </text>
-        <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
-          {sectionLabels[focusedSection]}
-        </text>
+        <text fg="#666666">[Tab] Switch</text>
+        {showFocus && (
+          <>
+            <text fg="#666666"> | Focus: </text>
+            <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+              {sectionLabel}
+            </text>
+          </>
+        )}
       </box>
     </box>
   )

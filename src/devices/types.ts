@@ -13,12 +13,14 @@ export type DeviceFeature =
   | "playback"
   | "input_select"
   | "app_launcher"
+  | "text_input"
   | "wake_on_lan";
 
 export interface DeviceCapabilities {
   supportedFeatures: Set<DeviceFeature>;
   supportedKeys: Set<RemoteKey>;
   supportsWakeOnLan: boolean;
+  textInputSupported: boolean;
 }
 
 export interface PairingStep {
@@ -56,6 +58,7 @@ export interface DeviceHandler {
 
   sendKey(key: RemoteKey): Promise<CommandResult>;
   isKeySupported(key: RemoteKey): boolean;
+  sendText(text: string): Promise<CommandResult>;
 
   startPairing(): Promise<PairingState>;
   submitPairingInput(stepId: string, input: string): Promise<PairingState>;
