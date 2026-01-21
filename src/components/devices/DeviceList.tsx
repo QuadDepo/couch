@@ -5,6 +5,7 @@ import type { TVDevice } from "../../types/index.ts";
 import { useDeviceStore } from "../../store/deviceStore.ts";
 import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
 import { AddDeviceWizard, type AddDeviceResult } from "../dialogs/AddDeviceWizard.tsx";
+import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog.tsx";
 import { Panel } from "../shared/Panel.tsx";
 
 interface DeviceListProps {
@@ -28,6 +29,7 @@ export function DeviceList({ focused = false }: DeviceListProps) {
   const selectedDeviceId = useDeviceStore((s) => s.selectedDeviceId);
   const selectDevice = useDeviceStore((s) => s.selectDevice);
   const addDevice = useDeviceStore((s) => s.addDevice);
+  const removeDevice = useDeviceStore((s) => s.removeDevice);
 
   const activeDevice = devices.find((d) => d.id === selectedDeviceId) ?? null;
   const selectedIndex = devices.findIndex((d) => d.id === selectedDeviceId);
@@ -56,6 +58,29 @@ export function DeviceList({ focused = false }: DeviceListProps) {
     }
   }, [activeDevice, connect, disconnect]);
 
+  const handleRemoveDevice = useCallback(async () => {
+    if (!activeDevice) return;
+
+    const confirmed = await dialog.prompt<boolean>({
+      content: (ctx) => <RemoveDeviceDialog device={activeDevice} {...ctx} />,
+      size: "small",
+    });
+
+    if (confirmed) {
+      removeDevice(activeDevice.id);
+
+      // Select another device after removal
+      const remainingDevices = devices.filter((d) => d.id !== activeDevice.id);
+      if (remainingDevices.length > 0) {
+        // Try to select the device at the same index, or the previous one
+        const nextIndex = Math.min(safeSelectedIndex, remainingDevices.length - 1);
+        selectDevice(remainingDevices[nextIndex]?.id ?? null);
+      } else {
+        selectDevice(null);
+      }
+    }
+  }, [dialog, activeDevice, devices, safeSelectedIndex, removeDevice, selectDevice]);
+
   useKeyboard((event) => {
     if (!focused || isDialogOpen) return;
 
@@ -81,6 +106,9 @@ export function DeviceList({ focused = false }: DeviceListProps) {
         break;
       case "c":
         handleConnect();
+        break;
+      case "x":
+        handleRemoveDevice();
         break;
     }
   });
@@ -114,6 +142,7 @@ export function DeviceList({ focused = false }: DeviceListProps) {
       <box marginTop="auto">
         <text fg="#666666">Use ↑/↓ to navigate</text>
         <text fg="#666666">[A] to add</text>
+        <text fg="#666666">[X] to remove</text>
       </box>
     </Panel>
   );
