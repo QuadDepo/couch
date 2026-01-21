@@ -1,4 +1,5 @@
 import type { TVDevice } from "../../types/index.ts";
+import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 
 interface StatusBarProps {
   device: TVDevice | null;
@@ -7,37 +8,15 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ device, isScanning = false, isImplemented = true }: StatusBarProps) {
-  const getStatusColor = () => {
-    if (!device) return "#666666";
-    switch (device.status) {
-      case "connected":
-        return "#00FF00";
-      case "connecting":
-        return "#FFAA00";
-      case "pairing":
-        return "#00AAFF";
-      case "error":
-        return "#FF0000";
-      default:
-        return "#666666";
-    }
-  };
-
   const getStatusIcon = () => {
     if (isScanning) return "...";
-    if (!device) return " - ";
-    switch (device.status) {
-      case "connected":
-        return " ● ";
-      case "connecting":
-        return " ○ ";
-      case "pairing":
-        return " ◐ ";
-      case "error":
-        return " ✗ ";
-      default:
-        return " ○ ";
-    }
+    if (!device) return "-";
+    return getStatusIndicator(device.status).icon;
+  };
+
+  const getStatusColor = () => {
+    if (!device) return "#666666";
+    return getStatusIndicator(device.status).color;
   };
 
   const getStatusText = () => {
@@ -70,7 +49,7 @@ export function StatusBar({ device, isScanning = false, isImplemented = true }: 
       paddingLeft={1}
       paddingRight={1}
     >
-      <text fg={statusColor}>{getStatusIcon()}</text>
+      <text fg={statusColor}> {getStatusIcon()} </text>
       <text fg="#FFFFFF">{getStatusText()}</text>
       {device?.status === "connected" && <text fg="#666666"> ({device.ip})</text>}
       {device && !isImplemented && <text fg="#FF6600"> [Platform not implemented]</text>}
