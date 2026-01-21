@@ -224,26 +224,17 @@ export const addDeviceWizardMachine = setup({
     hasValidInput: ({ context }) => {
       const currentStep = context.pairingSteps[context.currentStepIndex];
       if (!currentStep || currentStep.type !== "input") return true;
-      if (currentStep.inputType === "pin") {
-        return context.currentInput.length >= 4;
-      }
       return context.currentInput.trim().length > 0;
     },
     canAdvanceStep: ({ context }) => {
       const currentStep = context.pairingSteps[context.currentStepIndex];
       const hasMore = context.currentStepIndex < context.pairingSteps.length - 1;
       if (!currentStep || currentStep.type !== "input") return hasMore;
-      if (currentStep.inputType === "pin") {
-        return context.currentInput.length >= 4 && hasMore;
-      }
       return context.currentInput.trim().length > 0 && hasMore;
     },
     canCompleteStep: ({ context }) => {
       const currentStep = context.pairingSteps[context.currentStepIndex];
       if (!currentStep || currentStep.type !== "input") return true;
-      if (currentStep.inputType === "pin") {
-        return context.currentInput.length >= 4;
-      }
       return context.currentInput.trim().length > 0;
     },
   },

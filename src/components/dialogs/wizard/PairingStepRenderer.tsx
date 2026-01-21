@@ -78,12 +78,8 @@ export function PairingStepRenderer() {
 }
 
 function formatPinInput(input: string): string {
-  const maxLength = 6;
-  const display = input.padEnd(maxLength, "_");
-  return display
-    .split("")
-    .map((char, i) => (i < input.length ? char : "_"))
-    .join("");
+  // Display input as-is, or show underscore if empty (platform-agnostic)
+  return input || "_";
 }
 
 function getStepHint(stepType: string, isExecuting: boolean, isSubmitting: boolean, actionSuccess?: boolean): string {
