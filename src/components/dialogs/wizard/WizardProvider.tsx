@@ -1,17 +1,17 @@
-import { createContext, useContext, useMemo } from "react";
 import { useSelector } from "@xstate/react";
+import { createContext, useContext, useMemo } from "react";
 import type { WizardActorRef } from "../../../machines/addDeviceWizardMachine.ts";
 import {
-  selectStepLabel,
-  selectProgressString,
+  selectActionSuccess,
+  selectCurrentInput,
+  selectCurrentPairingStep,
+  selectError,
+  selectIsBusy,
   selectIsExecutingAction,
   selectIsSubmittingInput,
-  selectIsBusy,
-  selectCurrentPairingStep,
   selectPairingProgress,
-  selectCurrentInput,
-  selectError,
-  selectActionSuccess,
+  selectProgressString,
+  selectStepLabel,
 } from "../../../machines/addDeviceWizardSelectors.ts";
 
 const WizardContext = createContext<WizardActorRef | null>(null);
@@ -55,7 +55,7 @@ export const useWizard = () => {
       currentInput,
       error,
       actionSuccess,
-    ]
+    ],
   );
 };
 
@@ -65,9 +65,5 @@ interface WizardProviderProps {
 }
 
 export function WizardProvider({ actorRef, children }: WizardProviderProps) {
-  return (
-    <WizardContext.Provider value={actorRef}>
-      {children}
-    </WizardContext.Provider>
-  );
+  return <WizardContext.Provider value={actorRef}>{children}</WizardContext.Provider>;
 }

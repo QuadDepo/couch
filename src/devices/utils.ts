@@ -1,11 +1,11 @@
 import type {
-  ConnectionStatus,
-  RemoteKey,
-  KeyMap,
-  DeviceCapabilities,
   CommandResult,
-  PairingStep,
+  ConnectionStatus,
+  DeviceCapabilities,
+  KeyMap,
   PairingState,
+  PairingStep,
+  RemoteKey,
 } from "./types";
 
 export function createStatusManager() {
@@ -29,7 +29,7 @@ export function createStatusManager() {
 export function createKeySender(
   keyMap: KeyMap,
   capabilities: DeviceCapabilities,
-  sendPlatformKey: (code: string | number) => Promise<CommandResult>
+  sendPlatformKey: (code: string | number) => Promise<CommandResult>,
 ) {
   return async (key: RemoteKey): Promise<CommandResult> => {
     if (!capabilities.supportedKeys.has(key)) {
@@ -86,7 +86,7 @@ export function createPairingManager(steps: PairingStep[]) {
           error: undefined,
         };
       }
-      return state!
+      return state!;
     },
 
     cancel: async (): Promise<void> => {

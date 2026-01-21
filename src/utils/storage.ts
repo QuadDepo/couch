@@ -1,6 +1,6 @@
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
 import type { TVDevice, TVPlatform } from "../types";
 import { logger } from "./logger";
 
@@ -61,7 +61,7 @@ export async function saveDevices(devices: TVDevice[]): Promise<void> {
         ip,
         ...(mac && { mac }),
         ...(config && { config }),
-      })
+      }),
     );
 
     const data: StorageSchema = {

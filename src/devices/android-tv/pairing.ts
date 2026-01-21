@@ -19,7 +19,8 @@ export const pairingSteps: PairingStep[] = [
   {
     id: "enable_adb",
     title: "Enable ADB Debugging",
-    description: "Go to Settings > Device Preferences > Developer options and enable 'Network debugging' or 'ADB debugging'",
+    description:
+      "Go to Settings > Device Preferences > Developer options and enable 'Network debugging' or 'ADB debugging'",
     type: "info",
   },
   {

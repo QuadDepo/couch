@@ -1,12 +1,13 @@
 // Inspired by https://github.com/suborb/philips_android_tv
 
 import crypto from "crypto";
-import { validatePhilipsCredentials, type PhilipsCredentials } from "./credentials";
 import { logger } from "../../utils/logger";
+import { type PhilipsCredentials, validatePhilipsCredentials } from "./credentials";
 
 const API_PORT = 1926;
 const API_VERSION = "6";
-const SECRET_KEY = "ZmVay1EQVFOaZhwQ4Kv81ypLAZNczV9sG4KkseXWn1NEk6cXmPKO/MCa9sryslvLCFMnNe4Z4CPXzToowvhHvA==";
+const SECRET_KEY =
+  "ZmVay1EQVFOaZhwQ4Kv81ypLAZNczV9sG4KkseXWn1NEk6cXmPKO/MCa9sryslvLCFMnNe4Z4CPXzToowvhHvA==";
 
 // Bun fetch options to allow self-signed certificates
 const fetchOptions = {
@@ -21,13 +22,24 @@ interface DigestChallenge {
 
 export interface PhilipsConnection {
   request<T>(method: string, endpoint: string, body?: object): Promise<T>;
-  startPairing(deviceName: string): Promise<{ authKey: string; timestamp: number; deviceId: string }>;
-  confirmPairing(pin: string, authKey: string, timestamp: number, deviceId: string, deviceName: string): Promise<PhilipsCredentials>;
+  startPairing(
+    deviceName: string,
+  ): Promise<{ authKey: string; timestamp: number; deviceId: string }>;
+  confirmPairing(
+    pin: string,
+    authKey: string,
+    timestamp: number,
+    deviceId: string,
+    deviceName: string,
+  ): Promise<PhilipsCredentials>;
   setCredentials(credentials: PhilipsCredentials): void;
   hasCredentials(): boolean;
 }
 
-export function createPhilipsConnection(ip: string, initialCredentials?: PhilipsCredentials): PhilipsConnection {
+export function createPhilipsConnection(
+  ip: string,
+  initialCredentials?: PhilipsCredentials,
+): PhilipsConnection {
   let credentials = initialCredentials;
   let nonceCount = 0;
 
@@ -49,7 +61,7 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
     uri: string,
     challenge: DigestChallenge,
     username: string,
-    password: string
+    password: string,
   ): string {
     nonceCount++;
     const nc = nonceCount.toString(16).padStart(8, "0");
@@ -60,19 +72,18 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
       .update(`${username}:${challenge.realm}:${password}`)
       .digest("hex");
 
-    const ha2 = crypto
-      .createHash("md5")
-      .update(`${method}:${uri}`)
-      .digest("hex");
+    const ha2 = crypto.createHash("md5").update(`${method}:${uri}`).digest("hex");
 
     const response = crypto
       .createHash("md5")
       .update(`${ha1}:${challenge.nonce}:${nc}:${cnonce}:${challenge.qop}:${ha2}`)
       .digest("hex");
 
-    return `Digest username="${username}", realm="${challenge.realm}", ` +
+    return (
+      `Digest username="${username}", realm="${challenge.realm}", ` +
       `nonce="${challenge.nonce}", uri="${uri}", qop=${challenge.qop}, nc=${nc}, ` +
-      `cnonce="${cnonce}", response="${response}"`;
+      `cnonce="${cnonce}", response="${response}"`
+    );
   }
 
   async function request<T>(method: string, endpoint: string, body?: object): Promise<T> {
@@ -101,7 +112,13 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
 
     const challenge = parseDigestChallenge(wwwAuth);
     if (!credentials) throw new Error("No credentials available");
-    const authHeader = createDigestHeader(method, uri, challenge, credentials.deviceId, credentials.authKey);
+    const authHeader = createDigestHeader(
+      method,
+      uri,
+      challenge,
+      credentials.deviceId,
+      credentials.authKey,
+    );
 
     const authResponse = await fetch(url, {
       ...options,
@@ -165,15 +182,12 @@ export function createPhilipsConnection(ip: string, initialCredentials?: Philips
     authKey: string,
     timestamp: number,
     deviceId: string,
-    deviceName: string = "BaghdadRemote"
+    deviceName: string = "BaghdadRemote",
   ): Promise<PhilipsCredentials> {
     const secretKeyBytes = Buffer.from(SECRET_KEY, "base64");
     const signData = `${timestamp}${pin}`;
     // Signature must be base64-encoded hex digest (matching Python reference)
-    const hexDigest = crypto
-      .createHmac("sha1", secretKeyBytes)
-      .update(signData)
-      .digest("hex");
+    const hexDigest = crypto.createHmac("sha1", secretKeyBytes).update(signData).digest("hex");
     const signature = Buffer.from(hexDigest).toString("base64");
 
     logger.info("Philips", "Sending pairing grant request", { timestamp, deviceId, signature });

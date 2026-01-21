@@ -6,12 +6,7 @@ export type TVPlatform =
   | "titan-os"
   | "apple-tv";
 
-export type ConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "pairing"
-  | "error";
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "pairing" | "error";
 
 export type RemoteKey =
   | "UP"
@@ -47,7 +42,7 @@ type PlatformConfig<P extends TVPlatform> =
     ? { webos: WebOSCredentials }
   : P extends "android-tv" | "samsung-tizen" | "titan-os" | "apple-tv"
     ? Record<string, never>
-  : Record<string, unknown>;
+    : Record<string, unknown>;
 
 export interface TVDevice<P extends TVPlatform = TVPlatform> {
   id: string;

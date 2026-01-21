@@ -1,4 +1,4 @@
-import type { TVDevice, TVPlatform, ConnectionStatus, RemoteKey } from "../types";
+import type { ConnectionStatus, RemoteKey, TVDevice, TVPlatform } from "../types";
 
 export type { TVDevice, TVPlatform, ConnectionStatus, RemoteKey };
 

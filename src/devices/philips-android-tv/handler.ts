@@ -1,11 +1,11 @@
 import type { TVDevice } from "../../types";
-import type { DeviceHandler, CommandResult, PairingState } from "../types";
-import { createStatusManager, createKeySender } from "../utils";
-import { keymap } from "./keymap";
+import type { CommandResult, DeviceHandler, PairingState } from "../types";
+import { createKeySender, createStatusManager } from "../utils";
 import { capabilities } from "./capabilities";
-import { pairingSteps } from "./pairing";
 import { createPhilipsConnection } from "./connection";
-import { validatePhilipsCredentials, type PhilipsCredentials } from "./credentials";
+import { type PhilipsCredentials, validatePhilipsCredentials } from "./credentials";
+import { keymap } from "./keymap";
+import { pairingSteps } from "./pairing";
 
 export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
   const statusManager = createStatusManager();
@@ -118,7 +118,7 @@ const config = (device as TVDevice<"philips-android-tv">).config;
             pairingData.authKey,
             pairingData.timestamp,
             pairingData.deviceId,
-            "BaghdadRemote"
+            "BaghdadRemote",
           );
 
           currentPairingStepIndex = 2;
