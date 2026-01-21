@@ -70,38 +70,35 @@ export function PairingStepRenderer() {
         </text>
       )}
 
-      <box marginTop={1}>
-        <text fg="#666666">{getStepHint(currentPairingStep.type, isExecutingAction, isSubmittingInput, actionSuccess)}</text>
+      <box marginTop={1} flexDirection="row">
+        <text fg="#888888" attributes={TextAttributes.BOLD}>Esc</text>
+        <text fg="#666666"> to close</text>
+        {!isBusy && (
+          <>
+            <text fg="#666666">, </text>
+            <text fg="#888888" attributes={TextAttributes.BOLD}>Ctrl+Bksp</text>
+            <text fg="#666666"> to go back, </text>
+            <text fg="#888888" attributes={TextAttributes.BOLD}>Enter</text>
+            <text fg="#666666"> to {getSubmitHint(currentPairingStep.type, actionSuccess)}</text>
+          </>
+        )}
       </box>
     </box>
   );
 }
 
 function formatPinInput(input: string): string {
-  // Display input as-is, or show underscore if empty (platform-agnostic)
   return input || "_";
 }
 
-function getStepHint(stepType: string, isExecuting: boolean, isSubmitting: boolean, actionSuccess?: boolean): string {
-  if (isExecuting) {
-    return "Establishing connection...";
-  }
-  if (isSubmitting) {
-    return "Sending to device...";
-  }
-  if (actionSuccess) {
-    return "Press Enter to continue";
-  }
+function getSubmitHint(stepType: string, actionSuccess?: boolean): string {
+  if (actionSuccess) return "continue";
   switch (stepType) {
     case "input":
-      return "Enter value and press Enter";
-    case "waiting":
-      return "Processing...";
+      return "submit";
     case "action":
-      return "Complete the action on your TV, then press Enter";
-    case "info":
-      return "Press Enter to continue";
+      return "confirm";
     default:
-      return "Press Enter to continue";
+      return "continue";
   }
 }
