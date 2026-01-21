@@ -1,6 +1,5 @@
 import { useKeyboard } from "@opentui/react";
 import { useDialogState } from "@opentui-ui/dialog/react";
-import type { TVDevice } from "../types";
 
 const SECTIONS = ["devices", "dpad"] as const;
 type Section = (typeof SECTIONS)[number];
@@ -8,19 +7,11 @@ type Section = (typeof SECTIONS)[number];
 interface UseAppKeyboardOptions {
   focusedSection: Section;
   setFocusedSection: (section: Section) => void;
-  activeDevice: TVDevice | null;
-  onConnect: () => void;
-  onDisconnect: () => void;
-  onAddDevice: () => void;
 }
 
 export function useAppKeyboard({
   focusedSection,
   setFocusedSection,
-  activeDevice,
-  onConnect,
-  onDisconnect,
-  onAddDevice,
 }: UseAppKeyboardOptions): void {
   const isDialogOpen = useDialogState((s) => s.isOpen);
   const cycleSection = (reverse: boolean = false) => {
@@ -36,16 +27,6 @@ export function useAppKeyboard({
 
     if (event.name === "tab") {
       cycleSection(event.shift);
-    }
-    if (event.name === "c" && activeDevice) {
-      if (activeDevice.status === "disconnected" || activeDevice.status === "error") {
-        onConnect();
-      } else if (activeDevice.status === "connected") {
-        onDisconnect();
-      }
-    }
-    if (event.name === "a" && focusedSection === "devices") {
-      onAddDevice();
     }
   });
 }
