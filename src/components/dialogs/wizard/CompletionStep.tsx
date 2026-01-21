@@ -17,8 +17,9 @@ export function CompletionStep({ context }: CompletionStepProps) {
       <text fg="#FFFFFF">"{deviceName}" has been added and configured.</text>
 
       <box marginTop={1} flexDirection="row">
-        <text fg="#666666">Press </text>
         <text fg="#888888" attributes={TextAttributes.BOLD}>Enter</text>
+        <text fg="#666666"> or </text>
+        <text fg="#888888" attributes={TextAttributes.BOLD}>Esc</text>
         <text fg="#666666"> to close</text>
       </box>
     </box>
