@@ -75,6 +75,10 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
     sendKey,
     isKeySupported: (key) => capabilities.supportedKeys.has(key),
 
+    async sendText(_text: string) {
+      return { success: false, error: "Text input is not supported on this device" };
+    },
+
     async startPairing(): Promise<PairingState> {
       statusManager.setStatus("pairing");
       currentPairingStepIndex = 0;

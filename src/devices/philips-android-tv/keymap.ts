@@ -21,32 +21,4 @@ export const keymap: KeyMap = {
   STOP: "Stop",
   REWIND: "Rewind",
   FAST_FORWARD: "FastForward",
-};
-
-export const philipsExtendedKeys = {
-  DIGIT_0: "Digit0",
-  DIGIT_1: "Digit1",
-  DIGIT_2: "Digit2",
-  DIGIT_3: "Digit3",
-  DIGIT_4: "Digit4",
-  DIGIT_5: "Digit5",
-  DIGIT_6: "Digit6",
-  DIGIT_7: "Digit7",
-  DIGIT_8: "Digit8",
-  DIGIT_9: "Digit9",
-  RED: "RedColour",
-  GREEN: "GreenColour",
-  YELLOW: "YellowColour",
-  BLUE: "BlueColour",
-  INFO: "Info",
-  GUIDE: "Guide",
-  TELETEXT: "Teletext",
-  SUBTITLE: "Subtitle",
-  AMBILIGHT: "AmbilightOnOff",
-  FIND: "Find",
-  EXIT: "Exit",
-  NEXT: "Next",
-  PREVIOUS: "Previous",
-  RECORD: "Record",
-  PLAY_PAUSE: "PlayPause",
-} as const;
+}

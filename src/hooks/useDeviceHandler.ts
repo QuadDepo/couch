@@ -11,6 +11,7 @@ interface UseDeviceHandlerResult {
 
   sendKey: (key: RemoteKey) => Promise<CommandResult>;
   isKeySupported: (key: RemoteKey) => boolean;
+  sendText: (text: string) => Promise<CommandResult>;
 
   connect: () => void;
   disconnect: () => void;
@@ -48,6 +49,16 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     [handler]
   );
 
+  const sendText = useCallback(
+    async (text: string): Promise<CommandResult> => {
+      if (!handler) {
+        return { success: false, error: "No handler available" };
+      }
+      return handler.sendText(text);
+    },
+    [handler]
+  );
+
   const connect = useCallback(() => {
     if (device) {
       connectDevice(device.id);
@@ -81,6 +92,7 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     isImplemented,
     sendKey,
     isKeySupported,
+    sendText,
     connect,
     disconnect,
     startPairing,
