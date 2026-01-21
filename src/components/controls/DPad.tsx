@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+import { useDialogState } from "@opentui-ui/dialog/react";
 import type { RemoteKey } from "../../types/index.ts";
 import { Panel } from "../shared/Panel.tsx";
 
@@ -19,6 +20,7 @@ const ACTIVE_COLOR = "#00FF00";
 
 export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
   const [lastKey, setLastKey] = useState<string>();
+  const isDialogOpen = useDialogState((s) => s.isOpen);
 
   const bright = enabled ? "#FFFFFF" : DIM_COLOR;
 
@@ -33,7 +35,7 @@ export function DPad({ enabled, focused = false, onCommand }: DPadProps) {
   };
 
   useKeyboard((event) => {
-    if (!focused) return;
+    if (!focused || isDialogOpen) return;
 
     switch (event.name) {
       case "up":
