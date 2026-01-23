@@ -1,7 +1,6 @@
-import { TextAttributes } from "@opentui/core";
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine } from "@xstate/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   androidTVWizardMachine,
   type WizardOutput,
@@ -9,6 +8,8 @@ import {
 import { selectUIState } from "../../../devices/android-tv/wizard/ui.ts";
 import { DeviceInfoStep } from "./DeviceInfoStep.tsx";
 import { PairingStepRenderer } from "./PairingStepRenderer.tsx";
+import { CompletionMessage } from "./CompletionMessage.tsx";
+import { WizardHeader } from "./WizardHeader.tsx";
 
 interface AndroidTVWizardProps {
   onComplete: (output: WizardOutput) => void;
@@ -28,9 +29,12 @@ export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWiz
 
   // Store output in ref so we can access it when user dismisses completion screen
   const outputRef = useRef<WizardOutput | null>(null);
-  if (isComplete && state.output) {
-    outputRef.current = state.output;
-  }
+
+  useEffect(() => {
+    if (isComplete && state.output) {
+      outputRef.current = state.output;
+    }
+  }, [isComplete, state.output]);
 
   // Handle cancelled state
   useEffect(() => {
@@ -40,6 +44,21 @@ export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWiz
   }, [isCancelled, onCancel]);
 
   const canGoBack = !isDeviceInfo && !isComplete && !isCancelled && !state.matches("connecting");
+
+  const deviceInfoContext = useMemo(
+    () => ({
+      deviceName: state.context.deviceName,
+      deviceIp: state.context.deviceIp,
+      activeField: state.context.activeField,
+      error: state.context.error,
+    }),
+    [
+      state.context.deviceName,
+      state.context.deviceIp,
+      state.context.activeField,
+      state.context.error,
+    ],
+  );
 
   useDialogKeyboard((event) => {
     // When complete, Enter or Esc closes the dialog with the result
@@ -78,56 +97,12 @@ export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWiz
 
   return (
     <box flexDirection="column" gap={1}>
-      <WizardHeader platform="Android TV" isComplete={isComplete} />
+      <WizardHeader platform="Android TV" isComplete={isComplete} subtitle="Setup" />
 
       <box marginTop={1}>
-        {isDeviceInfo && (
-          <DeviceInfoStep
-            context={{
-              deviceName: state.context.deviceName,
-              deviceIp: state.context.deviceIp,
-              activeField: state.context.activeField,
-              error: state.context.error,
-            }}
-          />
-        )}
+        {isDeviceInfo && <DeviceInfoStep context={deviceInfoContext} />}
         {uiState && !isComplete && <PairingStepRenderer uiState={uiState} />}
         {isComplete && <CompletionMessage deviceName={state.context.deviceName} />}
-      </box>
-    </box>
-  );
-}
-
-function WizardHeader({ platform, isComplete }: { platform: string; isComplete: boolean }) {
-  return (
-    <>
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
-          Add Device
-        </text>
-        <text fg="#666666">{platform}</text>
-      </box>
-      <text fg="#888888">{isComplete ? "Complete" : "Setup"}</text>
-    </>
-  );
-}
-
-function CompletionMessage({ deviceName }: { deviceName: string }) {
-  return (
-    <box flexDirection="column" gap={1}>
-      <text fg="#00FF00" attributes={TextAttributes.BOLD}>
-        Device Added Successfully!
-      </text>
-      <text fg="#FFFFFF">"{deviceName}" has been added and configured.</text>
-      <box marginTop={1} flexDirection="row">
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Enter
-        </text>
-        <text fg="#666666"> or </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Esc
-        </text>
-        <text fg="#666666"> to close</text>
       </box>
     </box>
   );

@@ -24,7 +24,7 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
   const handler = useMemo(() => {
     if (!device || !isPlatformImplemented(device.platform)) return null;
     return getDeviceHandler(device);
-  }, [device?.id, device?.platform, device]);
+  }, [device?.id, device?.platform]);
 
   const isImplemented = device ? isPlatformImplemented(device.platform) : false;
 
@@ -59,13 +59,13 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     if (device) {
       connectDevice(device.id);
     }
-  }, [device?.id, connectDevice, device]);
+  }, [device?.id, connectDevice]);
 
   const disconnect = useCallback(() => {
     if (device) {
       disconnectDevice(device.id);
     }
-  }, [device?.id, disconnectDevice, device]);
+  }, [device?.id, disconnectDevice]);
 
   return {
     status: device?.status ?? "disconnected",
