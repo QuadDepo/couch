@@ -1,47 +1,15 @@
 import { TextAttributes } from "@opentui/core";
-import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useMachine, useSelector } from "@xstate/react";
-import { useCallback, useEffect, useRef } from "react";
-import { fromPromise } from "xstate";
-import { createAndroidTVHandler } from "../../devices/android-tv/handler.ts";
-import { createPhilipsAndroidTVHandler } from "../../devices/philips-android-tv/handler.ts";
-import type { DeviceHandler } from "../../devices/types.ts";
-import {
-  addDeviceWizardMachine,
-  type WizardContext as MachineContext,
-  type PairingActionInput,
-  type PairingActionResult,
-  type SubmitPairingInputData,
-  type SubmitPairingInputResult,
-} from "../../machines/addDeviceWizardMachine.ts";
-import { selectCanGoBack, selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
-import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
-import type { TVDevice } from "../../types/index.ts";
-import { CompletionStep } from "./wizard/CompletionStep.tsx";
-import { DeviceInfoStep } from "./wizard/DeviceInfoStep.tsx";
-import { PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
-import { WizardHeader } from "./wizard/WizardHeader.tsx";
-import { createWebOSHandler } from "../../devices/lg-webos/handler.ts";
-import { wrapPlatformCredentials } from "../../devices/factory.ts";
-import { WizardProvider } from "./wizard/WizardProvider.tsx";
+import { type DialogId, type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { useCallback, useState } from "react";
+import { implementedPlatforms, wrapPlatformCredentials } from "../../devices/factory.ts";
+import type { WizardOutput } from "../../devices/lg-webos/wizard/machine.ts";
+import type { TVDevice, TVPlatform } from "../../types/index.ts";
+import { AndroidTVWizard } from "./wizard/AndroidTVWizard.tsx";
+import { PhilipsWizard } from "./wizard/PhilipsWizard.tsx";
+import { WebOSWizard } from "./wizard/WebOSWizard.tsx";
 
 export interface AddDeviceResult {
   device: TVDevice;
-}
-
-// Factory to create device handler from pairing input
-function createHandlerFromInput(input: PairingActionInput): DeviceHandler | null {
-  const tempDevice: TVDevice = {
-    id: "temp-pairing",
-    name: input.deviceName,
-    ip: input.deviceIp,
-    platform: input.platform,
-    status: "disconnected",
-  };
-  if (input.platform === "philips-android-tv") return createPhilipsAndroidTVHandler(tempDevice);
-  if (input.platform === "android-tv") return createAndroidTVHandler(tempDevice);
-  if (input.platform === "lg-webos") return createWebOSHandler(tempDevice);
-  return null;
 }
 
 export function AddDeviceWizard({
@@ -49,167 +17,140 @@ export function AddDeviceWizard({
   dismiss,
   dialogId,
 }: PromptContext<AddDeviceResult | null>) {
-  const handlerRef = useRef<DeviceHandler | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<TVPlatform | null>(null);
 
-  const cleanupHandler = useCallback(() => {
-    handlerRef.current?.dispose();
-    handlerRef.current = null;
-  }, []);
-
-  const buildDevice = (ctx: MachineContext): TVDevice => {
-    if (!ctx.platform) {
-      throw new Error("Platform not selected");
-    }
-
-    return {
-      id: crypto.randomUUID(),
-      name: ctx.deviceName,
-      ip: ctx.deviceIp,
-      platform: ctx.platform,
-      status: "disconnected",
-      config: ctx.credentials ? wrapPlatformCredentials(ctx.platform, ctx.credentials) : undefined,
-    };
-  };
-
-  const [state, send, actorRef] = useMachine(
-    addDeviceWizardMachine.provide({
-      actors: {
-        executePairingAction: fromPromise<PairingActionResult, PairingActionInput>(
-          async ({ input }) => {
-            try {
-              // Reuse existing handler if it has executePairingAction (maintains state between steps)
-              if (handlerRef.current?.executePairingAction) {
-                return await handlerRef.current.executePairingAction(input.stepId);
-              }
-
-              // Otherwise create new handler and use startPairing for first step
-              const handler = createHandlerFromInput(input);
-              if (!handler) {
-                return { error: `Platform ${input.platform} is not yet supported` };
-              }
-              handlerRef.current = handler;
-
-              if (input.stepId === "start_pairing" && handler.startPairing) {
-                const result = await handler.startPairing();
-                if (result.error) {
-                  return { error: result.error };
-                }
-                return {};
-              } else if (input.stepId === "connecting") {
-                await handler.connect();
-                return { credentials: null };
-              }
-              return {};
-            } catch (err) {
-              return { error: String(err) };
-            }
-          },
-        ),
-        submitPairingInput: fromPromise<SubmitPairingInputResult, SubmitPairingInputData>(
-          async ({ input }) => {
-            if (!handlerRef.current?.submitPairingInput) {
-              return { error: "No handler available for input submission" };
-            }
-            try {
-              return await handlerRef.current.submitPairingInput(input.stepId, input.input);
-            } catch (err) {
-              return { error: String(err) };
-            }
-          },
-        ),
-      },
-      actions: {
-        onComplete: ({ context }) => {
-          resolve({ device: buildDevice(context) });
-        },
-        onCancel: () => {
-          cleanupHandler();
-          dismiss();
-        },
-        cleanupHandler: () => {
-          cleanupHandler();
-        },
-      },
-    }),
+  const handleComplete = useCallback(
+    (output: WizardOutput) => {
+      const device: TVDevice = {
+        id: crypto.randomUUID(),
+        name: output.deviceName,
+        ip: output.deviceIp,
+        platform: output.platform,
+        status: "disconnected",
+        config: output.credentials
+          ? wrapPlatformCredentials(output.platform, output.credentials)
+          : undefined,
+      };
+      resolve({ device });
+    },
+    [resolve],
   );
 
-  const { error } = state.context;
+  const handleCancel = useCallback(() => {
+    dismiss();
+  }, [dismiss]);
 
-  useEffect(() => {
-    return () => cleanupHandler();
-  }, [cleanupHandler]);
+  if (!selectedPlatform) {
+    return (
+      <PlatformSelection
+        onSelect={setSelectedPlatform}
+        onCancel={handleCancel}
+        dialogId={dialogId}
+      />
+    );
+  }
 
-  const canGoBack = useSelector(actorRef, selectCanGoBack);
-  const stepState = useSelector(actorRef, selectStepState);
+  return (
+    <box
+      flexDirection="column"
+      gap={1}
+      paddingLeft={4}
+      paddingRight={4}
+      paddingTop={2}
+      paddingBottom={2}
+    >
+      {selectedPlatform === "lg-webos" && (
+        <WebOSWizard onComplete={handleComplete} onCancel={handleCancel} dialogId={dialogId} />
+      )}
+      {selectedPlatform === "philips-android-tv" && (
+        <PhilipsWizard onComplete={handleComplete} onCancel={handleCancel} dialogId={dialogId} />
+      )}
+      {selectedPlatform === "android-tv" && (
+        <AndroidTVWizard onComplete={handleComplete} onCancel={handleCancel} dialogId={dialogId} />
+      )}
+    </box>
+  );
+}
+
+interface PlatformSelectionProps {
+  onSelect: (platform: TVPlatform) => void;
+  onCancel: () => void;
+  dialogId: DialogId;
+}
+
+function PlatformSelection({ onSelect, onCancel, dialogId }: PlatformSelectionProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   useDialogKeyboard((event) => {
     switch (event.name) {
       case "up":
-        send({ type: "ARROW_UP" });
+        setSelectedIndex((i) => Math.max(0, i - 1));
         break;
       case "down":
-        send({ type: "ARROW_DOWN" });
+        setSelectedIndex((i) => Math.min(implementedPlatforms.length - 1, i + 1));
         break;
-      case "return":
-        send({ type: "SUBMIT" });
+      case "return": {
+        const platform = implementedPlatforms[selectedIndex];
+        if (platform) {
+          onSelect(platform.id);
+        }
         break;
+      }
       case "escape":
-        send({ type: "CANCEL" });
+        onCancel();
         break;
-      case "tab":
-        send({ type: "TAB" });
-        break;
-      case "backspace":
-        if (event.ctrl && canGoBack) {
-          send({ type: "BACK" });
-        } else {
-          send({ type: "BACKSPACE" });
-        }
-        break;
-      default:
-        if (event.sequence?.length === 1) {
-          send({ type: "CHAR_INPUT", char: event.sequence });
-        }
     }
   }, dialogId);
 
   return (
-    <WizardProvider actorRef={actorRef}>
-      <box
-        flexDirection="column"
-        gap={1}
-        paddingLeft={4}
-        paddingRight={4}
-        paddingTop={2}
-        paddingBottom={2}
-      >
-        <WizardHeader />
+    <box
+      flexDirection="column"
+      gap={1}
+      paddingLeft={4}
+      paddingRight={4}
+      paddingTop={2}
+      paddingBottom={2}
+    >
+      <box flexDirection="row" justifyContent="space-between">
+        <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+          Add Device
+        </text>
+      </box>
+      <text fg="#888888">Select Platform</text>
 
-        <box marginTop={1}>
-          {stepState === "platformSelection" && <PlatformSelectionStep context={state.context} />}
-          {stepState === "deviceInfo" && <DeviceInfoStep context={state.context} />}
-          {stepState === "pairing" && <PairingStepRenderer />}
-          {stepState === "complete" && <CompletionStep context={state.context} />}
-          {stepState === "error" && (
-            <box flexDirection="column" gap={1}>
-              <text fg="#FF4444" attributes={TextAttributes.BOLD}>
-                Error
-              </text>
-              <text fg="#AAAAAA">{error || "An error occurred"}</text>
-              <box marginTop={1} flexDirection="row">
-                <text fg="#888888" attributes={TextAttributes.BOLD}>
-                  Esc
+      <box marginTop={1} flexDirection="column" gap={1}>
+        <text fg="#666666">Select your TV platform:</text>
+
+        <box flexDirection="column" marginTop={1}>
+          {implementedPlatforms.map((platform, index) => {
+            const isSelected = index === selectedIndex;
+            return (
+              <box key={platform.id} flexDirection="column" marginBottom={1}>
+                <text fg={isSelected ? "#00AAFF" : "#FFFFFF"}>
+                  {isSelected ? "> " : "  "}
+                  {platform.name}
                 </text>
-                <text fg="#666666"> to close, </text>
-                <text fg="#888888" attributes={TextAttributes.BOLD}>
-                  Ctrl+Bksp
-                </text>
-                <text fg="#666666"> to go back and try again</text>
+                <text fg="#666666"> {platform.description}</text>
               </box>
-            </box>
-          )}
+            );
+          })}
+        </box>
+
+        <box marginTop={1} flexDirection="row">
+          <text fg="#888888" attributes={TextAttributes.BOLD}>
+            Esc
+          </text>
+          <text fg="#666666"> to close, </text>
+          <text fg="#888888" attributes={TextAttributes.BOLD}>
+            ↑↓
+          </text>
+          <text fg="#666666"> to select, </text>
+          <text fg="#888888" attributes={TextAttributes.BOLD}>
+            Enter
+          </text>
+          <text fg="#666666"> to continue</text>
         </box>
       </box>
-    </WizardProvider>
+    </box>
   );
 }
