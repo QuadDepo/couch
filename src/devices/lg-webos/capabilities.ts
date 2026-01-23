@@ -1,5 +1,5 @@
-import type { DeviceCapabilities, DeviceFeature } from "../types";
 import type { RemoteKey } from "../../types";
+import type { DeviceCapabilities, DeviceFeature } from "../types";
 import { keymap } from "./keymap";
 
 const supportedFeatures: DeviceFeature[] = [

@@ -61,15 +61,9 @@ export function createADBConnection(ip: string): ADBConnection {
       };
 
       // Check if text is a single special character
-      if (text.length === 1 && specialChars[text]) {
-        await runAdb([
-          "-s",
-          `${ip}:${defaultPort}`,
-          "shell",
-          "input",
-          "keyevent",
-          specialChars[text]!,
-        ]);
+      const specialKeyCode = text.length === 1 ? specialChars[text] : undefined;
+      if (specialKeyCode) {
+        await runAdb(["-s", `${ip}:${defaultPort}`, "shell", "input", "keyevent", specialKeyCode]);
         return;
       }
 

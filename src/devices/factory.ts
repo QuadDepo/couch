@@ -1,8 +1,8 @@
 import { createAndroidTVHandler } from "./android-tv/handler";
-import { createPhilipsAndroidTVHandler } from "./philips-android-tv/handler";
+import type { WebOSCredentials } from "./lg-webos/credentials";
 import { createWebOSHandler } from "./lg-webos/handler";
 import type { PhilipsCredentials } from "./philips-android-tv/credentials";
-import type { WebOSCredentials } from "./lg-webos/credentials";
+import { createPhilipsAndroidTVHandler } from "./philips-android-tv/handler";
 import type { CreateDeviceHandler, DeviceHandler, TVDevice, TVPlatform } from "./types";
 
 interface PlatformInfo {
