@@ -1,56 +1,36 @@
 import { TextAttributes } from "@opentui/core";
-import { useWizard } from "./WizardProvider.tsx";
+import type { PairingUIState } from "../../../devices/types.ts";
 
-export function PairingStepRenderer() {
-  const {
-    currentPairingStep,
-    isExecutingAction,
-    isSubmittingInput,
-    isBusy,
-    currentInput,
-    error,
-    actionSuccess,
-  } = useWizard();
+interface PairingStepRendererProps {
+  uiState: PairingUIState;
+}
 
-  if (!currentPairingStep) {
-    return <text fg="#FF4444">Error: No pairing step found</text>;
-  }
+export function PairingStepRenderer({ uiState }: PairingStepRendererProps) {
+  const { title, description, variant, input, canRetry } = uiState;
 
   return (
     <box flexDirection="column" gap={1}>
       <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
-        {currentPairingStep.title}
+        {title}
       </text>
 
-      <text fg="#AAAAAA">{currentPairingStep.description}</text>
+      <text fg={variant === "error" ? "#FF4444" : "#AAAAAA"}>{description}</text>
 
-      {isExecutingAction && (
+      {variant === "loading" && (
         <text fg="#FFAA00" marginTop={1}>
-          Connecting to TV...
+          Please wait...
         </text>
       )}
 
-      {isSubmittingInput && (
-        <text fg="#FFAA00" marginTop={1}>
-          Submitting...
-        </text>
-      )}
-
-      {actionSuccess && (
-        <text fg="#00FF00" marginTop={1}>
-          Connected successfully!
-        </text>
-      )}
-
-      {!isBusy && !actionSuccess && currentPairingStep.type === "input" && (
+      {variant === "input" && input && (
         <box flexDirection="row" marginTop={1}>
           <text fg="#AAAAAA">Enter: </text>
           <text fg="#FFAA00" attributes={TextAttributes.BOLD}>
-            {currentPairingStep.inputType === "pin"
-              ? formatPinInput(currentInput)
-              : currentInput || "_"}
+            {input.type === "pin"
+              ? formatPinInput(input.value, input.maxLength)
+              : input.value || "_"}
           </text>
-          {currentInput && (
+          {input.value && (
             <text fg="#FFAA00" attributes={TextAttributes.BOLD}>
               _
             </text>
@@ -58,34 +38,54 @@ export function PairingStepRenderer() {
         </box>
       )}
 
-      {!isBusy && !actionSuccess && currentPairingStep.type === "waiting" && (
-        <text fg="#FFAA00" marginTop={1}>
-          Please wait...
-        </text>
-      )}
-
-      {error && (
-        <text fg="#FF4444" marginTop={1}>
-          {error}
-        </text>
-      )}
-
       <box marginTop={1} flexDirection="row">
         <text fg="#888888" attributes={TextAttributes.BOLD}>
           Esc
         </text>
         <text fg="#666666"> to close</text>
-        {!isBusy && (
+        {variant !== "loading" && (
           <>
             <text fg="#666666">, </text>
             <text fg="#888888" attributes={TextAttributes.BOLD}>
               Ctrl+Bksp
             </text>
-            <text fg="#666666"> to go back, </text>
-            <text fg="#888888" attributes={TextAttributes.BOLD}>
-              Enter
-            </text>
-            <text fg="#666666"> to {getSubmitHint(currentPairingStep.type, actionSuccess)}</text>
+            <text fg="#666666"> to go back</text>
+            {canRetry && (
+              <>
+                <text fg="#666666">, </text>
+                <text fg="#888888" attributes={TextAttributes.BOLD}>
+                  Enter
+                </text>
+                <text fg="#666666"> to retry</text>
+              </>
+            )}
+            {variant === "input" && (
+              <>
+                <text fg="#666666">, </text>
+                <text fg="#888888" attributes={TextAttributes.BOLD}>
+                  Enter
+                </text>
+                <text fg="#666666"> to submit</text>
+              </>
+            )}
+            {variant === "action" && (
+              <>
+                <text fg="#666666">, </text>
+                <text fg="#888888" attributes={TextAttributes.BOLD}>
+                  Enter
+                </text>
+                <text fg="#666666"> to continue</text>
+              </>
+            )}
+            {variant === "info" && (
+              <>
+                <text fg="#666666">, </text>
+                <text fg="#888888" attributes={TextAttributes.BOLD}>
+                  Enter
+                </text>
+                <text fg="#666666"> to continue</text>
+              </>
+            )}
           </>
         )}
       </box>
@@ -93,18 +93,8 @@ export function PairingStepRenderer() {
   );
 }
 
-function formatPinInput(input: string): string {
-  return input || "_";
-}
-
-function getSubmitHint(stepType: string, actionSuccess?: boolean): string {
-  if (actionSuccess) return "continue";
-  switch (stepType) {
-    case "input":
-      return "submit";
-    case "action":
-      return "confirm";
-    default:
-      return "continue";
-  }
+function formatPinInput(value: string, maxLength?: number): string {
+  if (!value) return "_".repeat(maxLength || 4);
+  const remaining = (maxLength || 4) - value.length;
+  return value + "_".repeat(Math.max(0, remaining));
 }

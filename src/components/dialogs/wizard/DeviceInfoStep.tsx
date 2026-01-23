@@ -1,8 +1,8 @@
 import { TextAttributes } from "@opentui/core";
-import type { WizardContext } from "../../../machines/addDeviceWizardMachine.ts";
+import type { BaseWizardContext } from "../../../devices/types.ts";
 
 interface DeviceInfoStepProps {
-  context: WizardContext;
+  context: BaseWizardContext;
 }
 
 export function DeviceInfoStep({ context }: DeviceInfoStepProps) {
