@@ -1,7 +1,7 @@
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import type { PromptContext } from "@opentui-ui/dialog/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../constants/colors.ts";
 import type { CommandResult } from "../../devices/types.ts";
 import { useUIStore } from "../../store/uiStore";
@@ -115,7 +115,7 @@ export function TextInputModal({
   const setFocusPath = useUIStore((s) => s.setFocusPath);
 
   const [input, setInput] = useState("");
-  const [sendState, setSendState] = useState<{
+  const [_sendState, setSendState] = useState<{
     type: "idle" | "sending" | "success" | "error";
     message: string;
   }>({
@@ -210,7 +210,7 @@ export function TextInputModal({
           break;
         case "space":
           event.preventDefault();
-          setInput((prev) => prev + " ");
+          setInput((prev) => `${prev} `);
           break;
         default:
           if (event.name.length === 1 && !event.ctrl && !event.meta) {

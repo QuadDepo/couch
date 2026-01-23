@@ -49,9 +49,11 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   loadDevices: async () => {
     const devices = await loadFromStorage();
     if (devices) {
-      devices.forEach((device) => get().addDevice(device));
+      for (const device of devices) {
+        get().addDevice(device);
+      }
       if (devices.length > 0) {
-        set({ selectedDeviceId: devices[0]!.id });
+        set({ selectedDeviceId: devices[0]?.id });
       }
     }
     set({ isLoaded: true });
