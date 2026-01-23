@@ -23,24 +23,6 @@ export interface DeviceCapabilities {
   textInputSupported: boolean;
 }
 
-export interface PairingStep {
-  id: string;
-  title: string;
-  description: string;
-  type: "info" | "action" | "input" | "waiting";
-  inputType?: "pin" | "text";
-}
-
-export interface PairingState {
-  currentStep: PairingStep;
-  stepIndex: number;
-  totalSteps: number;
-  inputs: Record<string, string>;
-  error?: string;
-  isComplete: boolean;
-  credentials?: unknown;
-}
-
 export interface CommandResult {
   success: boolean;
   error?: string;
@@ -60,14 +42,47 @@ export interface DeviceHandler {
   isKeySupported(key: RemoteKey): boolean;
   sendText(text: string): Promise<CommandResult>;
 
-  startPairing(): Promise<PairingState>;
-  submitPairingInput(stepId: string, input: string): Promise<PairingState>;
-  executePairingAction?(stepId: string): Promise<{ credentials?: unknown; error?: string }>;
-  cancelPairing(): Promise<void>;
-
   onStatusChange(callback: (status: ConnectionStatus) => void): () => void;
 
   dispose(): void;
 }
 
 export type CreateDeviceHandler = (device: TVDevice) => DeviceHandler;
+
+export interface PairingMachineInput {
+  deviceIp: string;
+  deviceName: string;
+}
+
+/**
+ * Base context fields shared by all device wizard machines.
+ * Each platform-specific machine extends this with additional fields.
+ */
+export interface BaseWizardContext {
+  deviceName: string;
+  deviceIp: string;
+  activeField: "name" | "ip";
+  error: string | null;
+}
+
+export type PairingChildEvent =
+  | { type: "PAIRING_COMPLETE"; credentials: unknown }
+  | { type: "PAIRING_ERROR"; error: string }
+  | { type: "PAIRING_CANCELLED" };
+
+export interface PairingUIState {
+  title: string;
+  description: string;
+  variant: "info" | "action" | "input" | "loading" | "error";
+  input?: {
+    type: "pin" | "text" | "code";
+    value: string;
+    maxLength?: number;
+  };
+  canRetry?: boolean;
+}
+
+export interface PlatformPairingModule {
+  machine: import("xstate").AnyActorLogic;
+  selectUIState: (snapshot: unknown) => PairingUIState;
+}
