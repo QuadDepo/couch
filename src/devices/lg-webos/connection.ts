@@ -1,22 +1,24 @@
-import { writeFile, readFile, existsSync } from "fs";
-import type { WebOSCredentials } from "./credentials";
-import type { RemoteCommand } from "./protocol";
+import { existsSync, readFile, writeFile } from "node:fs";
+import { logger } from "../../utils/logger";
 import {
+  getKeyFilePath,
+  PAIRING_MANIFEST,
+  URI_POINTER_INPUT,
   WEBSOCKET_PORT,
   WEBSOCKET_SSL_PORT,
-  URI_POINTER_INPUT,
-  PAIRING_MANIFEST,
-  getKeyFilePath,
 } from "./protocol";
-import { logger } from "../../utils/logger";
 
 export interface WebOSConnection {
   connect(): Promise<void>;
   disconnect(): void;
   request<T>(uri: string, payload?: object): Promise<T>;
-  subscribe(uri: string, payload: object, callback: (data: any) => void): Promise<void>;
+  subscribe(
+    uri: string,
+    payload: object,
+    callback: (data: Record<string, unknown>) => void,
+  ): Promise<void>;
   getInputSocket(): Promise<RemoteInputSocket>;
-  on(event: ConnectionEvent, callback: (...args: any[]) => void): void;
+  on(event: ConnectionEvent, callback: (...args: unknown[]) => void): void;
   isConnected(): boolean;
   isPaired(): boolean;
   getClientKey(): string | undefined;
@@ -44,9 +46,9 @@ interface WebOSResponseMessage {
 }
 
 interface PendingRequest {
-  resolve: (value: any) => void;
+  resolve: (value: unknown) => void;
   reject: (error: Error) => void;
-  timeout: NodeJS.Timeout;
+  timeout: ReturnType<typeof setTimeout>;
 }
 
 interface ConnectionConfig {
@@ -62,7 +64,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   const ip = config.ip;
   const mac = config.mac;
   const timeout = config.timeout ?? 15000;
-  const useSsl = config.useSsl ?? false;
+  let useSsl = config.useSsl ?? false;
 
   let ws: WebSocket | null = null;
   let connected = false;
@@ -73,16 +75,16 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
   // Request ID generator - format matches homebridge-webos-tv for compatibility
   let cidCount = 0;
-  const cidPrefix = ("0000000" + Math.floor(Math.random() * 0xffffffff).toString(16)).slice(-8);
+  const cidPrefix = `0000000${Math.floor(Math.random() * 0xffffffff).toString(16)}`.slice(-8);
 
   function getCid(): string {
-    return cidPrefix + ("000" + (cidCount++).toString(16)).slice(-4);
+    return cidPrefix + `000${(cidCount++).toString(16)}`.slice(-4);
   }
 
   const pendingRequests = new Map<string, PendingRequest>();
-  const subscriptions = new Map<string, (data: any) => void>();
+  const subscriptions = new Map<string, (data: Record<string, unknown>) => void>();
 
-  const listeners: Map<ConnectionEvent, Set<(...args: any[]) => void>> = new Map([
+  const listeners: Map<ConnectionEvent, Set<(...args: unknown[]) => void>> = new Map([
     ["connect", new Set()],
     ["close", new Set()],
     ["error", new Set()],
@@ -91,7 +93,12 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   ]);
 
   function emit(event: ConnectionEvent, ...args: unknown[]): void {
-    listeners.get(event)?.forEach((cb) => cb(...args));
+    const eventListeners = listeners.get(event);
+    if (eventListeners) {
+      for (const cb of eventListeners) {
+        cb(...args);
+      }
+    }
   }
 
   function getUrl(): string {
@@ -159,6 +166,31 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
           emit("close", event);
 
+          // Reject the connect promise if we closed before successfully connecting
+          if (!resolved) {
+            // Code 1006 (abnormal closure) before connecting may indicate SSL is required
+            if (!useSsl && event.code === 1006) {
+              logger.info("WebOS", "Connection closed abnormally - retrying with SSL");
+              useSsl = true;
+              setTimeout(() => {
+                connect()
+                  .then(() => {
+                    resolved = true;
+                    resolve();
+                  })
+                  .catch((err) => {
+                    resolved = true;
+                    reject(err);
+                  });
+              }, 500);
+              return;
+            }
+
+            resolved = true;
+            reject(new Error(`Connection failed: code=${event.code}`));
+            return;
+          }
+
           if (autoReconnect > 0) {
             setTimeout(() => {
               if (!connected && autoReconnect > 0) {
@@ -177,7 +209,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           // Some WebOS TVs require SSL; ECONNRESET indicates we should retry with wss://
           if (!useSsl && String(error).includes("ECONNRESET")) {
             logger.info("WebOS", "Connection reset - retrying with SSL");
-            config.useSsl = true;
+            useSsl = true;
             setTimeout(() => connect().catch(() => {}), 1000);
             return;
           }
@@ -269,13 +301,12 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
       pendingRequests.delete(message.id);
 
       if (message.payload && typeof message.payload === "object") {
-        const payload = message.payload as any;
-        if (payload.errorCode || payload.errorText || !payload.returnValue) {
-          req.reject(
-            new Error(
-              `Request failed: ${payload.errorText || payload.errorCode || "Unknown error"}`,
-            ),
-          );
+        const payload = message.payload;
+        const errorCode = payload.errorCode as string | undefined;
+        const errorText = payload.errorText as string | undefined;
+        const returnValue = payload.returnValue as boolean | undefined;
+        if (errorCode || errorText || returnValue === false) {
+          req.reject(new Error(`Request failed: ${errorText || errorCode || "Unknown error"}`));
           return;
         }
       }
@@ -294,8 +325,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
   async function register(): Promise<void> {
     const cid = getCid();
-    const manifest = { ...PAIRING_MANIFEST };
-    (manifest as any)["client-key"] = clientKey;
+    const manifest: typeof PAIRING_MANIFEST & { "client-key"?: string } = {
+      ...PAIRING_MANIFEST,
+      "client-key": clientKey,
+    };
 
     const message: WebOSRequestMessage = {
       id: cid,
@@ -323,7 +356,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           logger.error("WebOS", `Registration rejected: ${error}`);
           reject(error);
         },
-        timeout: timeoutHandle as any,
+        timeout: timeoutHandle,
       });
 
       sendMessage(message);
@@ -352,13 +385,13 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
       pendingRequests.set(cid, {
         resolve: (value) => {
           clearTimeout(timeoutHandle);
-          resolve(value);
+          resolve(value as T);
         },
         reject: (error) => {
           clearTimeout(timeoutHandle);
           reject(error);
         },
-        timeout: timeoutHandle as any,
+        timeout: timeoutHandle,
       });
 
       sendMessage(message);
@@ -368,7 +401,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   async function subscribe(
     uri: string,
     payload: object,
-    callback: (data: any) => void,
+    callback: (data: Record<string, unknown>) => void,
   ): Promise<void> {
     if (!connected) {
       throw new Error("Not connected");
@@ -432,10 +465,9 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
         const remoteSocket: RemoteInputSocket = {
           send(type: string, payload: object = {}) {
             // Input socket uses key:value format, not JSON
-            const message =
-              Object.entries(payload)
-                .map(([k, v]) => `${k}:${v}`)
-                .join("\n") + `\ntype:${type}\n\n`;
+            const message = `${Object.entries(payload)
+              .map(([k, v]) => `${k}:${v}`)
+              .join("\n")}\ntype:${type}\n\n`;
 
             if (socketWs.readyState === WebSocket.OPEN) {
               socketWs.send(message);
@@ -464,7 +496,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     request,
     subscribe,
     getInputSocket,
-    on(event: ConnectionEvent, callback: (...args: any[]) => void) {
+    on(event: ConnectionEvent, callback: (...args: unknown[]) => void) {
       listeners.get(event)?.add(callback);
       return () => {
         listeners.get(event)?.delete(callback);
