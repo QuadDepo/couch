@@ -1,7 +1,7 @@
 import { assign, fromPromise, setup } from "xstate";
 import type { TVPlatform } from "../../../types/index.ts";
 import type { BaseWizardContext } from "../../types.ts";
-import { validateDeviceInfo } from "../../utils.ts";
+import { validateDeviceInfo, WIZARD_TIMEOUTS } from "../../utils.ts";
 import { createWebOSConnection, type WebOSConnection } from "../connection.ts";
 import { createCredentials, type WebOSCredentials } from "../credentials.ts";
 
@@ -60,6 +60,10 @@ export const webOSWizardMachine = setup({
         return { isPaired: isPaired && !!clientKey, clientKey };
       },
     ),
+  },
+  delays: {
+    connectionTimeout: WIZARD_TIMEOUTS.CONNECTION,
+    pairingTimeout: WIZARD_TIMEOUTS.PAIRING,
   },
   actions: {
     appendToActiveField: assign({
@@ -146,6 +150,14 @@ export const webOSWizardMachine = setup({
           actions: assign({ error: ({ event }) => String(event.error) }),
         },
       },
+      after: {
+        connectionTimeout: {
+          target: "error",
+          actions: assign({
+            error: "Connection timeout. Please check if the TV is on and reachable.",
+          }),
+        },
+      },
       on: {
         CANCEL: { target: "cancelled", actions: "cleanupConnection" },
       },
@@ -187,6 +199,14 @@ export const webOSWizardMachine = setup({
         onError: {
           target: "error",
           actions: assign({ error: ({ event }) => String(event.error) }),
+        },
+      },
+      after: {
+        pairingTimeout: {
+          target: "awaitingConfirmation",
+          actions: assign({
+            error: "Pairing check timeout. Please confirm the pairing request on your TV, then press Enter.",
+          }),
         },
       },
     },

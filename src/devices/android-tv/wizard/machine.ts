@@ -1,7 +1,7 @@
 import { assign, fromPromise, setup } from "xstate";
 import type { TVPlatform } from "../../../types/index.ts";
 import type { BaseWizardContext } from "../../types.ts";
-import { validateDeviceInfo } from "../../utils.ts";
+import { validateDeviceInfo, WIZARD_TIMEOUTS } from "../../utils.ts";
 import { createADBConnection } from "../connection.ts";
 
 export interface WizardInput {
@@ -53,6 +53,9 @@ export const androidTVWizardMachine = setup({
       const adb = createADBConnection(input.ip);
       await adb.connect();
     }),
+  },
+  delays: {
+    connectionTimeout: WIZARD_TIMEOUTS.CONNECTION,
   },
   actions: {
     appendToActiveField: assign({
@@ -151,6 +154,14 @@ export const androidTVWizardMachine = setup({
         onError: {
           target: "error",
           actions: assign({ error: ({ event }) => String(event.error) }),
+        },
+      },
+      after: {
+        connectionTimeout: {
+          target: "error",
+          actions: assign({
+            error: "Connection timeout. Please check if the TV is on and reachable.",
+          }),
         },
       },
       on: {

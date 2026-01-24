@@ -1,7 +1,7 @@
 import { assign, fromPromise, setup } from "xstate";
 import type { TVPlatform } from "../../../types/index.ts";
 import type { BaseWizardContext } from "../../types.ts";
-import { validateDeviceInfo } from "../../utils.ts";
+import { validateDeviceInfo, WIZARD_TIMEOUTS } from "../../utils.ts";
 import { createPhilipsConnection } from "../connection.ts";
 import type { PhilipsCredentials } from "../credentials.ts";
 
@@ -67,6 +67,9 @@ export const philipsWizardMachine = setup({
         );
       },
     ),
+  },
+  delays: {
+    pairingTimeout: WIZARD_TIMEOUTS.PAIRING,
   },
   actions: {
     appendToActiveField: assign({
@@ -166,6 +169,14 @@ export const philipsWizardMachine = setup({
           actions: assign({ error: ({ event }) => String(event.error) }),
         },
       },
+      after: {
+        pairingTimeout: {
+          target: "error",
+          actions: assign({
+            error: "Pairing request timeout. Please check if the TV is on and reachable.",
+          }),
+        },
+      },
       on: {
         CANCEL: "cancelled",
       },
@@ -200,6 +211,14 @@ export const philipsWizardMachine = setup({
         onError: {
           target: "pinError",
           actions: [assign({ error: () => "Invalid PIN. Please try again." }), "clearPin"],
+        },
+      },
+      after: {
+        pairingTimeout: {
+          target: "pinError",
+          actions: assign({
+            error: "PIN validation timeout. Please try again.",
+          }),
         },
       },
     },

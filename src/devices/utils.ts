@@ -7,6 +7,11 @@ import type {
   RemoteKey,
 } from "./types";
 
+export const WIZARD_TIMEOUTS = {
+  CONNECTION: 30000,
+  PAIRING: 45000,
+} as const;
+
 export function validateDeviceInfo(deviceName: string, deviceIp: string): string | null {
   if (deviceName.trim().length === 0) {
     return "Device name is required";
