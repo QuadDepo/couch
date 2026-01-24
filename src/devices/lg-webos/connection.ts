@@ -72,6 +72,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   let clientKey = config.clientKey;
   let autoReconnect = config.reconnect ?? 5000;
   let inputSocket: RemoteInputSocket | null = null;
+  let sslFallbackAttempted = false;
 
   // Request ID generator - format matches homebridge-webos-tv for compatibility
   let cidCount = 0;
@@ -168,24 +169,6 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
           // Reject the connect promise if we closed before successfully connecting
           if (!resolved) {
-            // Code 1006 (abnormal closure) before connecting may indicate SSL is required
-            if (!useSsl && event.code === 1006) {
-              logger.info("WebOS", "Connection closed abnormally - retrying with SSL");
-              useSsl = true;
-              setTimeout(() => {
-                connect()
-                  .then(() => {
-                    resolved = true;
-                    resolve();
-                  })
-                  .catch((err) => {
-                    resolved = true;
-                    reject(err);
-                  });
-              }, 500);
-              return;
-            }
-
             resolved = true;
             reject(new Error(`Connection failed: code=${event.code}`));
             return;
@@ -206,10 +189,11 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
         ws.addEventListener("error", (error) => {
           logger.error("WebOS", `WebSocket error: ${error}`);
 
-          // Some WebOS TVs require SSL; ECONNRESET indicates we should retry with wss://
-          if (!useSsl && String(error).includes("ECONNRESET")) {
-            logger.info("WebOS", "Connection reset - retrying with SSL");
+          // Some WebOS TVs require SSL; try SSL fallback on connection errors
+          if (!useSsl && !sslFallbackAttempted) {
+            logger.info("WebOS", "Connection error - retrying with SSL");
             useSsl = true;
+            sslFallbackAttempted = true;
             setTimeout(() => connect().catch(() => {}), 1000);
             return;
           }
