@@ -1,6 +1,7 @@
+import type { KeyEvent } from "@opentui/core";
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine, useSelector } from "@xstate/react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { type WizardOutput, webOSWizardMachine } from "../../../devices/lg-webos/wizard/machine.ts";
 import { selectUIState } from "../../../devices/lg-webos/wizard/ui.ts";
 import { CompletionMessage } from "./CompletionMessage.tsx";
@@ -48,40 +49,45 @@ export function WebOSWizard({ onComplete, onCancel, dialogId }: WebOSWizardProps
   const activeField = useSelector(actorRef, (state) => state.context.activeField);
   const error = useSelector(actorRef, (state) => state.context.error);
 
-  useDialogKeyboard((event) => {
-    // When complete, Enter or Esc closes the dialog with the result
-    if (isComplete) {
-      if (event.name === "return" || event.name === "escape") {
-        if (outputRef.current) {
-          onComplete(outputRef.current);
+  const handleKeyboard = useCallback(
+    (event: KeyEvent) => {
+      // When complete, Enter or Esc closes the dialog with the result
+      if (isComplete) {
+        if (event.name === "return" || event.name === "escape") {
+          if (outputRef.current) {
+            onComplete(outputRef.current);
+          }
         }
+        return;
       }
-      return;
-    }
 
-    switch (event.name) {
-      case "return":
-        send({ type: "SUBMIT" });
-        break;
-      case "escape":
-        send({ type: "CANCEL" });
-        break;
-      case "tab":
-        send({ type: "TAB" });
-        break;
-      case "backspace":
-        if (event.ctrl && canGoBack) {
-          send({ type: "BACK" });
-        } else {
-          send({ type: "BACKSPACE" });
-        }
-        break;
-      default:
-        if (event.sequence?.length === 1) {
-          send({ type: "CHAR_INPUT", char: event.sequence });
-        }
-    }
-  }, dialogId);
+      switch (event.name) {
+        case "return":
+          send({ type: "SUBMIT" });
+          break;
+        case "escape":
+          send({ type: "CANCEL" });
+          break;
+        case "tab":
+          send({ type: "TAB" });
+          break;
+        case "backspace":
+          if (event.ctrl && canGoBack) {
+            send({ type: "BACK" });
+          } else {
+            send({ type: "BACKSPACE" });
+          }
+          break;
+        default:
+          if (event.sequence?.length === 1) {
+            send({ type: "CHAR_INPUT", char: event.sequence });
+          }
+      }
+    },
+    [isComplete, onComplete, canGoBack, send],
+  );
+
+  useDialogKeyboard(handleKeyboard, dialogId);
 
   return (
     <box flexDirection="column" gap={1}>
