@@ -1,14 +1,14 @@
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useMachine } from "@xstate/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useMachine, useSelector } from "@xstate/react";
+import { useEffect, useRef } from "react";
 import {
   philipsWizardMachine,
   type WizardOutput,
 } from "../../../devices/philips-android-tv/wizard/machine.ts";
 import { selectUIState } from "../../../devices/philips-android-tv/wizard/ui.ts";
+import { CompletionMessage } from "./CompletionMessage.tsx";
 import { DeviceInfoStep } from "./DeviceInfoStep.tsx";
 import { PairingStepRenderer } from "./PairingStepRenderer.tsx";
-import { CompletionMessage } from "./CompletionMessage.tsx";
 import { WizardHeader } from "./WizardHeader.tsx";
 
 interface PhilipsWizardProps {
@@ -18,7 +18,7 @@ interface PhilipsWizardProps {
 }
 
 export function PhilipsWizard({ onComplete, onCancel, dialogId }: PhilipsWizardProps) {
-  const [state, send] = useMachine(philipsWizardMachine, {
+  const [state, send, actorRef] = useMachine(philipsWizardMachine, {
     input: { deviceName: "", deviceIp: "" },
   });
 
@@ -50,20 +50,10 @@ export function PhilipsWizard({ onComplete, onCancel, dialogId }: PhilipsWizardP
     !state.matches("requestingPin") &&
     !state.matches("validatingPin");
 
-  const deviceInfoContext = useMemo(
-    () => ({
-      deviceName: state.context.deviceName,
-      deviceIp: state.context.deviceIp,
-      activeField: state.context.activeField,
-      error: state.context.error,
-    }),
-    [
-      state.context.deviceName,
-      state.context.deviceIp,
-      state.context.activeField,
-      state.context.error,
-    ],
-  );
+  const deviceName = useSelector(actorRef, (state) => state.context.deviceName);
+  const deviceIp = useSelector(actorRef, (state) => state.context.deviceIp);
+  const activeField = useSelector(actorRef, (state) => state.context.activeField);
+  const error = useSelector(actorRef, (state) => state.context.error);
 
   useDialogKeyboard((event) => {
     // When complete, Enter or Esc closes the dialog with the result
@@ -105,9 +95,16 @@ export function PhilipsWizard({ onComplete, onCancel, dialogId }: PhilipsWizardP
       <WizardHeader platform="Philips Android TV" isComplete={isComplete} />
 
       <box marginTop={1}>
-        {isDeviceInfo && <DeviceInfoStep context={deviceInfoContext} />}
+        {isDeviceInfo && (
+          <DeviceInfoStep
+            deviceName={deviceName}
+            deviceIp={deviceIp}
+            activeField={activeField}
+            error={error}
+          />
+        )}
         {uiState && !isComplete && <PairingStepRenderer uiState={uiState} />}
-        {isComplete && <CompletionMessage deviceName={state.context.deviceName} />}
+        {isComplete && <CompletionMessage deviceName={deviceName} />}
       </box>
     </box>
   );

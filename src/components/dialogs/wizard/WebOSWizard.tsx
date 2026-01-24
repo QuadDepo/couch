@@ -1,11 +1,11 @@
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useMachine } from "@xstate/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useMachine, useSelector } from "@xstate/react";
+import { useEffect, useRef } from "react";
 import { type WizardOutput, webOSWizardMachine } from "../../../devices/lg-webos/wizard/machine.ts";
 import { selectUIState } from "../../../devices/lg-webos/wizard/ui.ts";
+import { CompletionMessage } from "./CompletionMessage.tsx";
 import { DeviceInfoStep } from "./DeviceInfoStep.tsx";
 import { PairingStepRenderer } from "./PairingStepRenderer.tsx";
-import { CompletionMessage } from "./CompletionMessage.tsx";
 import { WizardHeader } from "./WizardHeader.tsx";
 
 interface WebOSWizardProps {
@@ -15,7 +15,7 @@ interface WebOSWizardProps {
 }
 
 export function WebOSWizard({ onComplete, onCancel, dialogId }: WebOSWizardProps) {
-  const [state, send] = useMachine(webOSWizardMachine, {
+  const [state, send, actorRef] = useMachine(webOSWizardMachine, {
     input: { deviceName: "", deviceIp: "" },
   });
 
@@ -43,20 +43,10 @@ export function WebOSWizard({ onComplete, onCancel, dialogId }: WebOSWizardProps
 
   const canGoBack = !isDeviceInfo && !isComplete && !isCancelled && !isConnecting;
 
-  const deviceInfoContext = useMemo(
-    () => ({
-      deviceName: state.context.deviceName,
-      deviceIp: state.context.deviceIp,
-      activeField: state.context.activeField,
-      error: state.context.error,
-    }),
-    [
-      state.context.deviceName,
-      state.context.deviceIp,
-      state.context.activeField,
-      state.context.error,
-    ],
-  );
+  const deviceName = useSelector(actorRef, (state) => state.context.deviceName);
+  const deviceIp = useSelector(actorRef, (state) => state.context.deviceIp);
+  const activeField = useSelector(actorRef, (state) => state.context.activeField);
+  const error = useSelector(actorRef, (state) => state.context.error);
 
   useDialogKeyboard((event) => {
     // When complete, Enter or Esc closes the dialog with the result
@@ -98,9 +88,16 @@ export function WebOSWizard({ onComplete, onCancel, dialogId }: WebOSWizardProps
       <WizardHeader platform="LG WebOS" isComplete={isComplete} />
 
       <box marginTop={1}>
-        {(isDeviceInfo || isConnecting) && <DeviceInfoStep context={deviceInfoContext} />}
+        {(isDeviceInfo || isConnecting) && (
+          <DeviceInfoStep
+            deviceName={deviceName}
+            deviceIp={deviceIp}
+            activeField={activeField}
+            error={error}
+          />
+        )}
         {uiState && !isComplete && <PairingStepRenderer uiState={uiState} />}
-        {isComplete && <CompletionMessage deviceName={state.context.deviceName} />}
+        {isComplete && <CompletionMessage deviceName={deviceName} />}
       </box>
     </box>
   );

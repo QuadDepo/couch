@@ -1,12 +1,13 @@
 import { TextAttributes } from "@opentui/core";
-import type { BaseWizardContext } from "../../../devices/types.ts";
 
 interface DeviceInfoStepProps {
-  context: BaseWizardContext;
+  deviceName: string;
+  deviceIp: string;
+  activeField: "name" | "ip";
+  error: string | null;
 }
 
-export function DeviceInfoStep({ context }: DeviceInfoStepProps) {
-  const { deviceName, deviceIp, activeField, error } = context;
+export function DeviceInfoStep({ deviceName, deviceIp, activeField, error }: DeviceInfoStepProps) {
 
   return (
     <box flexDirection="column" gap={1}>

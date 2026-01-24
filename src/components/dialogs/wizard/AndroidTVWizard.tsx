@@ -1,14 +1,14 @@
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useMachine } from "@xstate/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useMachine, useSelector } from "@xstate/react";
+import { useEffect, useRef } from "react";
 import {
   androidTVWizardMachine,
   type WizardOutput,
 } from "../../../devices/android-tv/wizard/machine.ts";
 import { selectUIState } from "../../../devices/android-tv/wizard/ui.ts";
+import { CompletionMessage } from "./CompletionMessage.tsx";
 import { DeviceInfoStep } from "./DeviceInfoStep.tsx";
 import { PairingStepRenderer } from "./PairingStepRenderer.tsx";
-import { CompletionMessage } from "./CompletionMessage.tsx";
 import { WizardHeader } from "./WizardHeader.tsx";
 
 interface AndroidTVWizardProps {
@@ -18,7 +18,7 @@ interface AndroidTVWizardProps {
 }
 
 export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWizardProps) {
-  const [state, send] = useMachine(androidTVWizardMachine, {
+  const [state, send, actorRef] = useMachine(androidTVWizardMachine, {
     input: { deviceName: "", deviceIp: "" },
   });
 
@@ -45,20 +45,10 @@ export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWiz
 
   const canGoBack = !isDeviceInfo && !isComplete && !isCancelled && !state.matches("connecting");
 
-  const deviceInfoContext = useMemo(
-    () => ({
-      deviceName: state.context.deviceName,
-      deviceIp: state.context.deviceIp,
-      activeField: state.context.activeField,
-      error: state.context.error,
-    }),
-    [
-      state.context.deviceName,
-      state.context.deviceIp,
-      state.context.activeField,
-      state.context.error,
-    ],
-  );
+  const deviceName = useSelector(actorRef, (state) => state.context.deviceName);
+  const deviceIp = useSelector(actorRef, (state) => state.context.deviceIp);
+  const activeField = useSelector(actorRef, (state) => state.context.activeField);
+  const error = useSelector(actorRef, (state) => state.context.error);
 
   useDialogKeyboard((event) => {
     // When complete, Enter or Esc closes the dialog with the result
@@ -100,9 +90,16 @@ export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWiz
       <WizardHeader platform="Android TV" isComplete={isComplete} subtitle="Setup" />
 
       <box marginTop={1}>
-        {isDeviceInfo && <DeviceInfoStep context={deviceInfoContext} />}
+        {isDeviceInfo && (
+          <DeviceInfoStep
+            deviceName={deviceName}
+            deviceIp={deviceIp}
+            activeField={activeField}
+            error={error}
+          />
+        )}
         {uiState && !isComplete && <PairingStepRenderer uiState={uiState} />}
-        {isComplete && <CompletionMessage deviceName={state.context.deviceName} />}
+        {isComplete && <CompletionMessage deviceName={deviceName} />}
       </box>
     </box>
   );
