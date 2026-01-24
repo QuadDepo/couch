@@ -1,20 +1,12 @@
 import { assign, fromPromise, setup } from "xstate";
-import type { TVPlatform } from "../../../types/index.ts";
-import type { BaseWizardContext } from "../../types.ts";
+import type {
+  BaseWizardContext,
+  BaseWizardEvent,
+  BaseWizardInput,
+  BaseWizardOutput,
+} from "../../types.ts";
 import { validateDeviceInfo, WIZARD_TIMEOUTS } from "../../utils.ts";
 import { createADBConnection } from "../connection.ts";
-
-export interface WizardInput {
-  deviceName?: string;
-  deviceIp?: string;
-}
-
-export interface WizardOutput {
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-  credentials: unknown;
-}
 
 export const androidTVInstructions = [
   {
@@ -32,21 +24,12 @@ interface AndroidTVWizardContext extends BaseWizardContext {
   instructionStep: number;
 }
 
-type AndroidTVWizardEvent =
-  | { type: "CHAR_INPUT"; char: string }
-  | { type: "BACKSPACE" }
-  | { type: "TAB" }
-  | { type: "SUBMIT" }
-  | { type: "CANCEL" }
-  | { type: "RETRY" }
-  | { type: "BACK" };
-
 export const androidTVWizardMachine = setup({
   types: {
     context: {} as AndroidTVWizardContext,
-    events: {} as AndroidTVWizardEvent,
-    input: {} as WizardInput,
-    output: {} as WizardOutput,
+    events: {} as BaseWizardEvent,
+    input: {} as BaseWizardInput,
+    output: {} as BaseWizardOutput,
   },
   actors: {
     connectADB: fromPromise(async ({ input }: { input: { ip: string } }) => {

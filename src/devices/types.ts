@@ -49,15 +49,6 @@ export interface DeviceHandler {
 
 export type CreateDeviceHandler = (device: TVDevice) => DeviceHandler;
 
-export interface PairingMachineInput {
-  deviceIp: string;
-  deviceName: string;
-}
-
-/**
- * Base context fields shared by all device wizard machines.
- * Each platform-specific machine extends this with additional fields.
- */
 export interface BaseWizardContext {
   deviceName: string;
   deviceIp: string;
@@ -65,10 +56,26 @@ export interface BaseWizardContext {
   error: string | null;
 }
 
-export type PairingChildEvent =
-  | { type: "PAIRING_COMPLETE"; credentials: unknown }
-  | { type: "PAIRING_ERROR"; error: string }
-  | { type: "PAIRING_CANCELLED" };
+export interface BaseWizardInput {
+  deviceName?: string;
+  deviceIp?: string;
+}
+
+export interface BaseWizardOutput {
+  deviceName: string;
+  deviceIp: string;
+  platform: TVPlatform;
+  credentials: unknown;
+}
+
+export type BaseWizardEvent =
+  | { type: "CHAR_INPUT"; char: string }
+  | { type: "BACKSPACE" }
+  | { type: "TAB" }
+  | { type: "SUBMIT" }
+  | { type: "CANCEL" }
+  | { type: "RETRY" }
+  | { type: "BACK" };
 
 export interface PairingUIState {
   title: string;
@@ -80,9 +87,4 @@ export interface PairingUIState {
     maxLength?: number;
   };
   canRetry?: boolean;
-}
-
-export interface PlatformPairingModule {
-  machine: import("xstate").AnyActorLogic;
-  selectUIState: (snapshot: unknown) => PairingUIState;
 }

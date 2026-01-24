@@ -1,21 +1,13 @@
 import { assign, fromPromise, setup } from "xstate";
-import type { TVPlatform } from "../../../types/index.ts";
-import type { BaseWizardContext } from "../../types.ts";
+import type {
+  BaseWizardContext,
+  BaseWizardEvent,
+  BaseWizardInput,
+  BaseWizardOutput,
+} from "../../types.ts";
 import { validateDeviceInfo, WIZARD_TIMEOUTS } from "../../utils.ts";
 import { createPhilipsConnection } from "../connection.ts";
 import type { PhilipsCredentials } from "../credentials.ts";
-
-export interface WizardInput {
-  deviceName?: string;
-  deviceIp?: string;
-}
-
-export interface WizardOutput {
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-  credentials: unknown;
-}
 
 interface PairingData {
   authKey: string;
@@ -29,21 +21,12 @@ interface PhilipsWizardContext extends BaseWizardContext {
   credentials: PhilipsCredentials | null;
 }
 
-type PhilipsWizardEvent =
-  | { type: "CHAR_INPUT"; char: string }
-  | { type: "BACKSPACE" }
-  | { type: "TAB" }
-  | { type: "SUBMIT" }
-  | { type: "CANCEL" }
-  | { type: "RETRY" }
-  | { type: "BACK" };
-
 export const philipsWizardMachine = setup({
   types: {
     context: {} as PhilipsWizardContext,
-    events: {} as PhilipsWizardEvent,
-    input: {} as WizardInput,
-    output: {} as WizardOutput,
+    events: {} as BaseWizardEvent,
+    input: {} as BaseWizardInput,
+    output: {} as BaseWizardOutput,
   },
   actors: {
     requestPin: fromPromise(async ({ input }: { input: { ip: string } }) => {

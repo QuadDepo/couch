@@ -1,42 +1,25 @@
 import { assign, fromPromise, setup } from "xstate";
-import type { TVPlatform } from "../../../types/index.ts";
-import type { BaseWizardContext } from "../../types.ts";
+import type {
+  BaseWizardContext,
+  BaseWizardEvent,
+  BaseWizardInput,
+  BaseWizardOutput,
+} from "../../types.ts";
 import { validateDeviceInfo, WIZARD_TIMEOUTS } from "../../utils.ts";
 import { createWebOSConnection, type WebOSConnection } from "../connection.ts";
 import { createCredentials, type WebOSCredentials } from "../credentials.ts";
-
-export interface WizardInput {
-  deviceName?: string;
-  deviceIp?: string;
-}
-
-export interface WizardOutput {
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-  credentials: unknown;
-}
 
 interface WebOSWizardContext extends BaseWizardContext {
   connection: WebOSConnection | null;
   credentials: WebOSCredentials | null;
 }
 
-type WebOSWizardEvent =
-  | { type: "CHAR_INPUT"; char: string }
-  | { type: "BACKSPACE" }
-  | { type: "TAB" }
-  | { type: "SUBMIT" }
-  | { type: "CANCEL" }
-  | { type: "RETRY" }
-  | { type: "BACK" };
-
 export const webOSWizardMachine = setup({
   types: {
     context: {} as WebOSWizardContext,
-    events: {} as WebOSWizardEvent,
-    input: {} as WizardInput,
-    output: {} as WizardOutput,
+    events: {} as BaseWizardEvent,
+    input: {} as BaseWizardInput,
+    output: {} as BaseWizardOutput,
   },
   actors: {
     initiateConnection: fromPromise(async ({ input }: { input: { ip: string } }) => {
@@ -205,7 +188,8 @@ export const webOSWizardMachine = setup({
         pairingTimeout: {
           target: "awaitingConfirmation",
           actions: assign({
-            error: "Pairing check timeout. Please confirm the pairing request on your TV, then press Enter.",
+            error:
+              "Pairing check timeout. Please confirm the pairing request on your TV, then press Enter.",
           }),
         },
       },
