@@ -1,7 +1,7 @@
 import { assign, fromPromise, setup } from "xstate";
 import type { TVPlatform } from "../../../types/index.ts";
-import { isValidIp } from "../../../utils/network.ts";
 import type { BaseWizardContext } from "../../types.ts";
+import { validateDeviceInfo } from "../../utils.ts";
 import { createADBConnection } from "../connection.ts";
 
 export interface WizardInput {
@@ -93,9 +93,7 @@ export const androidTVWizardMachine = setup({
   },
   guards: {
     hasValidDeviceInfo: ({ context }) =>
-      context.deviceName.trim().length > 0 && isValidIp(context.deviceIp),
-    missingName: ({ context }) => context.deviceName.trim().length === 0,
-    invalidIp: ({ context }) => !isValidIp(context.deviceIp),
+      validateDeviceInfo(context.deviceName, context.deviceIp) === null,
     hasMoreInstructions: ({ context }) =>
       context.instructionStep < androidTVInstructions.length - 1,
   },
@@ -124,12 +122,9 @@ export const androidTVWizardMachine = setup({
         SUBMIT: [
           { guard: "hasValidDeviceInfo", target: "showingInstructions" },
           {
-            guard: "missingName",
-            actions: { type: "setError", params: { error: "Device name is required" } },
-          },
-          {
-            guard: "invalidIp",
-            actions: { type: "setError", params: { error: "Invalid IP address" } },
+            actions: assign({
+              error: ({ context }) => validateDeviceInfo(context.deviceName, context.deviceIp),
+            }),
           },
         ],
         CANCEL: "cancelled",

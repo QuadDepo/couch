@@ -1,7 +1,7 @@
 import { assign, fromPromise, setup } from "xstate";
 import type { TVPlatform } from "../../../types/index.ts";
-import { isValidIp } from "../../../utils/network.ts";
 import type { BaseWizardContext } from "../../types.ts";
+import { validateDeviceInfo } from "../../utils.ts";
 import { createWebOSConnection, type WebOSConnection } from "../connection.ts";
 import { createCredentials, type WebOSCredentials } from "../credentials.ts";
 
@@ -96,13 +96,8 @@ export const webOSWizardMachine = setup({
     onCancel: () => {},
   },
   guards: {
-    hasValidDeviceInfo: ({ context }) => {
-      const hasName = context.deviceName.trim().length > 0;
-      const hasValidIp = isValidIp(context.deviceIp);
-      return hasName && hasValidIp;
-    },
-    missingName: ({ context }) => context.deviceName.trim().length === 0,
-    invalidIp: ({ context }) => !isValidIp(context.deviceIp),
+    hasValidDeviceInfo: ({ context }) =>
+      validateDeviceInfo(context.deviceName, context.deviceIp) === null,
   },
 }).createMachine({
   id: "webOSWizard",
@@ -130,12 +125,9 @@ export const webOSWizardMachine = setup({
         SUBMIT: [
           { guard: "hasValidDeviceInfo", target: "connecting" },
           {
-            guard: "missingName",
-            actions: { type: "setError", params: { error: "Device name is required" } },
-          },
-          {
-            guard: "invalidIp",
-            actions: { type: "setError", params: { error: "Invalid IP address" } },
+            actions: assign({
+              error: ({ context }) => validateDeviceInfo(context.deviceName, context.deviceIp),
+            }),
           },
         ],
         CANCEL: "cancelled",

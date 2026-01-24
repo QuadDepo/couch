@@ -1,3 +1,4 @@
+import { isValidIp } from "../utils/network.ts";
 import type {
   CommandResult,
   ConnectionStatus,
@@ -5,6 +6,16 @@ import type {
   KeyMap,
   RemoteKey,
 } from "./types";
+
+export function validateDeviceInfo(deviceName: string, deviceIp: string): string | null {
+  if (deviceName.trim().length === 0) {
+    return "Device name is required";
+  }
+  if (!isValidIp(deviceIp)) {
+    return "Invalid IP address";
+  }
+  return null;
+}
 
 export function createStatusManager() {
   let status: ConnectionStatus = "disconnected";
