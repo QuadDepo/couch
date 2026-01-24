@@ -24,10 +24,11 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
   }
 
   // File-based key loading handled in connection layer to avoid top-level await
-  let connection = createWebOSConnection({
+  const connection = createWebOSConnection({
     ip: device.ip,
     mac: device.mac || "",
     clientKey: initialCredentials?.clientKey,
+    useSsl: initialCredentials?.useSsl,
     timeout: 15000,
     reconnect: 5000,
   });

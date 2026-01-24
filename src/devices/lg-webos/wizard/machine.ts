@@ -177,7 +177,12 @@ export const webOSWizardMachine = setup({
             guard: ({ event }) => event.output.isPaired && !!event.output.clientKey,
             target: "complete",
             actions: assign({
-              credentials: ({ event }) => createCredentials(event.output.clientKey as string, ""),
+              credentials: ({ context, event }) =>
+                createCredentials(
+                  event.output.clientKey as string,
+                  "",
+                  context.connection?.isSslEnabled(),
+                ),
             }),
           },
           {

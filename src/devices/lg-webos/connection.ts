@@ -22,6 +22,7 @@ export interface WebOSConnection {
   isConnected(): boolean;
   isPaired(): boolean;
   getClientKey(): string | undefined;
+  isSslEnabled(): boolean;
 }
 
 export type ConnectionEvent = "connect" | "close" | "error" | "prompt" | "message";
@@ -489,6 +490,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     isConnected: () => connected,
     isPaired: () => paired,
     getClientKey: () => clientKey,
+    isSslEnabled: () => useSsl,
   };
 }
 
