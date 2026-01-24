@@ -91,6 +91,9 @@ export const webOSWizardMachine = setup({
     cleanupConnection: ({ context }) => {
       context.connection?.disconnect();
     },
+    // Placeholder actions - provided by component
+    onComplete: () => {},
+    onCancel: () => {},
   },
   guards: {
     hasValidDeviceInfo: ({ context }) => {
@@ -208,10 +211,11 @@ export const webOSWizardMachine = setup({
     },
     complete: {
       type: "final",
+      entry: "onComplete",
     },
     cancelled: {
       type: "final",
-      entry: "cleanupConnection",
+      entry: ["cleanupConnection", "onCancel"],
     },
   },
 });

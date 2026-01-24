@@ -1,7 +1,7 @@
 import type { KeyEvent } from "@opentui/core";
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine, useSelector } from "@xstate/react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import {
   philipsWizardMachine,
   type WizardOutput,
@@ -15,39 +15,37 @@ import { WizardHeader } from "./WizardHeader.tsx";
 interface PhilipsWizardProps {
   onComplete: (output: WizardOutput) => void;
   onCancel: () => void;
+  onClose: () => void;
   dialogId: DialogId;
 }
 
-export function PhilipsWizard({ onComplete, onCancel, dialogId }: PhilipsWizardProps) {
-  const [state, send, actorRef] = useMachine(philipsWizardMachine, {
-    input: { deviceName: "", deviceIp: "" },
-  });
+export function PhilipsWizard({ onComplete, onCancel, onClose, dialogId }: PhilipsWizardProps) {
+  const [state, send, actorRef] = useMachine(
+    philipsWizardMachine.provide({
+      actions: {
+        onComplete: ({ context }) => {
+          onComplete({
+            deviceName: context.deviceName,
+            deviceIp: context.deviceIp,
+            platform: "philips-android-tv",
+            credentials: context.credentials,
+          });
+        },
+        onCancel: () => {
+          onCancel();
+        },
+      },
+    }),
+    { input: { deviceName: "", deviceIp: "" } },
+  );
 
   const uiState = selectUIState(state);
   const isDeviceInfo = state.matches("deviceInfo");
   const isComplete = state.matches("complete");
-  const isCancelled = state.matches("cancelled");
-
-  // Store output in ref so we can access it when user dismisses completion screen
-  const outputRef = useRef<WizardOutput | null>(null);
-
-  useEffect(() => {
-    if (isComplete && state.output) {
-      outputRef.current = state.output;
-    }
-  }, [isComplete, state.output]);
-
-  // Handle cancelled state
-  useEffect(() => {
-    if (isCancelled) {
-      onCancel();
-    }
-  }, [isCancelled, onCancel]);
 
   const canGoBack =
     !isDeviceInfo &&
     !isComplete &&
-    !isCancelled &&
     !state.matches("requestingPin") &&
     !state.matches("validatingPin");
 
@@ -58,12 +56,10 @@ export function PhilipsWizard({ onComplete, onCancel, dialogId }: PhilipsWizardP
 
   const handleKeyboard = useCallback(
     (event: KeyEvent) => {
-      // When complete, Enter or Esc closes the dialog with the result
+      // When complete, Enter or Esc closes the dialog
       if (isComplete) {
         if (event.name === "return" || event.name === "escape") {
-          if (outputRef.current) {
-            onComplete(outputRef.current);
-          }
+          onClose();
         }
         return;
       }
@@ -91,7 +87,7 @@ export function PhilipsWizard({ onComplete, onCancel, dialogId }: PhilipsWizardP
           }
       }
     },
-    [isComplete, onComplete, canGoBack, send],
+    [isComplete, canGoBack, send, onClose],
   );
 
   useDialogKeyboard(handleKeyboard, dialogId);

@@ -87,6 +87,9 @@ export const androidTVWizardMachine = setup({
     resetInstructions: assign({
       instructionStep: 0,
     }),
+    // Placeholder actions - provided by component
+    onComplete: () => {},
+    onCancel: () => {},
   },
   guards: {
     hasValidDeviceInfo: ({ context }) =>
@@ -174,9 +177,11 @@ export const androidTVWizardMachine = setup({
     },
     complete: {
       type: "final",
+      entry: "onComplete",
     },
     cancelled: {
       type: "final",
+      entry: "onCancel",
     },
   },
 });

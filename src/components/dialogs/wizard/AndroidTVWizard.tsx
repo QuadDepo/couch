@@ -1,7 +1,7 @@
 import type { KeyEvent } from "@opentui/core";
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine, useSelector } from "@xstate/react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import {
   androidTVWizardMachine,
   type WizardOutput,
@@ -15,36 +15,35 @@ import { WizardHeader } from "./WizardHeader.tsx";
 interface AndroidTVWizardProps {
   onComplete: (output: WizardOutput) => void;
   onCancel: () => void;
+  onClose: () => void;
   dialogId: DialogId;
 }
 
-export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWizardProps) {
-  const [state, send, actorRef] = useMachine(androidTVWizardMachine, {
-    input: { deviceName: "", deviceIp: "" },
-  });
+export function AndroidTVWizard({ onComplete, onCancel, onClose, dialogId }: AndroidTVWizardProps) {
+  const [state, send, actorRef] = useMachine(
+    androidTVWizardMachine.provide({
+      actions: {
+        onComplete: ({ context }) => {
+          onComplete({
+            deviceName: context.deviceName,
+            deviceIp: context.deviceIp,
+            platform: "android-tv",
+            credentials: null,
+          });
+        },
+        onCancel: () => {
+          onCancel();
+        },
+      },
+    }),
+    { input: { deviceName: "", deviceIp: "" } },
+  );
 
   const uiState = selectUIState(state);
   const isDeviceInfo = state.matches("deviceInfo");
   const isComplete = state.matches("complete");
-  const isCancelled = state.matches("cancelled");
 
-  // Store output in ref so we can access it when user dismisses completion screen
-  const outputRef = useRef<WizardOutput | null>(null);
-
-  useEffect(() => {
-    if (isComplete && state.output) {
-      outputRef.current = state.output;
-    }
-  }, [isComplete, state.output]);
-
-  // Handle cancelled state
-  useEffect(() => {
-    if (isCancelled) {
-      onCancel();
-    }
-  }, [isCancelled, onCancel]);
-
-  const canGoBack = !isDeviceInfo && !isComplete && !isCancelled && !state.matches("connecting");
+  const canGoBack = !isDeviceInfo && !isComplete && !state.matches("connecting");
 
   const deviceName = useSelector(actorRef, (state) => state.context.deviceName);
   const deviceIp = useSelector(actorRef, (state) => state.context.deviceIp);
@@ -53,12 +52,10 @@ export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWiz
 
   const handleKeyboard = useCallback(
     (event: KeyEvent) => {
-      // When complete, Enter or Esc closes the dialog with the result
+      // When complete, Enter or Esc closes the dialog
       if (isComplete) {
         if (event.name === "return" || event.name === "escape") {
-          if (outputRef.current) {
-            onComplete(outputRef.current);
-          }
+          onClose();
         }
         return;
       }
@@ -86,7 +83,7 @@ export function AndroidTVWizard({ onComplete, onCancel, dialogId }: AndroidTVWiz
           }
       }
     },
-    [isComplete, onComplete, canGoBack, send],
+    [isComplete, canGoBack, send, onClose],
   );
 
   useDialogKeyboard(handleKeyboard, dialogId);

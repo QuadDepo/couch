@@ -109,6 +109,9 @@ export const philipsWizardMachine = setup({
       error: null,
     }),
     clearPin: assign({ pin: "" }),
+    // Placeholder actions - provided by component
+    onComplete: () => {},
+    onCancel: () => {},
   },
   guards: {
     hasValidDeviceInfo: ({ context }) =>
@@ -246,9 +249,11 @@ export const philipsWizardMachine = setup({
     },
     complete: {
       type: "final",
+      entry: "onComplete",
     },
     cancelled: {
       type: "final",
+      entry: "onCancel",
     },
   },
 });

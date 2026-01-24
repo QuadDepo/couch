@@ -1,7 +1,7 @@
 import type { KeyEvent } from "@opentui/core";
 import { type DialogId, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine, useSelector } from "@xstate/react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import { type WizardOutput, webOSWizardMachine } from "../../../devices/lg-webos/wizard/machine.ts";
 import { selectUIState } from "../../../devices/lg-webos/wizard/ui.ts";
 import { CompletionMessage } from "./CompletionMessage.tsx";
@@ -12,37 +12,36 @@ import { WizardHeader } from "./WizardHeader.tsx";
 interface WebOSWizardProps {
   onComplete: (output: WizardOutput) => void;
   onCancel: () => void;
+  onClose: () => void;
   dialogId: DialogId;
 }
 
-export function WebOSWizard({ onComplete, onCancel, dialogId }: WebOSWizardProps) {
-  const [state, send, actorRef] = useMachine(webOSWizardMachine, {
-    input: { deviceName: "", deviceIp: "" },
-  });
+export function WebOSWizard({ onComplete, onCancel, onClose, dialogId }: WebOSWizardProps) {
+  const [state, send, actorRef] = useMachine(
+    webOSWizardMachine.provide({
+      actions: {
+        onComplete: ({ context }) => {
+          onComplete({
+            deviceName: context.deviceName,
+            deviceIp: context.deviceIp,
+            platform: "lg-webos",
+            credentials: context.credentials,
+          });
+        },
+        onCancel: () => {
+          onCancel();
+        },
+      },
+    }),
+    { input: { deviceName: "", deviceIp: "" } },
+  );
 
   const uiState = selectUIState(state);
   const isDeviceInfo = state.matches("deviceInfo");
   const isConnecting = state.matches("connecting");
   const isComplete = state.matches("complete");
-  const isCancelled = state.matches("cancelled");
 
-  // Store output in ref so we can access it when user dismisses completion screen
-  const outputRef = useRef<WizardOutput | null>(null);
-
-  useEffect(() => {
-    if (isComplete && state.output) {
-      outputRef.current = state.output;
-    }
-  }, [isComplete, state.output]);
-
-  // Handle cancelled state
-  useEffect(() => {
-    if (isCancelled) {
-      onCancel();
-    }
-  }, [isCancelled, onCancel]);
-
-  const canGoBack = !isDeviceInfo && !isComplete && !isCancelled && !isConnecting;
+  const canGoBack = !isDeviceInfo && !isComplete && !isConnecting;
 
   const deviceName = useSelector(actorRef, (state) => state.context.deviceName);
   const deviceIp = useSelector(actorRef, (state) => state.context.deviceIp);
@@ -51,12 +50,10 @@ export function WebOSWizard({ onComplete, onCancel, dialogId }: WebOSWizardProps
 
   const handleKeyboard = useCallback(
     (event: KeyEvent) => {
-      // When complete, Enter or Esc closes the dialog with the result
+      // When complete, Enter or Esc closes the dialog
       if (isComplete) {
         if (event.name === "return" || event.name === "escape") {
-          if (outputRef.current) {
-            onComplete(outputRef.current);
-          }
+          onClose();
         }
         return;
       }
@@ -84,7 +81,7 @@ export function WebOSWizard({ onComplete, onCancel, dialogId }: WebOSWizardProps
           }
       }
     },
-    [isComplete, onComplete, canGoBack, send],
+    [isComplete, canGoBack, send, onClose],
   );
 
   useDialogKeyboard(handleKeyboard, dialogId);
