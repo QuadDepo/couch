@@ -66,7 +66,23 @@ export function AddDeviceWizard({
     [send],
   );
 
+  const handleBack = useCallback(() => {
+    if (stepState === "platformSelection") return;
+
+    if (stepState === "connection") {
+      const handled = pairingRef.current?.handleBack();
+      if (handled) return;
+    }
+
+    send({ type: "BACK" });
+  }, [stepState, send]);
+
   useDialogKeyboard((event) => {
+    if (event.name === "backspace" && event.ctrl) {
+      handleBack();
+      return;
+    }
+
     if (stepState === "deviceInfo") {
       switch (event.name) {
         case "return":
