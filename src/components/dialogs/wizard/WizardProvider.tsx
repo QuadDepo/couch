@@ -2,60 +2,44 @@ import { useSelector } from "@xstate/react";
 import { createContext, useContext, useMemo } from "react";
 import type { WizardActorRef } from "../../../machines/addDeviceWizardMachine.ts";
 import {
-  selectActionSuccess,
-  selectCurrentInput,
-  selectCurrentPairingStep,
   selectError,
-  selectIsBusy,
-  selectIsExecutingAction,
-  selectIsSubmittingInput,
-  selectPairingProgress,
+  selectPairingActorRef,
+  selectPlatform,
   selectProgressString,
   selectStepLabel,
 } from "../../../machines/addDeviceWizardSelectors.ts";
 
-const WizardContext = createContext<WizardActorRef | null>(null);
+interface WizardContextValue {
+  actorRef: WizardActorRef;
+}
+
+const WizardContext = createContext<WizardContextValue | null>(null);
+
+const useWizardActorRef = () => {
+  const ctx = useContext(WizardContext);
+  if (!ctx) throw new Error("useWizardActorRef must be used within WizardProvider");
+  return ctx.actorRef;
+};
 
 export const useWizard = () => {
-  const actorRef = useContext(WizardContext);
-  if (!actorRef) throw new Error("useWizard must be used within WizardProvider");
+  const actorRef = useWizardActorRef();
 
   const stepLabel = useSelector(actorRef, selectStepLabel);
   const progressString = useSelector(actorRef, selectProgressString);
-  const isExecutingAction = useSelector(actorRef, selectIsExecutingAction);
-  const isSubmittingInput = useSelector(actorRef, selectIsSubmittingInput);
-  const isBusy = useSelector(actorRef, selectIsBusy);
-  const currentPairingStep = useSelector(actorRef, selectCurrentPairingStep);
-  const pairingProgress = useSelector(actorRef, selectPairingProgress);
-  const currentInput = useSelector(actorRef, selectCurrentInput);
   const error = useSelector(actorRef, selectError);
-  const actionSuccess = useSelector(actorRef, selectActionSuccess);
+  const platform = useSelector(actorRef, selectPlatform);
+  const pairingActorRef = useSelector(actorRef, selectPairingActorRef);
 
   return useMemo(
     () => ({
+      actorRef,
       stepLabel,
       progressString,
-      isExecutingAction,
-      isSubmittingInput,
-      isBusy,
-      currentPairingStep,
-      pairingProgress,
-      currentInput,
       error,
-      actionSuccess,
+      platform,
+      pairingActorRef,
     }),
-    [
-      stepLabel,
-      progressString,
-      isExecutingAction,
-      isSubmittingInput,
-      isBusy,
-      currentPairingStep,
-      pairingProgress,
-      currentInput,
-      error,
-      actionSuccess,
-    ],
+    [actorRef, stepLabel, progressString, error, platform, pairingActorRef],
   );
 };
 
@@ -65,5 +49,5 @@ interface WizardProviderProps {
 }
 
 export function WizardProvider({ actorRef, children }: WizardProviderProps) {
-  return <WizardContext.Provider value={actorRef}>{children}</WizardContext.Provider>;
+  return <WizardContext.Provider value={{ actorRef }}>{children}</WizardContext.Provider>;
 }

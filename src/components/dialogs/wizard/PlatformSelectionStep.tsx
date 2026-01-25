@@ -1,6 +1,6 @@
 import { TextAttributes } from "@opentui/core";
-import { type WizardContext } from "../../../machines/addDeviceWizardMachine.ts";
 import { implementedPlatforms } from "../../../devices/factory.ts";
+import type { WizardContext } from "../../../machines/addDeviceWizardMachine.ts";
 
 interface PlatformSelectionStepProps {
   context: WizardContext;
