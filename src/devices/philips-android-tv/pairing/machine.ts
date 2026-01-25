@@ -1,4 +1,4 @@
-import { assign, fromPromise, setup } from "xstate";
+import { assign, assertEvent, fromPromise, setup } from "xstate";
 import type { PairingInput, PairingOutput } from "../../../machines/pairing/types";
 import { createPhilipsConnection } from "../connection";
 import type { PhilipsCredentials } from "../credentials";
@@ -114,10 +114,10 @@ export const philipsPairingMachine = setup({
       invoke: {
         src: "confirmPairing",
         input: ({ context, event }) => {
-          const e = event as { type: "SUBMIT_PIN"; pin: string };
+          assertEvent(event, "SUBMIT_PIN");
           return {
             ip: context.input.deviceIp,
-            pin: e.pin,
+            pin: event.pin,
             pairingData: context.pairingData!,
           };
         },
