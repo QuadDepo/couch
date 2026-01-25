@@ -23,24 +23,6 @@ export interface DeviceCapabilities {
   textInputSupported: boolean;
 }
 
-export interface PairingStep {
-  id: string;
-  title: string;
-  description: string;
-  type: "info" | "action" | "input" | "waiting";
-  inputType?: "pin" | "text";
-}
-
-export interface PairingState {
-  currentStep: PairingStep;
-  stepIndex: number;
-  totalSteps: number;
-  inputs: Record<string, string>;
-  error?: string;
-  isComplete: boolean;
-  credentials?: unknown;
-}
-
 export interface CommandResult {
   success: boolean;
   error?: string;
@@ -59,11 +41,6 @@ export interface DeviceHandler {
   sendKey(key: RemoteKey): Promise<CommandResult>;
   isKeySupported(key: RemoteKey): boolean;
   sendText(text: string): Promise<CommandResult>;
-
-  startPairing(): Promise<PairingState>;
-  submitPairingInput(stepId: string, input: string): Promise<PairingState>;
-  executePairingAction?(stepId: string): Promise<{ credentials?: unknown; error?: string }>;
-  cancelPairing(): Promise<void>;
 
   onStatusChange(callback: (status: ConnectionStatus) => void): () => void;
 
