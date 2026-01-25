@@ -67,36 +67,6 @@ function ErrorStep({ error }: { error?: string }) {
   );
 }
 
-interface HintsProps {
-  isConnecting: boolean;
-  isSuccess: boolean;
-  isError: boolean;
-}
-
-function Hints({ isConnecting, isSuccess, isError }: HintsProps) {
-  return (
-    <box marginTop={1} flexDirection="row">
-      <text fg="#888888" attributes={TextAttributes.BOLD}>
-        Esc
-      </text>
-      <text fg="#666666"> to close</text>
-      {!isConnecting && (
-        <>
-          <text fg="#666666">, </text>
-          <text fg="#888888" attributes={TextAttributes.BOLD}>
-            Ctrl+Bksp
-          </text>
-          <text fg="#666666"> to go back, </text>
-          <text fg="#888888" attributes={TextAttributes.BOLD}>
-            Enter
-          </text>
-          <text fg="#666666"> to {isSuccess ? "finish" : isError ? "retry" : "continue"}</text>
-        </>
-      )}
-    </box>
-  );
-}
-
 // Main Component
 
 interface Props {
@@ -144,8 +114,6 @@ export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(
         {isConnecting && <ConnectingStep totalSteps={totalSteps} />}
         {isSuccess && <SuccessStep />}
         {isError && <ErrorStep error={error} />}
-
-        <Hints isConnecting={isConnecting} isSuccess={isSuccess} isError={isError} />
       </box>
     );
   },

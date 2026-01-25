@@ -7,7 +7,7 @@ import {
   addDeviceWizardMachine,
   type WizardContext as MachineContext,
 } from "../../machines/addDeviceWizardMachine.ts";
-import { selectCanGoBack, selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
+import { selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
 import type { TVDevice } from "../../types/index.ts";
 import { CompletionStep } from "./wizard/CompletionStep.tsx";
 import { DeviceInfoStep, type DeviceInfoStepHandle } from "./wizard/DeviceInfoStep.tsx";
@@ -57,8 +57,6 @@ export function AddDeviceWizard({
   );
 
   const { error } = state.context;
-
-  const canGoBack = useSelector(actorRef, selectCanGoBack);
   const stepState = useSelector(actorRef, selectStepState);
 
   const handleDeviceInfoSubmit = useCallback(
@@ -78,11 +76,7 @@ export function AddDeviceWizard({
           deviceInfoRef.current?.handleTab();
           return;
         case "backspace":
-          if (event.ctrl && canGoBack) {
-            send({ type: "BACK" });
-          } else {
-            deviceInfoRef.current?.handleBackspace();
-          }
+          deviceInfoRef.current?.handleBackspace();
           return;
         case "escape":
           send({ type: "CANCEL" });
@@ -101,11 +95,7 @@ export function AddDeviceWizard({
           pairingRef.current?.handleSubmit();
           return;
         case "backspace":
-          if (event.ctrl && canGoBack) {
-            send({ type: "BACK" });
-          } else {
-            pairingRef.current?.handleBackspace();
-          }
+          pairingRef.current?.handleBackspace();
           return;
         case "escape":
           send({ type: "CANCEL" });
@@ -117,7 +107,7 @@ export function AddDeviceWizard({
           return;
       }
     }
-    
+
     switch (event.name) {
       case "up":
         send({ type: "ARROW_UP" });
@@ -130,11 +120,6 @@ export function AddDeviceWizard({
         break;
       case "escape":
         send({ type: "CANCEL" });
-        break;
-      case "backspace":
-        if (event.ctrl && canGoBack) {
-          send({ type: "BACK" });
-        }
         break;
     }
   }, dialogId);
@@ -168,20 +153,6 @@ export function AddDeviceWizard({
                 Error
               </text>
               <text fg="#AAAAAA">{error || "An error occurred"}</text>
-              <box marginTop={1} flexDirection="row">
-                <text fg="#888888" attributes={TextAttributes.BOLD}>
-                  Enter
-                </text>
-                <text fg="#666666"> to retry, </text>
-                <text fg="#888888" attributes={TextAttributes.BOLD}>
-                  Ctrl+Bksp
-                </text>
-                <text fg="#666666"> to go back, </text>
-                <text fg="#888888" attributes={TextAttributes.BOLD}>
-                  Esc
-                </text>
-                <text fg="#666666"> to close</text>
-              </box>
             </box>
           )}
         </box>

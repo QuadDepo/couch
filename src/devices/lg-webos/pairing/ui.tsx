@@ -54,41 +54,6 @@ function ErrorStep({ error }: { error?: string }) {
   );
 }
 
-interface HintsProps {
-  isInitiating: boolean;
-  isSuccess: boolean;
-  isError: boolean;
-}
-
-function Hints({ isInitiating, isSuccess, isError }: HintsProps) {
-  return (
-    <box marginTop={1} flexDirection="row">
-      <text fg="#888888" attributes={TextAttributes.BOLD}>
-        Esc
-      </text>
-      <text fg="#666666"> to close</text>
-      {!isInitiating && (
-        <>
-          <text fg="#666666">, </text>
-          <text fg="#888888" attributes={TextAttributes.BOLD}>
-            Ctrl+Bksp
-          </text>
-          <text fg="#666666"> to go back</text>
-          {(isSuccess || isError) && (
-            <>
-              <text fg="#666666">, </text>
-              <text fg="#888888" attributes={TextAttributes.BOLD}>
-                Enter
-              </text>
-              <text fg="#666666"> to {isSuccess ? "finish" : "retry"}</text>
-            </>
-          )}
-        </>
-      )}
-    </box>
-  );
-}
-
 interface Props {
   actorRef: ActorRefFrom<typeof webosPairingMachine>;
 }
@@ -131,8 +96,6 @@ export const WebOSPairingUI = forwardRef<PairingHandle, Props>(
         {isWaiting && <WaitingStep />}
         {isSuccess && <SuccessStep />}
         {isError && <ErrorStep error={error} />}
-
-        <Hints isInitiating={isInitiating} isSuccess={isSuccess} isError={isError} />
       </box>
     );
   },

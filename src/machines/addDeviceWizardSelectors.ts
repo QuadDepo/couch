@@ -38,16 +38,6 @@ export const selectPlatform = (state: WizardState) => state.context.platform;
 
 export const selectError = (state: WizardState) => state.context.error;
 
-export const selectCanGoBack = (state: WizardState): boolean => {
-  const stepState = selectStepState(state);
-  return (
-    stepState !== "platformSelection" &&
-    stepState !== "complete" &&
-    stepState !== "done" &&
-    stepState !== "cancelled"
-  );
-};
-
 export const selectPairingActorRef = (snapshot: WizardSnapshot): PairingActorRef | undefined => {
   return snapshot.children.pairing as PairingActorRef | undefined;
 };
