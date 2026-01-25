@@ -8,7 +8,14 @@ import {
   addDeviceWizardMachine,
   type WizardContext as MachineContext,
 } from "../../machines/addDeviceWizardMachine.ts";
-import { selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
+import {
+  isCompleteState,
+  isConnectionState,
+  isDeviceInfoState,
+  isErrorState,
+  isPlatformSelectionState,
+  selectError,
+} from "../../machines/addDeviceWizardSelectors.ts";
 import type { TVDevice } from "../../types/index.ts";
 import { CompletionStep } from "./wizard/CompletionStep.tsx";
 import { DeviceInfoStep, type DeviceInfoStepHandle } from "./wizard/DeviceInfoStep.tsx";
@@ -57,8 +64,12 @@ export function AddDeviceWizard({
     }),
   );
 
-  const { error } = state.context;
-  const currentState = useSelector(actorRef, selectStepState);
+  const isPlatformSelection = useSelector(actorRef, isPlatformSelectionState);
+  const isDeviceInfo = useSelector(actorRef, isDeviceInfoState);
+  const isConnection = useSelector(actorRef, isConnectionState);
+  const isComplete = useSelector(actorRef, isCompleteState);
+  const isError = useSelector(actorRef, isErrorState);
+  const error = useSelector(actorRef, selectError);
 
   const handleDeviceInfoSubmit = useCallback(
     (name: string, ip: string) => {
@@ -68,15 +79,21 @@ export function AddDeviceWizard({
   );
 
   const handleBack = useCallback(() => {
-    if (currentState === "platformSelection") return;
+    if (isPlatformSelection) return;
 
-    if (currentState === "connection") {
+    if (isConnection) {
       const handled = pairingRef.current?.handleBack();
       if (handled) return;
     }
 
     send({ type: "BACK" });
-  }, [currentState, send]);
+  }, [isPlatformSelection, isConnection, send]);
+
+  const getActiveRef = () => {
+    if (isDeviceInfo) return deviceInfoRef;
+    if (isConnection) return pairingRef;
+    return null;
+  };
 
   useDialogKeyboard((event) => {
     if (event.name === "backspace" && event.ctrl) {
@@ -84,12 +101,7 @@ export function AddDeviceWizard({
       return;
     }
 
-    const refMap = {
-      deviceInfo: deviceInfoRef,
-      connection: pairingRef,
-    } as const;
-
-    const activeRef = refMap[currentState as keyof typeof refMap];
+    const activeRef = getActiveRef();
 
     if (activeRef?.current) {
       switch (event.name) {
@@ -132,35 +144,31 @@ export function AddDeviceWizard({
   }, dialogId);
 
   const renderStep = () => {
-    switch (currentState) {
-      case "platformSelection":
-        return <PlatformSelectionStep context={state.context} />;
-      case "deviceInfo":
-        return (
-          <DeviceInfoStep
-            ref={deviceInfoRef}
-            initialName={state.context.deviceName}
-            initialIp={state.context.deviceIp}
-            error={error}
-            onSubmit={handleDeviceInfoSubmit}
-          />
-        );
-      case "connection":
-        return <PairingStepRenderer ref={pairingRef} />;
-      case "complete":
-        return <CompletionStep context={state.context} />;
-      case "error":
-        return (
-          <box flexDirection="column" gap={1}>
-            <text fg={ERROR_COLOR} attributes={TextAttributes.BOLD}>
-              Error
-            </text>
-            <text fg={DIM_COLOR}>{error || "An error occurred"}</text>
-          </box>
-        );
-      default:
-        return null;
+    if (isPlatformSelection) return <PlatformSelectionStep context={state.context} />;
+    if (isDeviceInfo) {
+      return (
+        <DeviceInfoStep
+          ref={deviceInfoRef}
+          initialName={state.context.deviceName}
+          initialIp={state.context.deviceIp}
+          error={error}
+          onSubmit={handleDeviceInfoSubmit}
+        />
+      );
     }
+    if (isConnection) return <PairingStepRenderer ref={pairingRef} />;
+    if (isComplete) return <CompletionStep context={state.context} />;
+    if (isError) {
+      return (
+        <box flexDirection="column" gap={1}>
+          <text fg={ERROR_COLOR} attributes={TextAttributes.BOLD}>
+            Error
+          </text>
+          <text fg={DIM_COLOR}>{error || "An error occurred"}</text>
+        </box>
+      );
+    }
+    return null;
   };
 
   return (
