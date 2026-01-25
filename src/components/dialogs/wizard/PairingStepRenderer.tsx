@@ -1,11 +1,11 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import type { ActorRefFrom } from "xstate";
-import type { androidTvPairingMachine } from "../../../devices/android-tv/machine.ts";
-import { AndroidTvPairingUI } from "../../../devices/android-tv/PairingUI.tsx";
-import type { webosPairingMachine } from "../../../devices/lg-webos/machine.ts";
-import { WebOSPairingUI } from "../../../devices/lg-webos/PairingUI.tsx";
-import type { philipsPairingMachine } from "../../../devices/philips-android-tv/machine.ts";
-import { PhilipsPairingUI } from "../../../devices/philips-android-tv/PairingUI.tsx";
+import type { androidTvPairingMachine } from "../../../devices/android-tv/pairing/machine.ts";
+import { AndroidTvPairingUI } from "../../../devices/android-tv/pairing/ui.tsx";
+import type { webosPairingMachine } from "../../../devices/lg-webos/pairing/machine.ts";
+import { WebOSPairingUI } from "../../../devices/lg-webos/pairing/ui.tsx";
+import type { philipsPairingMachine } from "../../../devices/philips-android-tv/pairing/machine.ts";
+import { PhilipsPairingUI } from "../../../devices/philips-android-tv/pairing/ui.tsx";
 import type { PairingHandle } from "../../../machines/pairing/types.ts";
 import { useWizard } from "./WizardProvider.tsx";
 

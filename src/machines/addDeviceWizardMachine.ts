@@ -1,8 +1,8 @@
 import { type Actor, assign, setup } from "xstate";
-import { androidTvPairingMachine } from "../devices/android-tv/machine.ts";
+import { androidTvPairingMachine } from "../devices/android-tv/pairing/machine.ts";
 import { implementedPlatforms } from "../devices/factory.ts";
-import { webosPairingMachine } from "../devices/lg-webos/machine.ts";
-import { philipsPairingMachine } from "../devices/philips-android-tv/machine.ts";
+import { webosPairingMachine } from "../devices/lg-webos/pairing/machine.ts";
+import { philipsPairingMachine } from "../devices/philips-android-tv/pairing/machine.ts";
 import type { TVPlatform } from "../types/index.ts";
 import { isValidIp } from "../utils/network.ts";
 import type { PairingOutput } from "./pairing/types.ts";
