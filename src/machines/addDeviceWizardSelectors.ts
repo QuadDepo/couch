@@ -24,7 +24,6 @@ export const selectPairingActorRef = (snapshot: WizardSnapshot): PairingActorRef
   return snapshot.children[PAIRING_ACTOR_ID] as PairingActorRef | undefined;
 };
 
-
 // TODO: see if we can improve these step label / progress selectors with a more generic approach
 export const selectStepLabel = (state: WizardState): string => {
   if (isPlatformSelectionState(state)) return "Select Platform";
