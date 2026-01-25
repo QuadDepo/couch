@@ -1,4 +1,4 @@
-import { existsSync, readFile, writeFile } from "fs";
+import { writeFile } from "fs";
 import { logger } from "../../utils/logger";
 
 import {
@@ -8,6 +8,10 @@ import {
   WEBSOCKET_PORT,
   WEBSOCKET_SSL_PORT,
 } from "./protocol";
+
+const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_RECONNECT_MS = 5000;
+const LOG_TRUNCATE_LENGTH = 200;
 
 export interface WebOSConnection {
   connect(): Promise<void>;
@@ -43,9 +47,9 @@ interface WebOSResponseMessage {
 }
 
 interface PendingRequest {
-  resolve: (value: any) => void;
+  resolve: (value: unknown) => void;
   reject: (error: Error) => void;
-  timeout: NodeJS.Timeout;
+  timeoutId: ReturnType<typeof setTimeout>;
 }
 
 interface ConnectionConfig {
@@ -60,14 +64,14 @@ interface ConnectionConfig {
 export function createWebOSConnection(config: ConnectionConfig): WebOSConnection {
   const ip = config.ip;
   const mac = config.mac;
-  const timeout = config.timeout ?? 15000;
-  const useSsl = config.useSsl ?? false;
+  const timeout = config.timeout ?? DEFAULT_TIMEOUT_MS;
 
   let ws: WebSocket | null = null;
   let connected = false;
   let paired = !!config.clientKey;
   let clientKey = config.clientKey;
-  let autoReconnect = config.reconnect ?? 5000;
+  let useSsl = config.useSsl ?? false;
+  let autoReconnect = config.reconnect ?? DEFAULT_RECONNECT_MS;
   let inputSocket: RemoteInputSocket | null = null;
 
   // Request ID generator - format matches homebridge-webos-tv for compatibility
@@ -151,7 +155,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           paired = false;
 
           pendingRequests.forEach((req) => {
-            clearTimeout(req.timeout);
+            clearTimeout(req.timeoutId);
             req.reject(new Error("Connection closed"));
           });
           pendingRequests.clear();
@@ -176,7 +180,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           // Some WebOS TVs require SSL; ECONNRESET indicates we should retry with wss://
           if (!useSsl && String(error).includes("ECONNRESET")) {
             logger.info("WebOS", "Connection reset - retrying with SSL");
-            config.useSsl = true;
+            useSsl = true;
             setTimeout(() => connect().catch(() => {}), 1000);
             return;
           }
@@ -204,6 +208,87 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     paired = false;
   }
 
+  function resolvePendingRequest(id: string, value: unknown): void {
+    const req = pendingRequests.get(id);
+    if (req) {
+      clearTimeout(req.timeoutId);
+      pendingRequests.delete(id);
+      req.resolve(value);
+    }
+  }
+
+  function rejectPendingRequest(id: string, error: Error): void {
+    const req = pendingRequests.get(id);
+    if (req) {
+      clearTimeout(req.timeoutId);
+      pendingRequests.delete(id);
+      req.reject(error);
+    }
+  }
+
+  function handleRegisteredMessage(message: WebOSResponseMessage): void {
+    const receivedClientKey = message.payload?.["client-key"] as string | undefined;
+    logger.debug(
+      "WebOS",
+      `Registered message - has client-key: ${!!receivedClientKey}, payload keys: ${message.payload ? Object.keys(message.payload).join(", ") : "none"}`,
+    );
+
+    if (!receivedClientKey) {
+      // Unexpected: "registered" message should always contain client-key
+      // The pairing prompt is sent via "response" type with pairingType: "PROMPT"
+      logger.error("WebOS", "Received 'registered' message without client-key - unexpected protocol state");
+      resolvePendingRequest(message.id, message);
+      return;
+    }
+
+    clientKey = receivedClientKey;
+    paired = true;
+    logger.info("WebOS", "Pairing successful - received client key");
+
+    const keyPath = getKeyFilePath(ip, mac);
+    writeFile(keyPath, clientKey, (err) => {
+      if (err) {
+        logger.error("WebOS", `Failed to save client key: ${err}`);
+      } else {
+        logger.info("WebOS", `Client key saved to ${keyPath}`);
+      }
+    });
+
+    resolvePendingRequest(message.id, message);
+    emit("connect");
+  }
+
+  function handleResponseMessage(message: WebOSResponseMessage): void {
+    const payload = message.payload;
+
+    // Check if this is a pairing prompt response (TV is showing the accept/deny dialog)
+    if (payload?.pairingType === "PROMPT" && payload.returnValue === true) {
+      logger.info("WebOS", "Pairing prompt displayed on TV - waiting for user confirmation");
+      emit("prompt");
+      resolvePendingRequest(message.id, payload);
+      return;
+    }
+
+    if (pendingRequests.has(message.id)) {
+      if (payload && typeof payload === "object") {
+        if (payload.errorCode || payload.errorText || !payload.returnValue) {
+          rejectPendingRequest(
+            message.id,
+            new Error(`Request failed: ${payload.errorText || payload.errorCode || "Unknown error"}`),
+          );
+          return;
+        }
+      }
+      resolvePendingRequest(message.id, payload);
+      return;
+    }
+
+    const callback = subscriptions.get(message.id);
+    if (callback && message.payload) {
+      callback(message.payload);
+    }
+  }
+
   function handleMessage(data: string | Buffer): void {
     let message: WebOSResponseMessage;
 
@@ -215,79 +300,17 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     }
 
     logger.debug("WebOS", `Handling message type="${message.type}" id="${message.id}"`);
-
     emit("message", message);
 
-    if (message.type === "registered") {
-      // WebOS sends client-key in payload, not at top level
-      const receivedClientKey = message.payload?.["client-key"] as string | undefined;
-      logger.debug(
-        "WebOS",
-        `Registered message - has client-key: ${!!receivedClientKey}, payload keys: ${message.payload ? Object.keys(message.payload).join(", ") : "none"}`,
-      );
-      if (receivedClientKey) {
-        clientKey = receivedClientKey;
-        paired = true;
-        logger.info("WebOS", "Pairing successful - received client key");
-
-        const keyPath = getKeyFilePath(ip, mac);
-        writeFile(keyPath, clientKey, (err) => {
-          if (err) {
-            logger.error("WebOS", `Failed to save client key: ${err}`);
-          } else {
-            logger.info("WebOS", `Client key saved to ${keyPath}`);
-          }
-        });
-
-        const req = pendingRequests.get(message.id);
-        if (req) {
-          clearTimeout(req.timeout);
-          pendingRequests.delete(message.id);
-          req.resolve(message);
-        }
-
-        emit("connect");
-      } else {
-        // User must confirm on TV screen
-        logger.info("WebOS", "Pairing prompt sent - waiting for user confirmation on TV");
-        emit("prompt");
-
-        const req = pendingRequests.get(message.id);
-        if (req) {
-          clearTimeout(req.timeout);
-          pendingRequests.delete(message.id);
-          req.resolve(message);
-        }
-      }
-      return;
-    }
-
-    const req = pendingRequests.get(message.id);
-    if (req) {
-      clearTimeout(req.timeout);
-      pendingRequests.delete(message.id);
-
-      if (message.payload && typeof message.payload === "object") {
-        const payload = message.payload as any;
-        if (payload.errorCode || payload.errorText || !payload.returnValue) {
-          req.reject(
-            new Error(
-              `Request failed: ${payload.errorText || payload.errorCode || "Unknown error"}`,
-            ),
-          );
-          return;
-        }
-      }
-
-      req.resolve(message.payload);
-      return;
-    }
-
-    if (message.id && subscriptions.has(message.id)) {
-      const callback = subscriptions.get(message.id);
-      if (callback && message.payload) {
-        callback(message.payload);
-      }
+    switch (message.type) {
+      case "registered":
+        handleRegisteredMessage(message);
+        break;
+      case "response":
+      case "purchased":
+      default:
+        handleResponseMessage(message);
+        break;
     }
   }
 
@@ -305,7 +328,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     logger.info("WebOS", `Sending registration request (id: ${cid}, hasKey: ${!!clientKey})`);
 
     return new Promise<void>((resolve, reject) => {
-      const timeoutHandle = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         pendingRequests.delete(cid);
         logger.error("WebOS", `Registration timeout after ${timeout}ms`);
         reject(new Error("Registration timeout"));
@@ -313,16 +336,16 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
       pendingRequests.set(cid, {
         resolve: () => {
-          clearTimeout(timeoutHandle);
+          clearTimeout(timeoutId);
           logger.info("WebOS", "Registration completed successfully");
           resolve();
         },
         reject: (error) => {
-          clearTimeout(timeoutHandle);
+          clearTimeout(timeoutId);
           logger.error("WebOS", `Registration rejected: ${error}`);
           reject(error);
         },
-        timeout: timeoutHandle as any,
+        timeoutId,
       });
 
       sendMessage(message);
@@ -343,21 +366,21 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     };
 
     return new Promise<T>((resolve, reject) => {
-      const timeoutHandle = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         pendingRequests.delete(cid);
         reject(new Error("Request timeout"));
       }, timeout);
 
       pendingRequests.set(cid, {
         resolve: (value) => {
-          clearTimeout(timeoutHandle);
-          resolve(value);
+          clearTimeout(timeoutId);
+          resolve(value as T);
         },
         reject: (error) => {
-          clearTimeout(timeoutHandle);
+          clearTimeout(timeoutId);
           reject(error);
         },
-        timeout: timeoutHandle as any,
+        timeoutId,
       });
 
       sendMessage(message);
@@ -392,10 +415,8 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     }
 
     const payload = JSON.stringify(message);
-    logger.debug(
-      "WebOS",
-      `Sending: ${payload.substring(0, 200)}${payload.length > 200 ? "..." : ""}`,
-    );
+    const truncated = payload.length > LOG_TRUNCATE_LENGTH;
+    logger.debug("WebOS", `Sending: ${payload.substring(0, LOG_TRUNCATE_LENGTH)}${truncated ? "..." : ""}`);
     ws.send(payload);
   }
 

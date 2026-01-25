@@ -3,14 +3,14 @@ import type { PairingInput, PairingOutput } from "../../../machines/pairing/type
 import { createWebOSConnection } from "../connection";
 import { createCredentials } from "../credentials";
 
-export interface WebOSPairingContext {
+interface WebOSPairingContext {
   input: PairingInput;
   clientKey?: string;
   error?: string;
   promptReceived: boolean;
 }
 
-export type WebOSPairingEvent =
+type WebOSPairingEvent =
   | { type: "SUBMIT" }
   | { type: "CHAR_INPUT"; char: string }
   | { type: "BACKSPACE" }
@@ -80,7 +80,6 @@ export const webosPairingMachine = setup({
     promptReceived: false,
   }),
   states: {
-    // Parent state that keeps the WebSocket connection alive
     connecting: {
       initial: "initiating",
       invoke: {
@@ -88,7 +87,6 @@ export const webosPairingMachine = setup({
         input: ({ context }) => ({ ip: context.input.deviceIp }),
       },
       on: {
-        // These events can be received in any sub-state
         PAIRED: {
           target: "success",
           actions: {
