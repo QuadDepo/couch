@@ -3,9 +3,7 @@ import { useSelector } from "@xstate/react";
 import { forwardRef, useCallback, useImperativeHandle } from "react";
 import type { ActorRefFrom } from "xstate";
 import type { PairingHandle } from "../../../machines/pairing/types";
-import { type androidTvPairingMachine, INFO_STEPS_DATA } from "./machine";
-
-// Step Components
+import { type androidTvPairingMachine, INFO_STEPS } from "./machine";
 
 interface InfoStepProps {
   title: string;
@@ -67,8 +65,6 @@ function ErrorStep({ error }: { error?: string }) {
   );
 }
 
-// Main Component
-
 interface Props {
   actorRef: ActorRefFrom<typeof androidTvPairingMachine>;
 }
@@ -82,8 +78,8 @@ export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(
     const isShowingInfo = useSelector(actorRef, (state) => state.matches("showingInfo"));
     const error = useSelector(actorRef, (state) => state.context.error);
 
-    const currentStep = INFO_STEPS_DATA[currentStepIndex];
-    const totalSteps = INFO_STEPS_DATA.length + 1;
+    const currentStep = INFO_STEPS[currentStepIndex];
+    const totalSteps = INFO_STEPS.length + 1;
 
     const handleSubmit = useCallback(() => {
       if (isShowingInfo || isError) {

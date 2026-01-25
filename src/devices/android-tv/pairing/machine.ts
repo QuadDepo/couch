@@ -2,7 +2,7 @@ import { assign, fromPromise, setup } from "xstate";
 import type { PairingInput, PairingOutput } from "../../../machines/pairing/types";
 import { createADBConnection } from "../connection";
 
-const INFO_STEPS = [
+export const INFO_STEPS = [
   {
     title: "Enable Developer Options",
     description: "Go to Settings > Device Preferences > About and tap Build number 7 times",
@@ -14,13 +14,13 @@ const INFO_STEPS = [
   },
 ];
 
-export interface AndroidTvPairingContext {
+interface AndroidTvPairingContext {
   input: PairingInput;
-  currentStepIndex: number;
+  stepIndex: number;
   error?: string;
 }
 
-export type AndroidTvPairingEvent =
+type AndroidTvPairingEvent =
   | { type: "SUBMIT" }
   | { type: "CHAR_INPUT"; char: string }
   | { type: "BACKSPACE" };
@@ -33,17 +33,17 @@ export const androidTvPairingMachine = setup({
     output: {} as PairingOutput,
   },
   actors: {
-    connectAdb: fromPromise<void, { ip: string }>(async ({ input }) => {
+    connect: fromPromise<void, { ip: string }>(async ({ input }) => {
       const adb = createADBConnection(input.ip);
       await adb.connect();
     }),
   },
   guards: {
-    hasMoreInfoSteps: ({ context }) => context.currentStepIndex < INFO_STEPS.length - 1,
+    hasMoreInfoSteps: ({ context }) => context.stepIndex < INFO_STEPS.length - 1,
   },
   actions: {
-    advanceStep: assign({
-      currentStepIndex: ({ context }) => context.currentStepIndex + 1,
+    nextStep: assign({
+      stepIndex: ({ context }) => context.stepIndex + 1,
     }),
     setError: assign({
       error: (_, params: { error: string }) => params.error,
@@ -57,7 +57,7 @@ export const androidTvPairingMachine = setup({
   initial: "showingInfo",
   context: ({ input }) => ({
     input,
-    currentStepIndex: 0,
+    stepIndex: 0,
   }),
   states: {
     showingInfo: {
@@ -65,7 +65,7 @@ export const androidTvPairingMachine = setup({
         SUBMIT: [
           {
             guard: "hasMoreInfoSteps",
-            actions: "advanceStep",
+            actions: "nextStep",
           },
           {
             target: "connecting",
@@ -75,7 +75,7 @@ export const androidTvPairingMachine = setup({
     },
     connecting: {
       invoke: {
-        src: "connectAdb",
+        src: "connect",
         input: ({ context }) => ({ ip: context.input.deviceIp }),
         onDone: { target: "success" },
         onError: {
@@ -96,7 +96,6 @@ export const androidTvPairingMachine = setup({
       },
     },
   },
+  // ADB doesn't require persistent credentials - authorization is stored on the TV
   output: () => ({ credentials: null }),
 });
-
-export const INFO_STEPS_DATA = INFO_STEPS;
