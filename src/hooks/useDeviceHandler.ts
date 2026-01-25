@@ -28,7 +28,7 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
   const handler = useMemo(() => {
     if (!device || !isPlatformImplemented(device.platform)) return null;
     return getDeviceHandler(device);
-  }, [device?.id, device?.platform]);
+  }, [device?.id, device?.platform, device]);
 
   const isImplemented = device ? isPlatformImplemented(device.platform) : false;
 
@@ -63,13 +63,13 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     if (device) {
       connectDevice(device.id);
     }
-  }, [device?.id, connectDevice]);
+  }, [device?.id, connectDevice, device]);
 
   const disconnect = useCallback(() => {
     if (device) {
       disconnectDevice(device.id);
     }
-  }, [device?.id, disconnectDevice]);
+  }, [device?.id, disconnectDevice, device]);
 
   const startPairing = useCallback(async (): Promise<PairingState | null> => {
     return handler?.startPairing() ?? null;

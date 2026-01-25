@@ -69,48 +69,49 @@ interface Props {
   actorRef: ActorRefFrom<typeof androidTvPairingMachine>;
 }
 
-export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(
-  function AndroidTvPairingUI({ actorRef }, ref) {
-    const stepIndex = useSelector(actorRef, (state) => state.context.stepIndex);
-    const isConnecting = useSelector(actorRef, (state) => state.matches("connecting"));
-    const isSuccess = useSelector(actorRef, (state) => state.matches("success"));
-    const isError = useSelector(actorRef, (state) => state.matches("error"));
-    const isShowingInfo = useSelector(actorRef, (state) => state.matches("showingInfo"));
-    const error = useSelector(actorRef, (state) => state.context.error);
+export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(function AndroidTvPairingUI(
+  { actorRef },
+  ref,
+) {
+  const stepIndex = useSelector(actorRef, (state) => state.context.stepIndex);
+  const isConnecting = useSelector(actorRef, (state) => state.matches("connecting"));
+  const isSuccess = useSelector(actorRef, (state) => state.matches("success"));
+  const isError = useSelector(actorRef, (state) => state.matches("error"));
+  const isShowingInfo = useSelector(actorRef, (state) => state.matches("showingInfo"));
+  const error = useSelector(actorRef, (state) => state.context.error);
 
-    const currentStep = INFO_STEPS[stepIndex];
-    const totalSteps = INFO_STEPS.length + 1;
+  const currentStep = INFO_STEPS[stepIndex];
+  const totalSteps = INFO_STEPS.length + 1;
 
-    const handleSubmit = useCallback(() => {
-      if (isShowingInfo || isError) {
-        actorRef.send({ type: "SUBMIT" });
-      }
-    }, [actorRef, isShowingInfo, isError]);
+  const handleSubmit = useCallback(() => {
+    if (isShowingInfo || isError) {
+      actorRef.send({ type: "SUBMIT" });
+    }
+  }, [actorRef, isShowingInfo, isError]);
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        handleChar: () => {},
-        handleBackspace: () => {},
-        handleSubmit,
-      }),
-      [handleSubmit],
-    );
+  useImperativeHandle(
+    ref,
+    () => ({
+      handleChar: () => {},
+      handleBackspace: () => {},
+      handleSubmit,
+    }),
+    [handleSubmit],
+  );
 
-    return (
-      <box flexDirection="column" gap={1}>
-        {isShowingInfo && currentStep && (
-          <InfoStep
-            title={currentStep.title}
-            description={currentStep.description}
-            currentStep={stepIndex + 1}
-            totalSteps={totalSteps}
-          />
-        )}
-        {isConnecting && <ConnectingStep totalSteps={totalSteps} />}
-        {isSuccess && <SuccessStep />}
-        {isError && <ErrorStep error={error} />}
-      </box>
-    );
-  },
-);
+  return (
+    <box flexDirection="column" gap={1}>
+      {isShowingInfo && currentStep && (
+        <InfoStep
+          title={currentStep.title}
+          description={currentStep.description}
+          currentStep={stepIndex + 1}
+          totalSteps={totalSteps}
+        />
+      )}
+      {isConnecting && <ConnectingStep totalSteps={totalSteps} />}
+      {isSuccess && <SuccessStep />}
+      {isError && <ErrorStep error={error} />}
+    </box>
+  );
+});

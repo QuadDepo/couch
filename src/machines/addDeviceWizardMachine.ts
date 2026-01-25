@@ -110,7 +110,11 @@ export const addDeviceWizardMachine = setup({
           {
             guard: {
               type: "hasValidDeviceInfo",
-              params: ({ event }: { event: { type: "SET_DEVICE_INFO"; name: string; ip: string } }) => ({
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
                 name: event.name,
                 ip: event.ip,
               }),
@@ -118,7 +122,11 @@ export const addDeviceWizardMachine = setup({
             target: "connection",
             actions: {
               type: "setDeviceInfo",
-              params: ({ event }: { event: { type: "SET_DEVICE_INFO"; name: string; ip: string } }) => ({
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
                 name: event.name,
                 ip: event.ip,
               }),
@@ -127,7 +135,11 @@ export const addDeviceWizardMachine = setup({
           {
             guard: {
               type: "missingDeviceName",
-              params: ({ event }: { event: { type: "SET_DEVICE_INFO"; name: string; ip: string } }) => ({
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
                 name: event.name,
               }),
             },
@@ -139,7 +151,11 @@ export const addDeviceWizardMachine = setup({
           {
             guard: {
               type: "hasInvalidIp",
-              params: ({ event }: { event: { type: "SET_DEVICE_INFO"; name: string; ip: string } }) => ({
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
                 ip: event.ip,
               }),
             },

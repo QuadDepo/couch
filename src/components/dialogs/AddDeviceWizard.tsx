@@ -11,7 +11,7 @@ import { selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
 import type { TVDevice } from "../../types/index.ts";
 import { CompletionStep } from "./wizard/CompletionStep.tsx";
 import { DeviceInfoStep, type DeviceInfoStepHandle } from "./wizard/DeviceInfoStep.tsx";
-import { PairingStepRenderer, type PairingStepHandle } from "./wizard/PairingStepRenderer.tsx";
+import { type PairingStepHandle, PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import { WizardHeader } from "./wizard/WizardHeader.tsx";
 import { WizardProvider } from "./wizard/WizardProvider.tsx";
@@ -139,11 +139,7 @@ export function AddDeviceWizard({
         <box marginTop={1}>
           {stepState === "platformSelection" && <PlatformSelectionStep context={state.context} />}
           {stepState === "deviceInfo" && (
-            <DeviceInfoStep
-              ref={deviceInfoRef}
-              error={error}
-              onSubmit={handleDeviceInfoSubmit}
-            />
+            <DeviceInfoStep ref={deviceInfoRef} error={error} onSubmit={handleDeviceInfoSubmit} />
           )}
           {stepState === "connection" && <PairingStepRenderer ref={pairingRef} />}
           {stepState === "complete" && <CompletionStep context={state.context} />}

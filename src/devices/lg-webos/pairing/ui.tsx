@@ -8,9 +8,7 @@ import type { webosPairingMachine } from "./machine";
 function InitiatingStep() {
   return (
     <>
-      <text fg="#AAAAAA">
-        Make sure your LG TV is turned on and connected to the same network.
-      </text>
+      <text fg="#AAAAAA">Make sure your LG TV is turned on and connected to the same network.</text>
       <text fg="#FFAA00" marginTop={1}>
         Connecting to TV...
       </text>
@@ -58,45 +56,46 @@ interface Props {
   actorRef: ActorRefFrom<typeof webosPairingMachine>;
 }
 
-export const WebOSPairingUI = forwardRef<PairingHandle, Props>(
-  function WebOSPairingUI({ actorRef }, ref) {
-    const isInitiating = useSelector(actorRef, (state) =>
-      state.matches({ connecting: "initiating" }),
-    );
-    const isWaiting = useSelector(actorRef, (state) =>
-      state.matches({ connecting: "waitingForConfirmation" }),
-    );
-    const isSuccess = useSelector(actorRef, (state) => state.matches("success"));
-    const isError = useSelector(actorRef, (state) => state.matches("error"));
-    const error = useSelector(actorRef, (state) => state.context.error);
+export const WebOSPairingUI = forwardRef<PairingHandle, Props>(function WebOSPairingUI(
+  { actorRef },
+  ref,
+) {
+  const isInitiating = useSelector(actorRef, (state) =>
+    state.matches({ connecting: "initiating" }),
+  );
+  const isWaiting = useSelector(actorRef, (state) =>
+    state.matches({ connecting: "waitingForConfirmation" }),
+  );
+  const isSuccess = useSelector(actorRef, (state) => state.matches("success"));
+  const isError = useSelector(actorRef, (state) => state.matches("error"));
+  const error = useSelector(actorRef, (state) => state.context.error);
 
-    const handleSubmit = useCallback(() => {
-      if (isError) {
-        actorRef.send({ type: "SUBMIT" });
-      }
-    }, [actorRef, isError]);
+  const handleSubmit = useCallback(() => {
+    if (isError) {
+      actorRef.send({ type: "SUBMIT" });
+    }
+  }, [actorRef, isError]);
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        handleChar: () => {},
-        handleBackspace: () => {},
-        handleSubmit,
-      }),
-      [handleSubmit],
-    );
+  useImperativeHandle(
+    ref,
+    () => ({
+      handleChar: () => {},
+      handleBackspace: () => {},
+      handleSubmit,
+    }),
+    [handleSubmit],
+  );
 
-    return (
-      <box flexDirection="column" gap={1}>
-        <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
-          WebOS TV Pairing
-        </text>
+  return (
+    <box flexDirection="column" gap={1}>
+      <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
+        WebOS TV Pairing
+      </text>
 
-        {isInitiating && <InitiatingStep />}
-        {isWaiting && <WaitingStep />}
-        {isSuccess && <SuccessStep />}
-        {isError && <ErrorStep error={error} />}
-      </box>
-    );
-  },
-);
+      {isInitiating && <InitiatingStep />}
+      {isWaiting && <WaitingStep />}
+      {isSuccess && <SuccessStep />}
+      {isError && <ErrorStep error={error} />}
+    </box>
+  );
+});

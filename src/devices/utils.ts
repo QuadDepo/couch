@@ -16,7 +16,9 @@ export function createStatusManager() {
     getStatus: () => status,
     setStatus: (newStatus: ConnectionStatus) => {
       status = newStatus;
-      listeners.forEach((cb) => cb(status));
+      for (const cb of listeners) {
+        cb(status);
+      }
     },
     onStatusChange: (cb: (status: ConnectionStatus) => void) => {
       listeners.add(cb);

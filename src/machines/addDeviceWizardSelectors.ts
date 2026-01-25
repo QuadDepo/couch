@@ -1,7 +1,7 @@
 import type { SnapshotFrom, StateFrom } from "xstate";
 import {
-  PAIRING_ACTOR_ID,
   type addDeviceWizardMachine,
+  PAIRING_ACTOR_ID,
   type PairingActorRef,
 } from "./addDeviceWizardMachine.ts";
 

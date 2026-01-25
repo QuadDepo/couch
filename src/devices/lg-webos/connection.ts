@@ -1,4 +1,4 @@
-import { writeFile } from "fs";
+import { writeFile } from "node:fs";
 import { logger } from "../../utils/logger";
 
 import {
@@ -76,10 +76,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
   // Request ID generator - format matches homebridge-webos-tv for compatibility
   let cidCount = 0;
-  const cidPrefix = ("0000000" + Math.floor(Math.random() * 0xffffffff).toString(16)).slice(-8);
+  const cidPrefix = `0000000${Math.floor(Math.random() * 0xffffffff).toString(16)}`.slice(-8);
 
   function getCid(): string {
-    return cidPrefix + ("000" + (cidCount++).toString(16)).slice(-4);
+    return cidPrefix + `000${(cidCount++).toString(16)}`.slice(-4);
   }
 
   const pendingRequests = new Map<string, PendingRequest>();
@@ -94,7 +94,12 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   ]);
 
   function emit(event: ConnectionEvent, ...args: unknown[]): void {
-    listeners.get(event)?.forEach((cb) => cb(...args));
+    const callbacks = listeners.get(event);
+    if (callbacks) {
+      for (const cb of callbacks) {
+        cb(...args);
+      }
+    }
   }
 
   function getUrl(): string {
@@ -236,7 +241,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     if (!receivedClientKey) {
       // Unexpected: "registered" message should always contain client-key
       // The pairing prompt is sent via "response" type with pairingType: "PROMPT"
-      logger.error("WebOS", "Received 'registered' message without client-key - unexpected protocol state");
+      logger.error(
+        "WebOS",
+        "Received 'registered' message without client-key - unexpected protocol state",
+      );
       resolvePendingRequest(message.id, message);
       return;
     }
@@ -274,7 +282,9 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
         if (payload.errorCode || payload.errorText || !payload.returnValue) {
           rejectPendingRequest(
             message.id,
-            new Error(`Request failed: ${payload.errorText || payload.errorCode || "Unknown error"}`),
+            new Error(
+              `Request failed: ${payload.errorText || payload.errorCode || "Unknown error"}`,
+            ),
           );
           return;
         }
@@ -306,8 +316,6 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
       case "registered":
         handleRegisteredMessage(message);
         break;
-      case "response":
-      case "purchased":
       default:
         handleResponseMessage(message);
         break;
@@ -416,7 +424,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
     const payload = JSON.stringify(message);
     const truncated = payload.length > LOG_TRUNCATE_LENGTH;
-    logger.debug("WebOS", `Sending: ${payload.substring(0, LOG_TRUNCATE_LENGTH)}${truncated ? "..." : ""}`);
+    logger.debug(
+      "WebOS",
+      `Sending: ${payload.substring(0, LOG_TRUNCATE_LENGTH)}${truncated ? "..." : ""}`,
+    );
     ws.send(payload);
   }
 
@@ -452,10 +463,9 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
         const remoteSocket: RemoteInputSocket = {
           send(type: string, payload: object = {}) {
             // Input socket uses key:value format, not JSON
-            const message =
-              Object.entries(payload)
-                .map(([k, v]) => `${k}:${v}`)
-                .join("\n") + `\ntype:${type}\n\n`;
+            const message = `${Object.entries(payload)
+              .map(([k, v]) => `${k}:${v}`)
+              .join("\n")}\ntype:${type}\n\n`;
 
             if (socketWs.readyState === WebSocket.OPEN) {
               socketWs.send(message);

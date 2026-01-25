@@ -1,6 +1,6 @@
-import { mkdirSync } from "fs";
-import { homedir } from "os";
-import path from "path";
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
 
 export const WEBSOCKET_PORT = 3000;
 export const WEBSOCKET_SSL_PORT = 3001;
@@ -38,22 +38,6 @@ export const REMOTE_COMMANDS = [
 ] as const;
 
 export type RemoteCommand = (typeof REMOTE_COMMANDS)[number];
-
-type MessageType = "register" | "request" | "subscribe";
-
-interface WebOSMessage<T = object> {
-  id: string;
-  type: MessageType;
-  uri?: string;
-  payload?: T;
-}
-
-interface WebOSResponse<T = object> {
-  id: string;
-  type: "registered" | "response" | "purchased";
-  payload?: T;
-  "client-key"?: string;
-}
 
 // Do not modify - RSA-SHA256 signature is tied to exact content of "signed" section
 // Reference: https://github.com/AdrienGiboire/lgtv2

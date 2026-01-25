@@ -1,4 +1,4 @@
-import { assign, assertEvent, fromPromise, setup } from "xstate";
+import { assertEvent, assign, fromPromise, setup } from "xstate";
 import type { PairingInput, PairingOutput } from "../../../machines/pairing/types";
 import { createPhilipsConnection } from "../connection";
 import type { PhilipsCredentials } from "../credentials";
@@ -16,9 +16,7 @@ interface PhilipsPairingContext {
   error?: string;
 }
 
-type PhilipsPairingEvent =
-  | { type: "SUBMIT_PIN"; pin: string }
-  | { type: "RETRY" };
+type PhilipsPairingEvent = { type: "SUBMIT_PIN"; pin: string } | { type: "RETRY" };
 
 export const philipsPairingMachine = setup({
   types: {

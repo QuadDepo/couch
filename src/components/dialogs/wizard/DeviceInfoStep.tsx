@@ -1,5 +1,5 @@
 import { TextAttributes } from "@opentui/core";
-import { useState, useCallback, useEffect, useImperativeHandle, forwardRef } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useState } from "react";
 
 interface DeviceInfoStepProps {
   initialName?: string;
@@ -21,13 +21,16 @@ export const DeviceInfoStep = forwardRef<DeviceInfoStepHandle, DeviceInfoStepPro
     const [deviceIp, setDeviceIp] = useState(initialIp);
     const [activeField, setActiveField] = useState<"name" | "ip">("name");
 
-    const handleChar = useCallback((char: string) => {
-      if (activeField === "name") {
-        setDeviceName((prev) => prev + char);
-      } else {
-        setDeviceIp((prev) => prev + char);
-      }
-    }, [activeField]);
+    const handleChar = useCallback(
+      (char: string) => {
+        if (activeField === "name") {
+          setDeviceName((prev) => prev + char);
+        } else {
+          setDeviceIp((prev) => prev + char);
+        }
+      },
+      [activeField],
+    );
 
     const handleBackspace = useCallback(() => {
       if (activeField === "name") {
@@ -45,12 +48,16 @@ export const DeviceInfoStep = forwardRef<DeviceInfoStepHandle, DeviceInfoStepPro
       onSubmit(deviceName, deviceIp);
     }, [deviceName, deviceIp, onSubmit]);
 
-    useImperativeHandle(ref, () => ({
-      handleChar,
-      handleBackspace,
-      handleTab,
-      handleSubmit,
-    }), [handleChar, handleBackspace, handleTab, handleSubmit]);
+    useImperativeHandle(
+      ref,
+      () => ({
+        handleChar,
+        handleBackspace,
+        handleTab,
+        handleSubmit,
+      }),
+      [handleChar, handleBackspace, handleTab, handleSubmit],
+    );
 
     return (
       <box flexDirection="column" gap={1}>

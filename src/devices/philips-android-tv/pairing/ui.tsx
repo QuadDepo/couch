@@ -22,7 +22,8 @@ function EnteringPinStep({ pinInput, error }: { pinInput: string; error?: string
         </text>
         {pinInput.length < 4 && (
           <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
-            {" "}←
+            {" "}
+            ←
           </text>
         )}
       </box>
@@ -65,59 +66,60 @@ interface Props {
   actorRef: ActorRefFrom<typeof philipsPairingMachine>;
 }
 
-export const PhilipsPairingUI = forwardRef<PairingHandle, Props>(
-  function PhilipsPairingUI({ actorRef }, ref) {
-    const [pinInput, setPinInput] = useState("");
+export const PhilipsPairingUI = forwardRef<PairingHandle, Props>(function PhilipsPairingUI(
+  { actorRef },
+  ref,
+) {
+  const [pinInput, setPinInput] = useState("");
 
-    const isStarting = useSelector(actorRef, (state) => state.matches("startingPairing"));
-    const isEnteringPin = useSelector(actorRef, (state) => state.matches("enteringPin"));
-    const isConfirming = useSelector(actorRef, (state) => state.matches("confirmingPairing"));
-    const isSuccess = useSelector(actorRef, (state) => state.matches("success"));
-    const isError = useSelector(actorRef, (state) => state.matches("error"));
-    const error = useSelector(actorRef, (state) => state.context.error);
+  const isStarting = useSelector(actorRef, (state) => state.matches("startingPairing"));
+  const isEnteringPin = useSelector(actorRef, (state) => state.matches("enteringPin"));
+  const isConfirming = useSelector(actorRef, (state) => state.matches("confirmingPairing"));
+  const isSuccess = useSelector(actorRef, (state) => state.matches("success"));
+  const isError = useSelector(actorRef, (state) => state.matches("error"));
+  const error = useSelector(actorRef, (state) => state.context.error);
 
-    const handleChar = useCallback(
-      (char: string) => {
-        if (pinInput.length < 4 && /^\d$/.test(char)) {
-          setPinInput((prev) => prev + char);
-        }
-      },
-      [pinInput.length],
-    );
-
-    const handleBackspace = useCallback(() => {
-      setPinInput((prev) => prev.slice(0, -1));
-    }, []);
-
-    const handleSubmit = useCallback(() => {
-      if (isEnteringPin && pinInput.length === 4) {
-        actorRef.send({ type: "SUBMIT_PIN", pin: pinInput });
-      } else if (isError) {
-        actorRef.send({ type: "RETRY" });
+  const handleChar = useCallback(
+    (char: string) => {
+      if (pinInput.length < 4 && /^\d$/.test(char)) {
+        setPinInput((prev) => prev + char);
       }
-    }, [actorRef, isEnteringPin, isError, pinInput]);
+    },
+    [pinInput.length],
+  );
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        handleChar,
-        handleBackspace,
-        handleSubmit,
-      }),
-      [handleChar, handleBackspace, handleSubmit],
-    );
+  const handleBackspace = useCallback(() => {
+    setPinInput((prev) => prev.slice(0, -1));
+  }, []);
 
-    return (
-      <box flexDirection="column" gap={1}>
-        <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
-          Philips TV Pairing
-        </text>
+  const handleSubmit = useCallback(() => {
+    if (isEnteringPin && pinInput.length === 4) {
+      actorRef.send({ type: "SUBMIT_PIN", pin: pinInput });
+    } else if (isError) {
+      actorRef.send({ type: "RETRY" });
+    }
+  }, [actorRef, isEnteringPin, isError, pinInput]);
 
-        {(isStarting || isEnteringPin) && <EnteringPinStep pinInput={pinInput} error={error} />}
-        {isConfirming && <ConfirmingStep />}
-        {isSuccess && <SuccessStep />}
-        {isError && <ErrorStep error={error} />}
-      </box>
-    );
-  },
-);
+  useImperativeHandle(
+    ref,
+    () => ({
+      handleChar,
+      handleBackspace,
+      handleSubmit,
+    }),
+    [handleChar, handleBackspace, handleSubmit],
+  );
+
+  return (
+    <box flexDirection="column" gap={1}>
+      <text fg="#FFFFFF" attributes={TextAttributes.BOLD}>
+        Philips TV Pairing
+      </text>
+
+      {(isStarting || isEnteringPin) && <EnteringPinStep pinInput={pinInput} error={error} />}
+      {isConfirming && <ConfirmingStep />}
+      {isSuccess && <SuccessStep />}
+      {isError && <ErrorStep error={error} />}
+    </box>
+  );
+});
