@@ -107,12 +107,12 @@ export const webosPairingMachine = setup({
           entry: "clearError",
           on: {
             PROMPT_RECEIVED: {
-              target: "waitingForConfirmation",
+              target: "waiting",
               actions: "setPromptReceived",
             },
           },
         },
-        waitingForConfirmation: {
+        waiting: {
           // User sees prompt on TV, waiting for them to accept
           // The callback will automatically send PAIRED when accepted
           // No manual polling needed - just wait for the event
