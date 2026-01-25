@@ -2,6 +2,7 @@ import { TextAttributes } from "@opentui/core";
 import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine, useSelector } from "@xstate/react";
 import { useCallback, useRef } from "react";
+import { DIM_COLOR, ERROR_COLOR } from "../../constants/colors.ts";
 import { wrapPlatformCredentials } from "../../devices/factory.ts";
 import {
   addDeviceWizardMachine,
@@ -83,42 +84,32 @@ export function AddDeviceWizard({
       return;
     }
 
-    if (stepState === "deviceInfo") {
+    const refMap = {
+      deviceInfo: deviceInfoRef,
+      connection: pairingRef,
+    } as const;
+
+    const activeRef = refMap[stepState as keyof typeof refMap];
+
+    if (activeRef?.current) {
       switch (event.name) {
         case "return":
-          deviceInfoRef.current?.handleSubmit();
+          activeRef.current.handleSubmit();
+          return;
+        case "backspace":
+          activeRef.current.handleBackspace();
           return;
         case "tab":
-          deviceInfoRef.current?.handleTab();
-          return;
-        case "backspace":
-          deviceInfoRef.current?.handleBackspace();
-          return;
-        case "escape":
-          send({ type: "CANCEL" });
-          return;
-        default:
-          if (event.sequence?.length === 1) {
-            deviceInfoRef.current?.handleChar(event.sequence);
+          if ("handleTab" in activeRef.current) {
+            activeRef.current.handleTab();
           }
           return;
-      }
-    }
-
-    if (stepState === "connection") {
-      switch (event.name) {
-        case "return":
-          pairingRef.current?.handleSubmit();
-          return;
-        case "backspace":
-          pairingRef.current?.handleBackspace();
-          return;
         case "escape":
           send({ type: "CANCEL" });
           return;
         default:
           if (event.sequence?.length === 1) {
-            pairingRef.current?.handleChar(event.sequence);
+            activeRef.current.handleChar(event.sequence);
           }
           return;
       }
@@ -140,6 +131,30 @@ export function AddDeviceWizard({
     }
   }, dialogId);
 
+  const renderStep = () => {
+    switch (stepState) {
+      case "platformSelection":
+        return <PlatformSelectionStep context={state.context} />;
+      case "deviceInfo":
+        return <DeviceInfoStep ref={deviceInfoRef} error={error} onSubmit={handleDeviceInfoSubmit} />;
+      case "connection":
+        return <PairingStepRenderer ref={pairingRef} />;
+      case "complete":
+        return <CompletionStep context={state.context} />;
+      case "error":
+        return (
+          <box flexDirection="column" gap={1}>
+            <text fg={ERROR_COLOR} attributes={TextAttributes.BOLD}>
+              Error
+            </text>
+            <text fg={DIM_COLOR}>{error || "An error occurred"}</text>
+          </box>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <WizardProvider actorRef={actorRef}>
       <box
@@ -151,23 +166,7 @@ export function AddDeviceWizard({
         paddingBottom={2}
       >
         <WizardHeader />
-
-        <box marginTop={1}>
-          {stepState === "platformSelection" && <PlatformSelectionStep context={state.context} />}
-          {stepState === "deviceInfo" && (
-            <DeviceInfoStep ref={deviceInfoRef} error={error} onSubmit={handleDeviceInfoSubmit} />
-          )}
-          {stepState === "connection" && <PairingStepRenderer ref={pairingRef} />}
-          {stepState === "complete" && <CompletionStep context={state.context} />}
-          {stepState === "error" && (
-            <box flexDirection="column" gap={1}>
-              <text fg="#FF4444" attributes={TextAttributes.BOLD}>
-                Error
-              </text>
-              <text fg="#AAAAAA">{error || "An error occurred"}</text>
-            </box>
-          )}
-        </box>
+        <box marginTop={1}>{renderStep()}</box>
       </box>
     </WizardProvider>
   );
