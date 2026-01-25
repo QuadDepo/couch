@@ -185,11 +185,16 @@ export const addDeviceWizardMachine = setup({
           invoke: {
             id: PAIRING_ACTOR_ID,
             src: "androidTvPairing",
-            input: ({ context }) => ({
-              deviceName: context.deviceName,
-              deviceIp: context.deviceIp,
-              platform: context.platform!,
-            }),
+            input: ({ context }) => {
+              if (!context.platform) {
+                throw new Error("Platform not selected");
+              }
+              return {
+                deviceName: context.deviceName,
+                deviceIp: context.deviceIp,
+                platform: context.platform,
+              };
+            },
             onDone: {
               target: "#addDeviceWizard.complete",
               actions: {
@@ -212,11 +217,16 @@ export const addDeviceWizardMachine = setup({
           invoke: {
             id: PAIRING_ACTOR_ID,
             src: "webosPairing",
-            input: ({ context }) => ({
-              deviceName: context.deviceName,
-              deviceIp: context.deviceIp,
-              platform: context.platform!,
-            }),
+            input: ({ context }) => {
+              if (!context.platform) {
+                throw new Error("Platform not selected");
+              }
+              return {
+                deviceName: context.deviceName,
+                deviceIp: context.deviceIp,
+                platform: context.platform,
+              };
+            },
             onDone: {
               target: "#addDeviceWizard.complete",
               actions: {
@@ -239,11 +249,16 @@ export const addDeviceWizardMachine = setup({
           invoke: {
             id: PAIRING_ACTOR_ID,
             src: "philipsPairing",
-            input: ({ context }) => ({
-              deviceName: context.deviceName,
-              deviceIp: context.deviceIp,
-              platform: context.platform!,
-            }),
+            input: ({ context }) => {
+              if (!context.platform) {
+                throw new Error("Platform not selected");
+              }
+              return {
+                deviceName: context.deviceName,
+                deviceIp: context.deviceIp,
+                platform: context.platform,
+              };
+            },
             onDone: {
               target: "#addDeviceWizard.complete",
               actions: {

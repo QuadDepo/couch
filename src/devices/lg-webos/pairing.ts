@@ -2,7 +2,7 @@
 
 import type { PairingStep } from "../types";
 
-export const pairingSteps: PairingStep[] = [
+export const pairingSteps = [
   {
     id: "start_pairing",
     title: "WebOS TV Pairing",
@@ -24,4 +24,4 @@ export const pairingSteps: PairingStep[] = [
       "Your WebOS TV has been paired successfully. The client key has been stored and will be used for future connections.",
     type: "info",
   },
-];
+] as const satisfies readonly PairingStep[];

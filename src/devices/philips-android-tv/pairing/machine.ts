@@ -113,10 +113,13 @@ export const philipsPairingMachine = setup({
         src: "confirmPairing",
         input: ({ context, event }) => {
           assertEvent(event, "SUBMIT_PIN");
+          if (!context.pairingData) {
+            throw new Error("Pairing data not available");
+          }
           return {
             ip: context.input.deviceIp,
             pin: event.pin,
-            pairingData: context.pairingData!,
+            pairingData: context.pairingData,
           };
         },
         onDone: {

@@ -56,17 +56,18 @@ export function createPairingManager(steps: PairingStep[]) {
 
   return {
     start: async (): Promise<PairingState> => {
-      if (steps.length === 0) {
+      const firstStep = steps[0];
+      if (!firstStep) {
         throw new Error("No pairing steps defined");
       }
       state = {
-        currentStep: steps[0]!,
+        currentStep: firstStep,
         stepIndex: 0,
         totalSteps: steps.length,
         inputs: {},
         isComplete: false,
       };
-      return state!;
+      return state;
     },
 
     submitInput: async (stepId: string, input: string): Promise<PairingState> => {
@@ -81,14 +82,18 @@ export function createPairingManager(steps: PairingStep[]) {
       if (nextIndex >= steps.length) {
         state = { ...current, isComplete: true };
       } else {
+        const nextStep = steps[nextIndex];
+        if (!nextStep) {
+          throw new Error(`Invalid step index: ${nextIndex}`);
+        }
         state = {
           ...current,
-          currentStep: steps[nextIndex]!,
+          currentStep: nextStep,
           stepIndex: nextIndex,
           error: undefined,
         };
       }
-      return state!;
+      return state;
     },
 
     cancel: async (): Promise<void> => {

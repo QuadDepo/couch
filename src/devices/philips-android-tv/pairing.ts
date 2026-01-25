@@ -1,6 +1,6 @@
 import type { PairingStep } from "../types";
 
-export const pairingSteps: PairingStep[] = [
+export const pairingSteps = [
   {
     id: "start_pairing",
     title: "Start Pairing",
@@ -20,4 +20,4 @@ export const pairingSteps: PairingStep[] = [
     description: "Your Philips TV is now paired and ready to use.",
     type: "info",
   },
-];
+] as const satisfies readonly PairingStep[];

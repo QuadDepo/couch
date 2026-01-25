@@ -91,7 +91,7 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
         currentPairingStepIndex = 1;
 
         return {
-          currentStep: pairingSteps[1]!,
+          currentStep: pairingSteps[1],
           stepIndex: 1,
           totalSteps: pairingSteps.length,
           inputs: {},
@@ -100,7 +100,7 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
       } catch (error) {
         statusManager.setStatus("error");
         return {
-          currentStep: pairingSteps[0]!,
+          currentStep: pairingSteps[0],
           stepIndex: 0,
           totalSteps: pairingSteps.length,
           inputs: {},
@@ -125,7 +125,7 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
           statusManager.setStatus("disconnected");
 
           return {
-            currentStep: pairingSteps[2]!,
+            currentStep: pairingSteps[2],
             stepIndex: 2,
             totalSteps: pairingSteps.length,
             inputs: { enter_pin: input },
@@ -134,7 +134,7 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
           };
         } catch (error) {
           return {
-            currentStep: pairingSteps[1]!,
+            currentStep: pairingSteps[1],
             stepIndex: 1,
             totalSteps: pairingSteps.length,
             inputs: {},
@@ -144,8 +144,12 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
         }
       }
 
+      const currentStep = pairingSteps[currentPairingStepIndex];
+      if (!currentStep) {
+        throw new Error(`Invalid pairing step index: ${currentPairingStepIndex}`);
+      }
       return {
-        currentStep: pairingSteps[currentPairingStepIndex]!,
+        currentStep,
         stepIndex: currentPairingStepIndex,
         totalSteps: pairingSteps.length,
         inputs: {},

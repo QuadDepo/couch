@@ -162,7 +162,7 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
       pairingInProgress = true;
       statusManager.setStatus("pairing");
 
-      const firstStep = pairingSteps[0]!;
+      const firstStep = pairingSteps[0];
 
       connection = createWebOSConnection({
         ip: device.ip,
@@ -204,7 +204,7 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
         logger.info("WebOS", "Pairing completed successfully");
         pairingInProgress = false;
         return {
-          currentStep: pairingSteps[2]!,
+          currentStep: pairingSteps[2],
           stepIndex: 2,
           totalSteps: pairingSteps.length,
           inputs: {},
@@ -215,7 +215,7 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
 
       logger.info("WebOS", "Still waiting for user confirmation on TV");
       return {
-        currentStep: pairingSteps[1]!,
+        currentStep: pairingSteps[1],
         stepIndex: 1,
         totalSteps: pairingSteps.length,
         inputs: {},
