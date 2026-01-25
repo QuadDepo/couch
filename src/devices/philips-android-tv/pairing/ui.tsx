@@ -60,7 +60,6 @@ function ConfirmingStep() {
   return <text fg="#FFAA00">Confirming PIN with TV...</text>;
 }
 
-
 function SuccessStep() {
   return (
     <>

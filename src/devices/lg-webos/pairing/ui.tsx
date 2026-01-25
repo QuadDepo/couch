@@ -24,7 +24,9 @@ function getHints(currentState: string) {
 function InitiatingStep() {
   return (
     <>
-      <text fg={DIM_COLOR}>Make sure your LG TV is turned on and connected to the same network.</text>
+      <text fg={DIM_COLOR}>
+        Make sure your LG TV is turned on and connected to the same network.
+      </text>
       <text fg="#FFAA00" marginTop={1}>
         Connecting to TV...
       </text>
@@ -110,7 +112,8 @@ export const WebOSPairingUI = forwardRef<PairingHandle, Props>(function WebOSPai
     [handleSubmit, handleBack],
   );
 
-  const parentState = currentState === "initiating" || currentState === "waiting" ? "connecting" : currentState;
+  const parentState =
+    currentState === "initiating" || currentState === "waiting" ? "connecting" : currentState;
   const hints = getHints(parentState);
 
   const renderStep = () => {
