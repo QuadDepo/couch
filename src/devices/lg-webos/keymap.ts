@@ -2,18 +2,18 @@ import type { KeyMap } from "../types";
 import type { RemoteCommand } from "./protocol";
 import {
   REMOTE_COMMANDS,
-  URI_TURN_OFF,
-  URI_SET_MUTE,
-  URI_VOLUME_UP,
-  URI_VOLUME_DOWN,
-  URI_CHANNEL_UP,
   URI_CHANNEL_DOWN,
-  URI_PLAY,
-  URI_PAUSE,
-  URI_STOP,
-  URI_REWIND,
+  URI_CHANNEL_UP,
   URI_FAST_FORWARD,
+  URI_PAUSE,
+  URI_PLAY,
+  URI_REWIND,
+  URI_SET_MUTE,
+  URI_STOP,
   URI_SWITCH_INPUT,
+  URI_TURN_OFF,
+  URI_VOLUME_DOWN,
+  URI_VOLUME_UP,
 } from "./protocol";
 
 // POWER sends turnOff signal; use Wake on LAN to turn on

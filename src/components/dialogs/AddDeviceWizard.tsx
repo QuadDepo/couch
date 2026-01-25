@@ -1,47 +1,23 @@
 import { TextAttributes } from "@opentui/core";
 import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine, useSelector } from "@xstate/react";
-import { useCallback, useEffect, useRef } from "react";
-import { fromPromise } from "xstate";
-import { createAndroidTVHandler } from "../../devices/android-tv/handler.ts";
-import { createPhilipsAndroidTVHandler } from "../../devices/philips-android-tv/handler.ts";
-import type { DeviceHandler } from "../../devices/types.ts";
+import { useCallback, useRef } from "react";
+import { wrapPlatformCredentials } from "../../devices/factory.ts";
 import {
   addDeviceWizardMachine,
   type WizardContext as MachineContext,
-  type PairingActionInput,
-  type PairingActionResult,
-  type SubmitPairingInputData,
-  type SubmitPairingInputResult,
 } from "../../machines/addDeviceWizardMachine.ts";
-import { selectCanGoBack, selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
-import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
+import { selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
 import type { TVDevice } from "../../types/index.ts";
 import { CompletionStep } from "./wizard/CompletionStep.tsx";
-import { DeviceInfoStep } from "./wizard/DeviceInfoStep.tsx";
-import { PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
+import { DeviceInfoStep, type DeviceInfoStepHandle } from "./wizard/DeviceInfoStep.tsx";
+import { type PairingStepHandle, PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
+import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import { WizardHeader } from "./wizard/WizardHeader.tsx";
-import { createWebOSHandler } from "../../devices/lg-webos/handler.ts";
-import { wrapPlatformCredentials } from "../../devices/factory.ts";
 import { WizardProvider } from "./wizard/WizardProvider.tsx";
 
 export interface AddDeviceResult {
   device: TVDevice;
-}
-
-// Factory to create device handler from pairing input
-function createHandlerFromInput(input: PairingActionInput): DeviceHandler | null {
-  const tempDevice: TVDevice = {
-    id: "temp-pairing",
-    name: input.deviceName,
-    ip: input.deviceIp,
-    platform: input.platform,
-    status: "disconnected",
-  };
-  if (input.platform === "philips-android-tv") return createPhilipsAndroidTVHandler(tempDevice);
-  if (input.platform === "android-tv") return createAndroidTVHandler(tempDevice);
-  if (input.platform === "lg-webos") return createWebOSHandler(tempDevice);
-  return null;
 }
 
 export function AddDeviceWizard({
@@ -49,12 +25,8 @@ export function AddDeviceWizard({
   dismiss,
   dialogId,
 }: PromptContext<AddDeviceResult | null>) {
-  const handlerRef = useRef<DeviceHandler | null>(null);
-
-  const cleanupHandler = useCallback(() => {
-    handlerRef.current?.dispose();
-    handlerRef.current = null;
-  }, []);
+  const deviceInfoRef = useRef<DeviceInfoStepHandle>(null);
+  const pairingRef = useRef<PairingStepHandle>(null);
 
   const buildDevice = (ctx: MachineContext): TVDevice => {
     if (!ctx.platform) {
@@ -73,76 +45,69 @@ export function AddDeviceWizard({
 
   const [state, send, actorRef] = useMachine(
     addDeviceWizardMachine.provide({
-      actors: {
-        executePairingAction: fromPromise<PairingActionResult, PairingActionInput>(
-          async ({ input }) => {
-            try {
-              // Reuse existing handler if it has executePairingAction (maintains state between steps)
-              if (handlerRef.current?.executePairingAction) {
-                return await handlerRef.current.executePairingAction(input.stepId);
-              }
-
-              // Otherwise create new handler and use startPairing for first step
-              const handler = createHandlerFromInput(input);
-              if (!handler) {
-                return { error: `Platform ${input.platform} is not yet supported` };
-              }
-              handlerRef.current = handler;
-
-              if (input.stepId === "start_pairing" && handler.startPairing) {
-                const result = await handler.startPairing();
-                if (result.error) {
-                  return { error: result.error };
-                }
-                return {};
-              } else if (input.stepId === "connecting") {
-                await handler.connect();
-                return { credentials: null };
-              }
-              return {};
-            } catch (err) {
-              return { error: String(err) };
-            }
-          },
-        ),
-        submitPairingInput: fromPromise<SubmitPairingInputResult, SubmitPairingInputData>(
-          async ({ input }) => {
-            if (!handlerRef.current?.submitPairingInput) {
-              return { error: "No handler available for input submission" };
-            }
-            try {
-              return await handlerRef.current.submitPairingInput(input.stepId, input.input);
-            } catch (err) {
-              return { error: String(err) };
-            }
-          },
-        ),
-      },
       actions: {
         onComplete: ({ context }) => {
           resolve({ device: buildDevice(context) });
         },
         onCancel: () => {
-          cleanupHandler();
           dismiss();
-        },
-        cleanupHandler: () => {
-          cleanupHandler();
         },
       },
     }),
   );
 
   const { error } = state.context;
-
-  useEffect(() => {
-    return () => cleanupHandler();
-  }, [cleanupHandler]);
-
-  const canGoBack = useSelector(actorRef, selectCanGoBack);
   const stepState = useSelector(actorRef, selectStepState);
 
+  const handleDeviceInfoSubmit = useCallback(
+    (name: string, ip: string) => {
+      send({ type: "SET_DEVICE_INFO", name, ip });
+    },
+    [send],
+  );
+
   useDialogKeyboard((event) => {
+    if (stepState === "deviceInfo") {
+      switch (event.name) {
+        case "return":
+          deviceInfoRef.current?.handleSubmit();
+          return;
+        case "tab":
+          deviceInfoRef.current?.handleTab();
+          return;
+        case "backspace":
+          deviceInfoRef.current?.handleBackspace();
+          return;
+        case "escape":
+          send({ type: "CANCEL" });
+          return;
+        default:
+          if (event.sequence?.length === 1) {
+            deviceInfoRef.current?.handleChar(event.sequence);
+          }
+          return;
+      }
+    }
+
+    if (stepState === "connection") {
+      switch (event.name) {
+        case "return":
+          pairingRef.current?.handleSubmit();
+          return;
+        case "backspace":
+          pairingRef.current?.handleBackspace();
+          return;
+        case "escape":
+          send({ type: "CANCEL" });
+          return;
+        default:
+          if (event.sequence?.length === 1) {
+            pairingRef.current?.handleChar(event.sequence);
+          }
+          return;
+      }
+    }
+
     switch (event.name) {
       case "up":
         send({ type: "ARROW_UP" });
@@ -156,20 +121,6 @@ export function AddDeviceWizard({
       case "escape":
         send({ type: "CANCEL" });
         break;
-      case "tab":
-        send({ type: "TAB" });
-        break;
-      case "backspace":
-        if (event.ctrl && canGoBack) {
-          send({ type: "BACK" });
-        } else {
-          send({ type: "BACKSPACE" });
-        }
-        break;
-      default:
-        if (event.sequence?.length === 1) {
-          send({ type: "CHAR_INPUT", char: event.sequence });
-        }
     }
   }, dialogId);
 
@@ -187,8 +138,10 @@ export function AddDeviceWizard({
 
         <box marginTop={1}>
           {stepState === "platformSelection" && <PlatformSelectionStep context={state.context} />}
-          {stepState === "deviceInfo" && <DeviceInfoStep context={state.context} />}
-          {stepState === "pairing" && <PairingStepRenderer />}
+          {stepState === "deviceInfo" && (
+            <DeviceInfoStep ref={deviceInfoRef} error={error} onSubmit={handleDeviceInfoSubmit} />
+          )}
+          {stepState === "connection" && <PairingStepRenderer ref={pairingRef} />}
           {stepState === "complete" && <CompletionStep context={state.context} />}
           {stepState === "error" && (
             <box flexDirection="column" gap={1}>
@@ -196,16 +149,6 @@ export function AddDeviceWizard({
                 Error
               </text>
               <text fg="#AAAAAA">{error || "An error occurred"}</text>
-              <box marginTop={1} flexDirection="row">
-                <text fg="#888888" attributes={TextAttributes.BOLD}>
-                  Esc
-                </text>
-                <text fg="#666666"> to close, </text>
-                <text fg="#888888" attributes={TextAttributes.BOLD}>
-                  Ctrl+Bksp
-                </text>
-                <text fg="#666666"> to go back and try again</text>
-              </box>
             </box>
           )}
         </box>

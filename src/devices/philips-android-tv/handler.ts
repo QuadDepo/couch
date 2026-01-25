@@ -1,11 +1,10 @@
 import type { TVDevice } from "../../types";
-import type { CommandResult, DeviceHandler, PairingState } from "../types";
+import type { CommandResult, DeviceHandler } from "../types";
 import { createKeySender, createStatusManager } from "../utils";
 import { capabilities } from "./capabilities";
 import { createPhilipsConnection } from "./connection";
 import { type PhilipsCredentials, validatePhilipsCredentials } from "./credentials";
 import { keymap } from "./keymap";
-import { pairingSteps } from "./pairing";
 
 export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
   const statusManager = createStatusManager();
@@ -23,9 +22,6 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
   }
 
   const connection = createPhilipsConnection(device.ip, initialCredentials);
-
-  let pairingData: { authKey: string; timestamp: number; deviceId: string } | null = null;
-  let currentPairingStepIndex = 0;
 
   const sendPlatformKey = async (keyCode: string | number): Promise<CommandResult> => {
     const start = Date.now();
@@ -80,83 +76,6 @@ export function createPhilipsAndroidTVHandler(device: TVDevice): DeviceHandler {
 
     async sendText(_text: string) {
       return { success: false, error: "Text input is not supported on this device" };
-    },
-
-    async startPairing(): Promise<PairingState> {
-      statusManager.setStatus("pairing");
-      currentPairingStepIndex = 0;
-
-      try {
-        pairingData = await connection.startPairing("BaghdadRemote");
-        currentPairingStepIndex = 1;
-
-        return {
-          currentStep: pairingSteps[1]!,
-          stepIndex: 1,
-          totalSteps: pairingSteps.length,
-          inputs: {},
-          isComplete: false,
-        };
-      } catch (error) {
-        statusManager.setStatus("error");
-        return {
-          currentStep: pairingSteps[0]!,
-          stepIndex: 0,
-          totalSteps: pairingSteps.length,
-          inputs: {},
-          error: String(error),
-          isComplete: false,
-        };
-      }
-    },
-
-    async submitPairingInput(stepId: string, input: string): Promise<PairingState> {
-      if (stepId === "enter_pin" && pairingData) {
-        try {
-          const credentials = await connection.confirmPairing(
-            input,
-            pairingData.authKey,
-            pairingData.timestamp,
-            pairingData.deviceId,
-            "BaghdadRemote",
-          );
-
-          currentPairingStepIndex = 2;
-          statusManager.setStatus("disconnected");
-
-          return {
-            currentStep: pairingSteps[2]!,
-            stepIndex: 2,
-            totalSteps: pairingSteps.length,
-            inputs: { enter_pin: input },
-            isComplete: true,
-            credentials,
-          };
-        } catch (error) {
-          return {
-            currentStep: pairingSteps[1]!,
-            stepIndex: 1,
-            totalSteps: pairingSteps.length,
-            inputs: {},
-            error: `Pairing failed: ${error}`,
-            isComplete: false,
-          };
-        }
-      }
-
-      return {
-        currentStep: pairingSteps[currentPairingStepIndex]!,
-        stepIndex: currentPairingStepIndex,
-        totalSteps: pairingSteps.length,
-        inputs: {},
-        isComplete: false,
-      };
-    },
-
-    async cancelPairing() {
-      pairingData = null;
-      currentPairingStepIndex = 0;
-      statusManager.setStatus("disconnected");
     },
 
     dispose() {

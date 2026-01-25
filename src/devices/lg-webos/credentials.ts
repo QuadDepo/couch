@@ -17,10 +17,10 @@ export function validateWebOSCredentials(data: unknown): WebOSCredentials {
   return v.parse(WebOSCredentialsSchema, data);
 }
 
-export function createCredentials(clientKey: string, mac: string): WebOSCredentials {
+export function createCredentials(params: { clientKey: string; mac?: string }): WebOSCredentials {
   return {
-    clientKey,
-    mac,
+    clientKey: params.clientKey,
+    mac: params.mac ?? "",
     lastUpdated: new Date().toISOString(),
   };
 }

@@ -1,6 +1,6 @@
 // Inspired by https://github.com/suborb/philips_android_tv
 
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { logger } from "../../utils/logger";
 import { type PhilipsCredentials, validatePhilipsCredentials } from "./credentials";
 

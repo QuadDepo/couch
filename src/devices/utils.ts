@@ -3,8 +3,6 @@ import type {
   ConnectionStatus,
   DeviceCapabilities,
   KeyMap,
-  PairingState,
-  PairingStep,
   RemoteKey,
 } from "./types";
 
@@ -16,7 +14,9 @@ export function createStatusManager() {
     getStatus: () => status,
     setStatus: (newStatus: ConnectionStatus) => {
       status = newStatus;
-      listeners.forEach((cb) => cb(status));
+      for (const cb of listeners) {
+        cb(status);
+      }
     },
     onStatusChange: (cb: (status: ConnectionStatus) => void) => {
       listeners.add(cb);
@@ -40,64 +40,5 @@ export function createKeySender(
       return { success: false, error: `No mapping for ${key}` };
     }
     return sendPlatformKey(platformKey);
-  };
-}
-
-export function createPairingManager(steps: PairingStep[]) {
-  let state: PairingState | null = null;
-  let onCancel: (() => void) | null = null;
-
-  const getCurrentState = (): PairingState => {
-    if (!state) throw new Error("Pairing not started");
-    return state;
-  };
-
-  return {
-    start: async (): Promise<PairingState> => {
-      if (steps.length === 0) {
-        throw new Error("No pairing steps defined");
-      }
-      state = {
-        currentStep: steps[0]!,
-        stepIndex: 0,
-        totalSteps: steps.length,
-        inputs: {},
-        isComplete: false,
-      };
-      return state!;
-    },
-
-    submitInput: async (stepId: string, input: string): Promise<PairingState> => {
-      const current = getCurrentState();
-      if (current.currentStep.id !== stepId) {
-        return { ...current, error: `Unexpected step ${stepId}` };
-      }
-
-      current.inputs[stepId] = input;
-      const nextIndex = current.stepIndex + 1;
-
-      if (nextIndex >= steps.length) {
-        state = { ...current, isComplete: true };
-      } else {
-        state = {
-          ...current,
-          currentStep: steps[nextIndex]!,
-          stepIndex: nextIndex,
-          error: undefined,
-        };
-      }
-      return state!;
-    },
-
-    cancel: async (): Promise<void> => {
-      onCancel?.();
-      state = null;
-    },
-
-    setOnCancel: (cb: () => void) => {
-      onCancel = cb;
-    },
-
-    getState: () => state,
   };
 }

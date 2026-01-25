@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { getDeviceHandler, isPlatformImplemented } from "../devices/factory";
-import type { CommandResult, DeviceCapabilities, PairingState } from "../devices/types";
+import type { CommandResult, DeviceCapabilities } from "../devices/types";
 import { useDeviceStore } from "../store/deviceStore";
 import type { RemoteKey, TVDevice } from "../types";
 
@@ -15,10 +15,6 @@ interface UseDeviceHandlerResult {
 
   connect: () => void;
   disconnect: () => void;
-
-  startPairing: () => Promise<PairingState | null>;
-  submitPairingInput: (stepId: string, input: string) => Promise<PairingState | null>;
-  cancelPairing: () => Promise<void>;
 }
 
 export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResult {
@@ -28,7 +24,7 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
   const handler = useMemo(() => {
     if (!device || !isPlatformImplemented(device.platform)) return null;
     return getDeviceHandler(device);
-  }, [device?.id, device?.platform]);
+  }, [device?.id, device?.platform, device]);
 
   const isImplemented = device ? isPlatformImplemented(device.platform) : false;
 
@@ -63,28 +59,13 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     if (device) {
       connectDevice(device.id);
     }
-  }, [device?.id, connectDevice]);
+  }, [device?.id, connectDevice, device]);
 
   const disconnect = useCallback(() => {
     if (device) {
       disconnectDevice(device.id);
     }
-  }, [device?.id, disconnectDevice]);
-
-  const startPairing = useCallback(async (): Promise<PairingState | null> => {
-    return handler?.startPairing() ?? null;
-  }, [handler]);
-
-  const submitPairingInput = useCallback(
-    async (stepId: string, input: string): Promise<PairingState | null> => {
-      return handler?.submitPairingInput(stepId, input) ?? null;
-    },
-    [handler],
-  );
-
-  const cancelPairing = useCallback(async () => {
-    await handler?.cancelPairing();
-  }, [handler]);
+  }, [device?.id, disconnectDevice, device]);
 
   return {
     status: device?.status ?? "disconnected",
@@ -95,8 +76,5 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     sendText,
     connect,
     disconnect,
-    startPairing,
-    submitPairingInput,
-    cancelPairing,
   };
 }

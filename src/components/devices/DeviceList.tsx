@@ -132,13 +132,9 @@ export function DeviceList({ focused = false }: DeviceListProps) {
 
         return (
           <box key={device.id} flexDirection="row">
-            <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}>
-              {prefix}
-            </text>
+            <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}>{prefix}</text>
             <text fg={status.color}>{status.icon}</text>
-            <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}>
-              {" "}{device.name}
-            </text>
+            <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}> {device.name}</text>
             <text fg="#666666"> [{platformLabels[device.platform]}]</text>
           </box>
         );

@@ -1,77 +1,31 @@
-import { type Actor, assign, fromPromise, setup } from "xstate";
-import { pairingSteps as androidTVPairingSteps } from "../devices/android-tv/pairing.ts";
+import { type Actor, assign, setup } from "xstate";
+import { androidTvPairingMachine } from "../devices/android-tv/pairing/machine.ts";
 import { implementedPlatforms } from "../devices/factory.ts";
-import { pairingSteps as philipsPairingSteps } from "../devices/philips-android-tv/pairing.ts";
-import { pairingSteps as webosPairingSteps } from "../devices/lg-webos/pairing.ts";
-import type { PairingStep } from "../devices/types.ts";
+import { webosPairingMachine } from "../devices/lg-webos/pairing/machine.ts";
+import { philipsPairingMachine } from "../devices/philips-android-tv/pairing/machine.ts";
 import type { TVPlatform } from "../types/index.ts";
 import { isValidIp } from "../utils/network.ts";
+import type { PairingOutput } from "./pairing/types.ts";
+
+export const PAIRING_ACTOR_ID = "pairing" as const;
 
 export interface WizardContext {
   platform: TVPlatform | null;
   selectedPlatformIndex: number;
   deviceName: string;
   deviceIp: string;
-  activeField: "name" | "ip";
-  pairingSteps: PairingStep[];
-  currentStepIndex: number;
-  pairingInputs: Record<string, string>;
-  currentInput: string;
   credentials: unknown;
   error?: string;
-  actionSuccess?: boolean;
 }
 
 type WizardEvent =
   | { type: "ARROW_UP" }
   | { type: "ARROW_DOWN" }
   | { type: "SELECT" }
-  | { type: "CHAR_INPUT"; char: string }
-  | { type: "BACKSPACE" }
-  | { type: "TAB" }
+  | { type: "SET_DEVICE_INFO"; name: string; ip: string }
   | { type: "SUBMIT" }
-  | { type: "BACK" }
   | { type: "CANCEL" }
-  | { type: "PAIRING_COMPLETE"; credentials: unknown }
-  | { type: "PAIRING_ERROR"; error: string }
-  | { type: "NEXT_STEP" }
   | { type: "DONE" };
-
-function getPairingStepsForPlatform(platform: TVPlatform): PairingStep[] {
-  switch (platform) {
-    case "android-tv":
-      return androidTVPairingSteps;
-    case "philips-android-tv":
-      return philipsPairingSteps;
-    case "lg-webos":
-      return webosPairingSteps;
-    default:
-      return [];
-  }
-}
-
-export interface PairingActionInput {
-  stepId: string;
-  platform: TVPlatform;
-  deviceIp: string;
-  deviceName: string;
-}
-
-export interface PairingActionResult {
-  credentials?: unknown;
-  error?: string;
-}
-
-export interface SubmitPairingInputData {
-  stepId: string;
-  input: string;
-}
-
-export interface SubmitPairingInputResult {
-  error?: string;
-  isComplete?: boolean;
-  credentials?: unknown;
-}
 
 export const addDeviceWizardMachine = setup({
   types: {
@@ -79,16 +33,13 @@ export const addDeviceWizardMachine = setup({
     events: {} as WizardEvent,
   },
   actors: {
-    executePairingAction: fromPromise<PairingActionResult, PairingActionInput>(async () => ({})),
-    submitPairingInput: fromPromise<SubmitPairingInputResult, SubmitPairingInputData>(
-      async () => ({}),
-    ),
+    androidTvPairing: androidTvPairingMachine,
+    webosPairing: webosPairingMachine,
+    philipsPairing: philipsPairingMachine,
   },
   actions: {
-    // Placeholder actions - provide implementations via machine.provide()
     onComplete: () => {},
     onCancel: () => {},
-    cleanupHandler: () => {},
     selectPlatformUp: assign({
       selectedPlatformIndex: ({ context }) => Math.max(0, context.selectedPlatformIndex - 1),
     }),
@@ -99,32 +50,10 @@ export const addDeviceWizardMachine = setup({
     setPlatformFromSelection: assign({
       platform: ({ context }) => implementedPlatforms[context.selectedPlatformIndex]?.id ?? null,
     }),
-    appendToActiveField: assign({
-      deviceName: ({ context, event }) => {
-        if (context.activeField !== "name") return context.deviceName;
-        const e = event as { type: "CHAR_INPUT"; char: string };
-        return context.deviceName + e.char;
-      },
-      deviceIp: ({ context, event }) => {
-        if (context.activeField !== "ip") return context.deviceIp;
-        const e = event as { type: "CHAR_INPUT"; char: string };
-        return context.deviceIp + e.char;
-      },
+    setDeviceInfo: assign({
+      deviceName: (_, params: { name: string; ip: string }) => params.name,
+      deviceIp: (_, params: { name: string; ip: string }) => params.ip,
       error: undefined,
-    }),
-    backspaceActiveField: assign({
-      deviceName: ({ context }) => {
-        if (context.activeField !== "name") return context.deviceName;
-        return context.deviceName.slice(0, -1);
-      },
-      deviceIp: ({ context }) => {
-        if (context.activeField !== "ip") return context.deviceIp;
-        return context.deviceIp.slice(0, -1);
-      },
-      error: undefined,
-    }),
-    toggleActiveField: assign({
-      activeField: ({ context }) => (context.activeField === "name" ? "ip" : "name"),
     }),
     setValidationError: assign({
       error: (_, params: { error: string }) => params.error,
@@ -132,104 +61,21 @@ export const addDeviceWizardMachine = setup({
     clearError: assign({
       error: undefined,
     }),
-    loadPairingSteps: assign({
-      pairingSteps: ({ context }) =>
-        context.platform ? getPairingStepsForPlatform(context.platform) : [],
-      currentStepIndex: 0,
-      currentInput: "",
-    }),
-    appendToCurrentInput: assign({
-      currentInput: ({ context, event }) => {
-        const e = event as { type: "CHAR_INPUT"; char: string };
-        const currentStep = context.pairingSteps[context.currentStepIndex];
-        // Allow up to 10 characters for PINs (reasonable maximum, platform-agnostic)
-        if (currentStep?.inputType === "pin" && context.currentInput.length >= 10) {
-          return context.currentInput;
-        }
-        return context.currentInput + e.char;
-      },
-    }),
-    backspaceCurrentInput: assign({
-      currentInput: ({ context }) => context.currentInput.slice(0, -1),
-    }),
-    recordPairingInput: assign({
-      pairingInputs: ({ context }) => {
-        const currentStep = context.pairingSteps[context.currentStepIndex];
-        if (!currentStep) return context.pairingInputs;
-        return {
-          ...context.pairingInputs,
-          [currentStep.id]: context.currentInput,
-        };
-      },
-    }),
-    advanceToNextStep: assign({
-      currentStepIndex: ({ context }) => context.currentStepIndex + 1,
-      currentInput: "",
-    }),
     setCredentials: assign({
       credentials: (_, params: { credentials: unknown }) => params.credentials,
     }),
     setError: assign({
       error: (_, params: { error: string }) => params.error,
     }),
-    setActionSuccess: assign({
-      actionSuccess: true,
-    }),
-    clearActionSuccess: assign({
-      actionSuccess: false,
-    }),
-    resetDeviceInfo: assign({
-      deviceName: "",
-      deviceIp: "",
-      activeField: "name" as const,
-      error: undefined,
-    }),
   },
   guards: {
-    hasValidDeviceInfo: ({ context }) =>
-      context.deviceName.trim().length > 0 && isValidIp(context.deviceIp),
-    hasValidIp: ({ context }) => isValidIp(context.deviceIp),
-    hasDeviceName: ({ context }) => context.deviceName.trim().length > 0,
-    missingDeviceName: ({ context }) => context.deviceName.trim().length === 0,
-    hasInvalidIp: ({ context }) => !isValidIp(context.deviceIp),
-    hasMoreSteps: ({ context }) => context.currentStepIndex < context.pairingSteps.length - 1,
-    hasActionSuccess: ({ context }) => !!context.actionSuccess,
-    hasActionSuccessWithCredentials: ({ context }) =>
-      !!context.actionSuccess && !!context.credentials,
-    hasActionSuccessWithMoreSteps: ({ context }) =>
-      !!context.actionSuccess && context.currentStepIndex < context.pairingSteps.length - 1,
-    isInputStep: ({ context }) => {
-      const currentStep = context.pairingSteps[context.currentStepIndex];
-      return currentStep?.type === "input";
-    },
-    isActionStep: ({ context }) => {
-      const currentStep = context.pairingSteps[context.currentStepIndex];
-      return currentStep?.type === "action";
-    },
-    isInfoStep: ({ context }) => {
-      const currentStep = context.pairingSteps[context.currentStepIndex];
-      return currentStep?.type === "info";
-    },
-    isWaitingStep: ({ context }) => {
-      const currentStep = context.pairingSteps[context.currentStepIndex];
-      return currentStep?.type === "waiting";
-    },
-    hasValidInput: ({ context }) => {
-      const currentStep = context.pairingSteps[context.currentStepIndex];
-      if (!currentStep || currentStep.type !== "input") return true;
-      return context.currentInput.trim().length > 0;
-    },
-    canAdvanceStep: ({ context }) => {
-      const currentStep = context.pairingSteps[context.currentStepIndex];
-      const hasMore = context.currentStepIndex < context.pairingSteps.length - 1;
-      if (!currentStep || currentStep.type !== "input") return hasMore;
-      return context.currentInput.trim().length > 0 && hasMore;
-    },
-    canCompleteStep: ({ context }) => {
-      const currentStep = context.pairingSteps[context.currentStepIndex];
-      if (!currentStep || currentStep.type !== "input") return true;
-      return context.currentInput.trim().length > 0;
-    },
+    hasValidDeviceInfo: (_, params: { name: string; ip: string }) =>
+      params.name.trim().length > 0 && isValidIp(params.ip),
+    missingDeviceName: (_, params: { name: string }) => params.name.trim().length === 0,
+    hasInvalidIp: (_, params: { ip: string }) => !isValidIp(params.ip),
+    isAndroidTv: ({ context }) => context.platform === "android-tv",
+    isWebOS: ({ context }) => context.platform === "lg-webos",
+    isPhilips: ({ context }) => context.platform === "philips-android-tv",
   },
 }).createMachine({
   id: "addDeviceWizard",
@@ -239,124 +85,125 @@ export const addDeviceWizardMachine = setup({
     selectedPlatformIndex: 0,
     deviceName: "",
     deviceIp: "",
-    activeField: "name",
-    pairingSteps: [],
-    currentStepIndex: 0,
-    pairingInputs: {},
-    currentInput: "",
     credentials: null,
     error: undefined,
-    actionSuccess: false,
   },
   states: {
     platformSelection: {
       on: {
-        ARROW_UP: {
-          actions: "selectPlatformUp",
-        },
-        ARROW_DOWN: {
-          actions: "selectPlatformDown",
-        },
+        ARROW_UP: { actions: "selectPlatformUp" },
+        ARROW_DOWN: { actions: "selectPlatformDown" },
         SELECT: {
           target: "deviceInfo",
-          actions: ["setPlatformFromSelection", "loadPairingSteps"],
+          actions: "setPlatformFromSelection",
         },
         SUBMIT: {
           target: "deviceInfo",
-          actions: ["setPlatformFromSelection", "loadPairingSteps"],
+          actions: "setPlatformFromSelection",
         },
-        CANCEL: {
-          target: "cancelled",
-        },
+        CANCEL: { target: "cancelled" },
       },
     },
     deviceInfo: {
       on: {
-        CHAR_INPUT: {
-          actions: "appendToActiveField",
-        },
-        BACKSPACE: {
-          actions: "backspaceActiveField",
-        },
-        TAB: {
-          actions: "toggleActiveField",
-        },
-        SUBMIT: [
+        SET_DEVICE_INFO: [
           {
-            guard: "hasValidDeviceInfo",
-            target: "pairing",
+            guard: {
+              type: "hasValidDeviceInfo",
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
+                name: event.name,
+                ip: event.ip,
+              }),
+            },
+            target: "connection",
+            actions: {
+              type: "setDeviceInfo",
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
+                name: event.name,
+                ip: event.ip,
+              }),
+            },
           },
           {
-            guard: "missingDeviceName",
+            guard: {
+              type: "missingDeviceName",
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
+                name: event.name,
+              }),
+            },
             actions: {
               type: "setValidationError",
               params: { error: "Device name is required" },
             },
           },
           {
-            guard: "hasInvalidIp",
+            guard: {
+              type: "hasInvalidIp",
+              params: ({
+                event,
+              }: {
+                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
+              }) => ({
+                ip: event.ip,
+              }),
+            },
             actions: {
               type: "setValidationError",
               params: { error: "Invalid IP address" },
             },
           },
         ],
-        BACK: {
-          target: "platformSelection",
-          actions: "resetDeviceInfo",
-        },
-        CANCEL: {
-          target: "cancelled",
-        },
+        CANCEL: { target: "cancelled" },
       },
     },
-    pairing: {
-      initial: "evaluating",
+    connection: {
+      initial: "routing",
       on: {
-        BACK: { target: "deviceInfo", actions: "cleanupHandler" },
         CANCEL: { target: "cancelled" },
       },
       states: {
-        evaluating: {
+        routing: {
           always: [
-            { guard: "isActionStep", target: "executingAction" },
-            { target: "awaitingUser" },
+            { guard: "isAndroidTv", target: "androidTv" },
+            { guard: "isWebOS", target: "webos" },
+            { guard: "isPhilips", target: "philips" },
           ],
         },
-        executingAction: {
+        androidTv: {
           invoke: {
-            src: "executePairingAction",
-            input: ({ context }) => ({
-              stepId: context.pairingSteps[context.currentStepIndex]?.id ?? "",
-              platform: context.platform!,
-              deviceIp: context.deviceIp,
-              deviceName: context.deviceName,
-            }),
-            onDone: [
-              {
-                guard: ({ event }) => !!event.output.error,
-                target: "#addDeviceWizard.error",
-                actions: {
-                  type: "setError",
-                  params: ({ event }) => ({ error: event.output.error! }),
-                },
+            id: PAIRING_ACTOR_ID,
+            src: "androidTvPairing",
+            input: ({ context }) => {
+              if (!context.platform) {
+                throw new Error("Platform not selected");
+              }
+              return {
+                deviceName: context.deviceName,
+                deviceIp: context.deviceIp,
+                platform: context.platform,
+              };
+            },
+            onDone: {
+              target: "#addDeviceWizard.complete",
+              actions: {
+                type: "setCredentials",
+                params: ({ event }) => ({
+                  credentials: (event.output as PairingOutput).credentials,
+                }),
               },
-              {
-                guard: ({ event }) => !!event.output.credentials,
-                target: "awaitingUser",
-                actions: [
-                  {
-                    type: "setCredentials",
-                    params: ({ event }) => ({ credentials: event.output.credentials }),
-                  },
-                  "setActionSuccess",
-                ],
-              },
-              {
-                target: "awaitingUser",
-                actions: "setActionSuccess",
-              },
-            ],
+            },
             onError: {
               target: "#addDeviceWizard.error",
               actions: {
@@ -366,82 +213,61 @@ export const addDeviceWizardMachine = setup({
             },
           },
         },
-        awaitingUser: {
-          on: {
-            CHAR_INPUT: {
-              guard: "isInputStep",
-              actions: "appendToCurrentInput",
+        webos: {
+          invoke: {
+            id: PAIRING_ACTOR_ID,
+            src: "webosPairing",
+            input: ({ context }) => {
+              if (!context.platform) {
+                throw new Error("Platform not selected");
+              }
+              return {
+                deviceName: context.deviceName,
+                deviceIp: context.deviceIp,
+                platform: context.platform,
+              };
             },
-            BACKSPACE: {
-              guard: "isInputStep",
-              actions: "backspaceCurrentInput",
+            onDone: {
+              target: "#addDeviceWizard.complete",
+              actions: {
+                type: "setCredentials",
+                params: ({ event }) => ({
+                  credentials: (event.output as PairingOutput).credentials,
+                }),
+              },
             },
-            SUBMIT: [
-              // Action completed with credentials - go to complete
-              {
-                guard: "hasActionSuccessWithCredentials",
-                target: "#addDeviceWizard.complete",
-                actions: "clearActionSuccess",
+            onError: {
+              target: "#addDeviceWizard.error",
+              actions: {
+                type: "setError",
+                params: ({ event }) => ({ error: String(event.error) }),
               },
-              // Action completed, more steps to go
-              {
-                guard: "hasActionSuccessWithMoreSteps",
-                target: "evaluating",
-                actions: ["clearActionSuccess", "advanceToNextStep"],
-              },
-              // Action completed, no more steps
-              {
-                guard: "hasActionSuccess",
-                target: "#addDeviceWizard.complete",
-                actions: "clearActionSuccess",
-              },
-              // Input steps need to submit to device handler first
-              {
-                guard: { type: "isInputStep", params: {} },
-                target: "submittingInput",
-                actions: "recordPairingInput",
-              },
-              // Non-input steps can advance directly
-              {
-                guard: "hasMoreSteps",
-                target: "evaluating",
-                actions: "advanceToNextStep",
-              },
-              { target: "#addDeviceWizard.complete" },
-            ],
+            },
           },
         },
-        submittingInput: {
+        philips: {
           invoke: {
-            src: "submitPairingInput",
-            input: ({ context }) => ({
-              stepId: context.pairingSteps[context.currentStepIndex]?.id ?? "",
-              input: context.currentInput,
-            }),
-            onDone: [
-              {
-                guard: ({ event }) => !!event.output.error,
-                target: "#addDeviceWizard.error",
-                actions: {
-                  type: "setError",
-                  params: ({ event }) => ({ error: event.output.error! }),
-                },
+            id: PAIRING_ACTOR_ID,
+            src: "philipsPairing",
+            input: ({ context }) => {
+              if (!context.platform) {
+                throw new Error("Platform not selected");
+              }
+              return {
+                deviceName: context.deviceName,
+                deviceIp: context.deviceIp,
+                platform: context.platform,
+              };
+            },
+            onDone: {
+              target: "#addDeviceWizard.complete",
+              actions: {
+                type: "setCredentials",
+                params: ({ event }) => ({
+                  credentials: (event.output as PairingOutput).credentials,
+                }),
               },
-              {
-                guard: ({ event }) => !!event.output.isComplete && !!event.output.credentials,
-                target: "#addDeviceWizard.complete",
-                actions: {
-                  type: "setCredentials",
-                  params: ({ event }) => ({ credentials: event.output.credentials }),
-                },
-              },
-              {
-                guard: "hasMoreSteps",
-                target: "evaluating",
-                actions: "advanceToNextStep",
-              },
-              { target: "#addDeviceWizard.complete" },
-            ],
+            },
             onError: {
               target: "#addDeviceWizard.error",
               actions: {
@@ -455,37 +281,16 @@ export const addDeviceWizardMachine = setup({
     },
     complete: {
       on: {
-        SUBMIT: {
-          target: "done",
-        },
-        SELECT: {
-          target: "done",
-        },
-        DONE: {
-          target: "done",
-        },
-        CANCEL: {
-          target: "done",
-        },
+        SUBMIT: { target: "done" },
+        SELECT: { target: "done" },
+        DONE: { target: "done" },
+        CANCEL: { target: "done" },
       },
     },
     error: {
       on: {
-        SUBMIT: [
-          {
-            guard: ({ context }) =>
-              !!(context.error?.includes("confirm") || context.error?.includes("Press Enter")),
-            target: "pairing",
-            actions: "clearError",
-          },
-        ],
-        BACK: {
-          target: "deviceInfo",
-          actions: "clearError",
-        },
-        CANCEL: {
-          target: "cancelled",
-        },
+        SUBMIT: { target: "connection", actions: "clearError" },
+        CANCEL: { target: "cancelled" },
       },
     },
     cancelled: {
@@ -500,3 +305,8 @@ export const addDeviceWizardMachine = setup({
 });
 
 export type WizardActorRef = Actor<typeof addDeviceWizardMachine>;
+
+export type PairingActorRef =
+  | Actor<typeof androidTvPairingMachine>
+  | Actor<typeof webosPairingMachine>
+  | Actor<typeof philipsPairingMachine>;
