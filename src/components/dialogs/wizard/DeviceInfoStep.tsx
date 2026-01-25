@@ -1,5 +1,6 @@
 import { TextAttributes } from "@opentui/core";
 import { forwardRef, useCallback, useImperativeHandle, useState } from "react";
+import { WizardHints } from "./WizardHints.tsx";
 
 interface DeviceInfoStepProps {
   initialName?: string;
@@ -104,6 +105,15 @@ export const DeviceInfoStep = forwardRef<DeviceInfoStepHandle, DeviceInfoStepPro
             {error}
           </text>
         )}
+
+        <WizardHints
+          hints={[
+            { key: "Tab", label: "to switch field" },
+            { key: "Enter", label: "to continue" },
+            { key: "Ctrl+Bs", label: "to go back" },
+            { key: "Esc", label: "to close" },
+          ]}
+        />
       </box>
     );
   },
