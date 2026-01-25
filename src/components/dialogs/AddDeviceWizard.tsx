@@ -58,7 +58,7 @@ export function AddDeviceWizard({
   );
 
   const { error } = state.context;
-  const stepState = useSelector(actorRef, selectStepState);
+  const currentState = useSelector(actorRef, selectStepState);
 
   const handleDeviceInfoSubmit = useCallback(
     (name: string, ip: string) => {
@@ -68,15 +68,15 @@ export function AddDeviceWizard({
   );
 
   const handleBack = useCallback(() => {
-    if (stepState === "platformSelection") return;
+    if (currentState === "platformSelection") return;
 
-    if (stepState === "connection") {
+    if (currentState === "connection") {
       const handled = pairingRef.current?.handleBack();
       if (handled) return;
     }
 
     send({ type: "BACK" });
-  }, [stepState, send]);
+  }, [currentState, send]);
 
   useDialogKeyboard((event) => {
     if (event.name === "backspace" && event.ctrl) {
@@ -89,7 +89,7 @@ export function AddDeviceWizard({
       connection: pairingRef,
     } as const;
 
-    const activeRef = refMap[stepState as keyof typeof refMap];
+    const activeRef = refMap[currentState as keyof typeof refMap];
 
     if (activeRef?.current) {
       switch (event.name) {
@@ -132,11 +132,19 @@ export function AddDeviceWizard({
   }, dialogId);
 
   const renderStep = () => {
-    switch (stepState) {
+    switch (currentState) {
       case "platformSelection":
         return <PlatformSelectionStep context={state.context} />;
       case "deviceInfo":
-        return <DeviceInfoStep ref={deviceInfoRef} error={error} onSubmit={handleDeviceInfoSubmit} />;
+        return (
+          <DeviceInfoStep
+            ref={deviceInfoRef}
+            initialName={state.context.deviceName}
+            initialIp={state.context.deviceIp}
+            error={error}
+            onSubmit={handleDeviceInfoSubmit}
+          />
+        );
       case "connection":
         return <PairingStepRenderer ref={pairingRef} />;
       case "complete":

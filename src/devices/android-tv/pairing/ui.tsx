@@ -11,10 +11,10 @@ const HINT_CONTINUE = { key: "Enter", label: "to continue" };
 const HINT_RETRY = { key: "Enter", label: "to retry" };
 const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
 
-function getHints(stateValue: string, canGoBack: boolean) {
+function getHints(stateValue: string) {
   switch (stateValue) {
     case "showingInfo":
-      return canGoBack ? [HINT_CONTINUE, HINT_BACK] : [HINT_CONTINUE];
+      return [HINT_CONTINUE, HINT_BACK];
     case "connecting":
       return [HINT_BACK];
     case "error":
@@ -125,7 +125,7 @@ export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(function Andr
     [handleSubmit, handleBack],
   );
 
-  const hints = getHints(currentState, canGoBack);
+  const hints = getHints(currentState);
 
   const renderStep = () => {
     switch (currentState) {
