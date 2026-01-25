@@ -6,23 +6,30 @@ import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx"
 import { ACTIVE_COLOR, DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
 import type { PairingHandle } from "../../../machines/pairing/types";
 import type { philipsPairingMachine } from "./machine";
+import {
+  isConfirmingPairingState,
+  isEnteringPinState,
+  isErrorState,
+  isStartingPairingState,
+  isSuccessState,
+  selectError,
+} from "./selectors";
 
 const HINT_SUBMIT = { key: "Enter", label: "to submit" };
 const HINT_RETRY = { key: "Enter", label: "to retry" };
 const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
 
-function getHints(currentState: string) {
-  switch (currentState) {
-    case "startingPairing":
-    case "enteringPin":
-      return [HINT_SUBMIT, HINT_BACK];
-    case "confirmingPairing":
-      return [HINT_BACK];
-    case "error":
-      return [HINT_RETRY, HINT_BACK];
-    default:
-      return [];
-  }
+function StartingPairingStep() {
+  return (
+    <>
+      <text fg={DIM_COLOR}>
+        Make sure your Philips TV is turned on and connected to the same network.
+      </text>
+      <text fg="#FFAA00" marginTop={1}>
+        Initiating pairing...
+      </text>
+    </>
+  );
 }
 
 function EnteringPinStep({ pinInput, error }: { pinInput: string; error?: string }) {
@@ -92,8 +99,12 @@ export const PhilipsPairingUI = forwardRef<PairingHandle, Props>(function Philip
 ) {
   const [pinInput, setPinInput] = useState("");
 
-  const currentState = useSelector(actorRef, (state) => state.value as string);
-  const error = useSelector(actorRef, (state) => state.context.error);
+  const isStartingPairing = useSelector(actorRef, isStartingPairingState);
+  const isEnteringPin = useSelector(actorRef, isEnteringPinState);
+  const isConfirmingPairing = useSelector(actorRef, isConfirmingPairingState);
+  const isSuccess = useSelector(actorRef, isSuccessState);
+  const isError = useSelector(actorRef, isErrorState);
+  const error = useSelector(actorRef, selectError);
 
   const handleChar = useCallback(
     (char: string) => {
@@ -109,12 +120,16 @@ export const PhilipsPairingUI = forwardRef<PairingHandle, Props>(function Philip
   }, []);
 
   const handleSubmit = useCallback(() => {
-    if (currentState === "enteringPin" && pinInput.length === 4) {
+    if (isEnteringPin && pinInput.length === 4) {
       actorRef.send({ type: "SUBMIT_PIN", pin: pinInput });
-    } else if (currentState === "error") {
-      actorRef.send({ type: "RETRY" });
+      return true;
     }
-  }, [actorRef, currentState, pinInput]);
+    if (isError) {
+      actorRef.send({ type: "RETRY" });
+      return true;
+    }
+    return false;
+  }, [actorRef, isEnteringPin, isError, pinInput]);
 
   const handleBack = useCallback(() => {
     return false;
@@ -131,23 +146,23 @@ export const PhilipsPairingUI = forwardRef<PairingHandle, Props>(function Philip
     [handleChar, handleBackspace, handleSubmit, handleBack],
   );
 
-  const hints = getHints(currentState);
+  const getHints = () => {
+    if (isStartingPairing || isConfirmingPairing) return [HINT_BACK];
+    if (isEnteringPin) return [HINT_SUBMIT, HINT_BACK];
+    if (isError) return [HINT_RETRY, HINT_BACK];
+    return [];
+  };
 
   const renderStep = () => {
-    switch (currentState) {
-      case "startingPairing":
-      case "enteringPin":
-        return <EnteringPinStep pinInput={pinInput} error={error} />;
-      case "confirmingPairing":
-        return <ConfirmingStep />;
-      case "success":
-        return <SuccessStep />;
-      case "error":
-        return <ErrorStep error={error} />;
-      default:
-        return null;
-    }
+    if (isStartingPairing) return <StartingPairingStep />;
+    if (isEnteringPin) return <EnteringPinStep pinInput={pinInput} error={error} />;
+    if (isConfirmingPairing) return <ConfirmingStep />;
+    if (isSuccess) return <SuccessStep />;
+    if (isError) return <ErrorStep error={error} />;
+    return null;
   };
+
+  const hints = getHints();
 
   return (
     <box flexDirection="column" gap={1}>

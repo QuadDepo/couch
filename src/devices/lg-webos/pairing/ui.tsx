@@ -6,20 +6,17 @@ import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx"
 import { ACTIVE_COLOR, DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
 import type { PairingHandle } from "../../../machines/pairing/types";
 import type { webosPairingMachine } from "./machine";
+import {
+  isConnectingState,
+  isErrorState,
+  isInitiatingState,
+  isSuccessState,
+  isWaitingState,
+  selectError,
+} from "./selectors";
 
 const HINT_RETRY = { key: "Enter", label: "to retry" };
 const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
-
-function getHints(currentState: string) {
-  switch (currentState) {
-    case "connecting":
-      return [HINT_BACK];
-    case "error":
-      return [HINT_RETRY, HINT_BACK];
-    default:
-      return [];
-  }
-}
 
 function InitiatingStep() {
   return (
@@ -78,24 +75,20 @@ export const WebOSPairingUI = forwardRef<PairingHandle, Props>(function WebOSPai
   { actorRef },
   ref,
 ) {
-  const currentState = useSelector(actorRef, (state) => {
-    if (state.matches({ connecting: "initiating" })) return "initiating";
-    if (state.matches({ connecting: "waitingForConfirmation" })) return "waiting";
-    if (state.matches("success")) return "success";
-    if (state.matches("error")) return "error";
-    return "connecting";
-  });
-  const error = useSelector(actorRef, (state) => state.context.error);
+  const isInitiating = useSelector(actorRef, isInitiatingState);
+  const isWaiting = useSelector(actorRef, isWaitingState);
+  const isConnecting = useSelector(actorRef, isConnectingState);
+  const isSuccess = useSelector(actorRef, isSuccessState);
+  const isError = useSelector(actorRef, isErrorState);
+  const error = useSelector(actorRef, selectError);
 
   const handleSubmit = useCallback(() => {
-    const canSubmit = currentState === "error";
-
-    if (canSubmit) {
+    if (isError) {
       actorRef.send({ type: "SUBMIT" });
+      return true;
     }
-
-    return canSubmit;
-  }, [actorRef, currentState]);
+    return false;
+  }, [actorRef, isError]);
 
   const handleBack = useCallback(() => {
     return false;
@@ -112,24 +105,21 @@ export const WebOSPairingUI = forwardRef<PairingHandle, Props>(function WebOSPai
     [handleSubmit, handleBack],
   );
 
-  const parentState =
-    currentState === "initiating" || currentState === "waiting" ? "connecting" : currentState;
-  const hints = getHints(parentState);
+  const getHints = () => {
+    if (isConnecting) return [HINT_BACK];
+    if (isError) return [HINT_RETRY, HINT_BACK];
+    return [];
+  };
 
   const renderStep = () => {
-    switch (currentState) {
-      case "initiating":
-        return <InitiatingStep />;
-      case "waiting":
-        return <WaitingStep />;
-      case "success":
-        return <SuccessStep />;
-      case "error":
-        return <ErrorStep error={error} />;
-      default:
-        return null;
-    }
+    if (isInitiating) return <InitiatingStep />;
+    if (isWaiting) return <WaitingStep />;
+    if (isSuccess) return <SuccessStep />;
+    if (isError) return <ErrorStep error={error} />;
+    return null;
   };
+
+  const hints = getHints();
 
   return (
     <box flexDirection="column" gap={1}>

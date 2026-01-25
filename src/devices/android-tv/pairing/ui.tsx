@@ -6,23 +6,18 @@ import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx"
 import { ACTIVE_COLOR, DIM_COLOR, ERROR_COLOR } from "../../../constants/colors.ts";
 import type { PairingHandle } from "../../../machines/pairing/types";
 import { type androidTvPairingMachine, INFO_STEPS } from "./machine";
+import {
+  isConnectingState,
+  isErrorState,
+  isShowingInfoState,
+  isSuccessState,
+  selectError,
+  selectStepIndex,
+} from "./selectors";
 
 const HINT_CONTINUE = { key: "Enter", label: "to continue" };
 const HINT_RETRY = { key: "Enter", label: "to retry" };
 const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
-
-function getHints(stateValue: string) {
-  switch (stateValue) {
-    case "showingInfo":
-      return [HINT_CONTINUE, HINT_BACK];
-    case "connecting":
-      return [HINT_BACK];
-    case "error":
-      return [HINT_RETRY, HINT_BACK];
-    default:
-      return [];
-  }
-}
 
 interface InfoStepProps {
   title: string;
@@ -84,34 +79,32 @@ export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(function Andr
   { actorRef },
   ref,
 ) {
-  const currentState = useSelector(actorRef, (state) => state.value as string);
-  const stepIndex = useSelector(actorRef, (state) => state.context.stepIndex);
-  const error = useSelector(actorRef, (state) => state.context.error);
+  const isShowingInfo = useSelector(actorRef, isShowingInfoState);
+  const isConnecting = useSelector(actorRef, isConnectingState);
+  const isSuccess = useSelector(actorRef, isSuccessState);
+  const isError = useSelector(actorRef, isErrorState);
+  const stepIndex = useSelector(actorRef, selectStepIndex);
+  const error = useSelector(actorRef, selectError);
 
   const currentStep = INFO_STEPS[stepIndex];
   const totalSteps = INFO_STEPS.length + 1;
 
   const handleSubmit = useCallback(() => {
-    const canSubmit = currentState === "showingInfo" || currentState === "error";
-
-    if (canSubmit) {
+    if (isShowingInfo || isError) {
       actorRef.send({ type: "SUBMIT" });
+      return true;
     }
+    return false;
+  }, [actorRef, isShowingInfo, isError]);
 
-    return canSubmit;
-  }, [actorRef, currentState]);
-
-  const canGoBack =
-    (currentState === "showingInfo" && stepIndex > 0) ||
-    currentState === "connecting" ||
-    currentState === "error";
+  const canGoBack = (isShowingInfo && stepIndex > 0) || isConnecting || isError;
 
   const handleBack = useCallback(() => {
     if (canGoBack) {
       actorRef.send({ type: "BACK" });
+      return true;
     }
-
-    return canGoBack;
+    return false;
   }, [actorRef, canGoBack]);
 
   useImperativeHandle(
@@ -125,29 +118,31 @@ export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(function Andr
     [handleSubmit, handleBack],
   );
 
-  const hints = getHints(currentState);
+  const getHints = () => {
+    if (isShowingInfo) return [HINT_CONTINUE, HINT_BACK];
+    if (isConnecting) return [HINT_BACK];
+    if (isError) return [HINT_RETRY, HINT_BACK];
+    return [];
+  };
 
   const renderStep = () => {
-    switch (currentState) {
-      case "showingInfo":
-        return currentStep ? (
-          <InfoStep
-            title={currentStep.title}
-            description={currentStep.description}
-            currentStep={stepIndex + 1}
-            totalSteps={totalSteps}
-          />
-        ) : null;
-      case "connecting":
-        return <ConnectingStep totalSteps={totalSteps} />;
-      case "success":
-        return <SuccessStep />;
-      case "error":
-        return <ErrorStep error={error} />;
-      default:
-        return null;
+    if (isShowingInfo && currentStep) {
+      return (
+        <InfoStep
+          title={currentStep.title}
+          description={currentStep.description}
+          currentStep={stepIndex + 1}
+          totalSteps={totalSteps}
+        />
+      );
     }
+    if (isConnecting) return <ConnectingStep totalSteps={totalSteps} />;
+    if (isSuccess) return <SuccessStep />;
+    if (isError) return <ErrorStep error={error} />;
+    return null;
   };
+
+  const hints = getHints();
 
   return (
     <box flexDirection="column" gap={1}>
