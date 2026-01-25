@@ -209,7 +209,7 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
           totalSteps: pairingSteps.length,
           inputs: {},
           isComplete: true,
-          credentials: createCredentials(clientKey, device.mac || ""),
+          credentials: createCredentials({ clientKey, mac: device.mac }),
         };
       }
 
@@ -233,7 +233,7 @@ export function createWebOSHandler(device: TVDevice): DeviceHandler {
         if (isPaired && clientKey) {
           logger.info("WebOS", "Pairing completed successfully");
           pairingInProgress = false;
-          return { credentials: createCredentials(clientKey, device.mac || "") };
+          return { credentials: createCredentials({ clientKey, mac: device.mac }) };
         }
 
         logger.info("WebOS", "Still waiting for user confirmation on TV");

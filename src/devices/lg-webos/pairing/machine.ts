@@ -132,7 +132,7 @@ export const webosPairingMachine = setup({
   },
   output: ({ context }): PairingOutput => ({
     credentials: context.clientKey
-      ? createCredentials(context.clientKey, context.input.deviceIp)
+      ? createCredentials({ clientKey: context.clientKey })
       : null,
   }),
 });
