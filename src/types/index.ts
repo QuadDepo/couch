@@ -32,8 +32,8 @@ export type RemoteKey =
   | "REWIND"
   | "FAST_FORWARD";
 
-import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
 import type { WebOSCredentials } from "../devices/lg-webos/credentials";
+import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
 
 type PlatformConfig<P extends TVPlatform> = P extends "philips-android-tv"
   ? { philips: PhilipsCredentials }
