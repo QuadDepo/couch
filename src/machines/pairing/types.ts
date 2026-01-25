@@ -14,4 +14,5 @@ export interface PairingHandle {
   handleChar: (char: string) => void;
   handleBackspace: () => void;
   handleSubmit: () => void;
+  handleBack: () => boolean;
 }
