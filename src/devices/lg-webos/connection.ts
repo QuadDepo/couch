@@ -17,8 +17,10 @@ export interface WebOSConnection {
   connect(): Promise<void>;
   disconnect(): void;
   request<T>(uri: string, payload?: object): Promise<T>;
+  // biome-ignore lint/suspicious/noExplicitAny: WebOS subscription payloads have dynamic shapes that vary by URI
   subscribe(uri: string, payload: object, callback: (data: any) => void): Promise<void>;
   getInputSocket(): Promise<RemoteInputSocket>;
+  // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
   on(event: ConnectionEvent, callback: (...args: any[]) => void): void;
   isConnected(): boolean;
   isPaired(): boolean;
@@ -83,8 +85,10 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   }
 
   const pendingRequests = new Map<string, PendingRequest>();
+  // biome-ignore lint/suspicious/noExplicitAny: WebOS subscription payloads have dynamic shapes that vary by URI
   const subscriptions = new Map<string, (data: any) => void>();
 
+  // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
   const listeners: Map<ConnectionEvent, Set<(...args: any[]) => void>> = new Map([
     ["connect", new Set()],
     ["close", new Set()],
@@ -325,6 +329,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   async function register(): Promise<void> {
     const cid = getCid();
     const manifest = { ...PAIRING_MANIFEST };
+    // biome-ignore lint/suspicious/noExplicitAny: PAIRING_MANIFEST is a const with RSA signature; client-key must be added dynamically
     (manifest as any)["client-key"] = clientKey;
 
     const message: WebOSRequestMessage = {
@@ -398,6 +403,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   async function subscribe(
     uri: string,
     payload: object,
+    // biome-ignore lint/suspicious/noExplicitAny: WebOS subscription payloads have dynamic shapes that vary by URI
     callback: (data: any) => void,
   ): Promise<void> {
     if (!connected) {
@@ -494,6 +500,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     request,
     subscribe,
     getInputSocket,
+    // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
     on(event: ConnectionEvent, callback: (...args: any[]) => void) {
       listeners.get(event)?.add(callback);
       return () => {
