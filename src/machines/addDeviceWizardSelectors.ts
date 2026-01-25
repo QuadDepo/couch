@@ -1,5 +1,9 @@
 import type { SnapshotFrom, StateFrom } from "xstate";
-import type { addDeviceWizardMachine, PairingActorRef } from "./addDeviceWizardMachine.ts";
+import {
+  PAIRING_ACTOR_ID,
+  type addDeviceWizardMachine,
+  type PairingActorRef,
+} from "./addDeviceWizardMachine.ts";
 
 type WizardState = StateFrom<typeof addDeviceWizardMachine>;
 type WizardSnapshot = SnapshotFrom<typeof addDeviceWizardMachine>;
@@ -39,7 +43,7 @@ export const selectPlatform = (state: WizardState) => state.context.platform;
 export const selectError = (state: WizardState) => state.context.error;
 
 export const selectPairingActorRef = (snapshot: WizardSnapshot): PairingActorRef | undefined => {
-  return snapshot.children.pairing as PairingActorRef | undefined;
+  return snapshot.children[PAIRING_ACTOR_ID] as PairingActorRef | undefined;
 };
 
 export const selectProgressString = (state: WizardState): string => {

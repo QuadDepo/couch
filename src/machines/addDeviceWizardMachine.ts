@@ -7,6 +7,8 @@ import type { TVPlatform } from "../types/index.ts";
 import { isValidIp } from "../utils/network.ts";
 import type { PairingOutput } from "./pairing/types.ts";
 
+export const PAIRING_ACTOR_ID = "pairing" as const;
+
 export interface WizardContext {
   platform: TVPlatform | null;
   selectedPlatformIndex: number;
@@ -165,7 +167,7 @@ export const addDeviceWizardMachine = setup({
         },
         androidTv: {
           invoke: {
-            id: "pairing",
+            id: PAIRING_ACTOR_ID,
             src: "androidTvPairing",
             input: ({ context }) => ({
               deviceName: context.deviceName,
@@ -192,7 +194,7 @@ export const addDeviceWizardMachine = setup({
         },
         webos: {
           invoke: {
-            id: "pairing",
+            id: PAIRING_ACTOR_ID,
             src: "webosPairing",
             input: ({ context }) => ({
               deviceName: context.deviceName,
@@ -219,7 +221,7 @@ export const addDeviceWizardMachine = setup({
         },
         philips: {
           invoke: {
-            id: "pairing",
+            id: PAIRING_ACTOR_ID,
             src: "philipsPairing",
             input: ({ context }) => ({
               deviceName: context.deviceName,
