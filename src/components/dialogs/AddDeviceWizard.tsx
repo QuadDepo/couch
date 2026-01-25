@@ -2,12 +2,20 @@ import { TextAttributes } from "@opentui/core";
 import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMachine, useSelector } from "@xstate/react";
 import { useCallback, useRef } from "react";
+import { DIM_COLOR, ERROR_COLOR } from "../../constants/colors.ts";
 import { wrapPlatformCredentials } from "../../devices/factory.ts";
 import {
   addDeviceWizardMachine,
   type WizardContext as MachineContext,
 } from "../../machines/addDeviceWizardMachine.ts";
-import { selectStepState } from "../../machines/addDeviceWizardSelectors.ts";
+import {
+  isCompleteState,
+  isConnectionState,
+  isDeviceInfoState,
+  isErrorState,
+  isPlatformSelectionState,
+  selectError,
+} from "../../machines/addDeviceWizardSelectors.ts";
 import type { TVDevice } from "../../types/index.ts";
 import { CompletionStep } from "./wizard/CompletionStep.tsx";
 import { DeviceInfoStep, type DeviceInfoStepHandle } from "./wizard/DeviceInfoStep.tsx";
@@ -56,8 +64,12 @@ export function AddDeviceWizard({
     }),
   );
 
-  const { error } = state.context;
-  const stepState = useSelector(actorRef, selectStepState);
+  const isPlatformSelection = useSelector(actorRef, isPlatformSelectionState);
+  const isDeviceInfo = useSelector(actorRef, isDeviceInfoState);
+  const isConnection = useSelector(actorRef, isConnectionState);
+  const isComplete = useSelector(actorRef, isCompleteState);
+  const isError = useSelector(actorRef, isErrorState);
+  const error = useSelector(actorRef, selectError);
 
   const handleDeviceInfoSubmit = useCallback(
     (name: string, ip: string) => {
@@ -66,43 +78,50 @@ export function AddDeviceWizard({
     [send],
   );
 
-  useDialogKeyboard((event) => {
-    if (stepState === "deviceInfo") {
-      switch (event.name) {
-        case "return":
-          deviceInfoRef.current?.handleSubmit();
-          return;
-        case "tab":
-          deviceInfoRef.current?.handleTab();
-          return;
-        case "backspace":
-          deviceInfoRef.current?.handleBackspace();
-          return;
-        case "escape":
-          send({ type: "CANCEL" });
-          return;
-        default:
-          if (event.sequence?.length === 1) {
-            deviceInfoRef.current?.handleChar(event.sequence);
-          }
-          return;
-      }
+  const handleBack = useCallback(() => {
+    if (isPlatformSelection) return;
+
+    if (isConnection) {
+      const handled = pairingRef.current?.handleBack();
+      if (handled) return;
     }
 
-    if (stepState === "connection") {
+    send({ type: "BACK" });
+  }, [isPlatformSelection, isConnection, send]);
+
+  const getActiveRef = () => {
+    if (isDeviceInfo) return deviceInfoRef;
+    if (isConnection) return pairingRef;
+    return null;
+  };
+
+  useDialogKeyboard((event) => {
+    if (event.name === "backspace" && event.ctrl) {
+      handleBack();
+      return;
+    }
+
+    const activeRef = getActiveRef();
+
+    if (activeRef?.current) {
       switch (event.name) {
         case "return":
-          pairingRef.current?.handleSubmit();
+          activeRef.current.handleSubmit();
           return;
         case "backspace":
-          pairingRef.current?.handleBackspace();
+          activeRef.current.handleBackspace();
+          return;
+        case "tab":
+          if ("handleTab" in activeRef.current) {
+            activeRef.current.handleTab();
+          }
           return;
         case "escape":
           send({ type: "CANCEL" });
           return;
         default:
           if (event.sequence?.length === 1) {
-            pairingRef.current?.handleChar(event.sequence);
+            activeRef.current.handleChar(event.sequence);
           }
           return;
       }
@@ -124,6 +143,34 @@ export function AddDeviceWizard({
     }
   }, dialogId);
 
+  const renderStep = () => {
+    if (isPlatformSelection) return <PlatformSelectionStep context={state.context} />;
+    if (isDeviceInfo) {
+      return (
+        <DeviceInfoStep
+          ref={deviceInfoRef}
+          initialName={state.context.deviceName}
+          initialIp={state.context.deviceIp}
+          error={error}
+          onSubmit={handleDeviceInfoSubmit}
+        />
+      );
+    }
+    if (isConnection) return <PairingStepRenderer ref={pairingRef} />;
+    if (isComplete) return <CompletionStep context={state.context} />;
+    if (isError) {
+      return (
+        <box flexDirection="column" gap={1}>
+          <text fg={ERROR_COLOR} attributes={TextAttributes.BOLD}>
+            Error
+          </text>
+          <text fg={DIM_COLOR}>{error || "An error occurred"}</text>
+        </box>
+      );
+    }
+    return null;
+  };
+
   return (
     <WizardProvider actorRef={actorRef}>
       <box
@@ -135,23 +182,7 @@ export function AddDeviceWizard({
         paddingBottom={2}
       >
         <WizardHeader />
-
-        <box marginTop={1}>
-          {stepState === "platformSelection" && <PlatformSelectionStep context={state.context} />}
-          {stepState === "deviceInfo" && (
-            <DeviceInfoStep ref={deviceInfoRef} error={error} onSubmit={handleDeviceInfoSubmit} />
-          )}
-          {stepState === "connection" && <PairingStepRenderer ref={pairingRef} />}
-          {stepState === "complete" && <CompletionStep context={state.context} />}
-          {stepState === "error" && (
-            <box flexDirection="column" gap={1}>
-              <text fg="#FF4444" attributes={TextAttributes.BOLD}>
-                Error
-              </text>
-              <text fg="#AAAAAA">{error || "An error occurred"}</text>
-            </box>
-          )}
-        </box>
+        <box marginTop={1}>{renderStep()}</box>
       </box>
     </WizardProvider>
   );

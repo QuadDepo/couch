@@ -22,6 +22,7 @@ export const PairingStepRenderer = forwardRef<PairingStepHandle>(
         handleChar: (char: string) => pairingRef.current?.handleChar(char),
         handleBackspace: () => pairingRef.current?.handleBackspace(),
         handleSubmit: () => pairingRef.current?.handleSubmit(),
+        handleBack: () => pairingRef.current?.handleBack() ?? false,
       }),
       [],
     );

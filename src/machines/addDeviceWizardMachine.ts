@@ -25,7 +25,8 @@ type WizardEvent =
   | { type: "SET_DEVICE_INFO"; name: string; ip: string }
   | { type: "SUBMIT" }
   | { type: "CANCEL" }
-  | { type: "DONE" };
+  | { type: "DONE" }
+  | { type: "BACK" };
 
 export const addDeviceWizardMachine = setup({
   types: {
@@ -165,12 +166,14 @@ export const addDeviceWizardMachine = setup({
             },
           },
         ],
+        BACK: { target: "platformSelection" },
         CANCEL: { target: "cancelled" },
       },
     },
     connection: {
       initial: "routing",
       on: {
+        BACK: { target: "deviceInfo" },
         CANCEL: { target: "cancelled" },
       },
       states: {
@@ -290,6 +293,7 @@ export const addDeviceWizardMachine = setup({
     error: {
       on: {
         SUBMIT: { target: "connection", actions: "clearError" },
+        BACK: { target: "deviceInfo", actions: "clearError" },
         CANCEL: { target: "cancelled" },
       },
     },

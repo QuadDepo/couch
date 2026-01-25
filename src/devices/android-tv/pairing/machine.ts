@@ -20,10 +20,7 @@ interface AndroidTvPairingContext {
   error?: string;
 }
 
-type AndroidTvPairingEvent =
-  | { type: "SUBMIT" }
-  | { type: "CHAR_INPUT"; char: string }
-  | { type: "BACKSPACE" };
+type AndroidTvPairingEvent = { type: "SUBMIT" } | { type: "BACK" };
 
 export const androidTvPairingMachine = setup({
   types: {
@@ -40,10 +37,17 @@ export const androidTvPairingMachine = setup({
   },
   guards: {
     hasMoreInfoSteps: ({ context }) => context.stepIndex < INFO_STEPS.length - 1,
+    canGoBackInSteps: ({ context }) => context.stepIndex > 0,
   },
   actions: {
     nextStep: assign({
       stepIndex: ({ context }) => context.stepIndex + 1,
+    }),
+    prevStep: assign({
+      stepIndex: ({ context }) => context.stepIndex - 1,
+    }),
+    resetToLastStep: assign({
+      stepIndex: INFO_STEPS.length - 1,
     }),
     setError: assign({
       error: (_, params: { error: string }) => params.error,
@@ -71,9 +75,16 @@ export const androidTvPairingMachine = setup({
             target: "connecting",
           },
         ],
+        BACK: {
+          guard: "canGoBackInSteps",
+          actions: "prevStep",
+        },
       },
     },
     connecting: {
+      on: {
+        BACK: { target: "showingInfo", actions: "resetToLastStep" },
+      },
       invoke: {
         src: "connect",
         input: ({ context }) => ({ ip: context.input.deviceIp }),
@@ -93,6 +104,7 @@ export const androidTvPairingMachine = setup({
     error: {
       on: {
         SUBMIT: { target: "connecting", actions: "clearError" },
+        BACK: { target: "showingInfo", actions: ["clearError", "resetToLastStep"] },
       },
     },
   },

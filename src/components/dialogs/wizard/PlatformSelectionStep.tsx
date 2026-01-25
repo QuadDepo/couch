@@ -1,6 +1,6 @@
-import { TextAttributes } from "@opentui/core";
 import { implementedPlatforms } from "../../../devices/factory.ts";
 import type { WizardContext } from "../../../machines/addDeviceWizardMachine.ts";
+import { WizardHints } from "./WizardHints.tsx";
 
 interface PlatformSelectionStepProps {
   context: WizardContext;
@@ -28,20 +28,13 @@ export function PlatformSelectionStep({ context }: PlatformSelectionStepProps) {
         })}
       </box>
 
-      <box marginTop={1} flexDirection="row">
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Esc
-        </text>
-        <text fg="#666666"> to close, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          ↑↓
-        </text>
-        <text fg="#666666"> to select, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Enter
-        </text>
-        <text fg="#666666"> to continue</text>
-      </box>
+      <WizardHints
+        hints={[
+          { key: "↑↓", label: "to select" },
+          { key: "Enter", label: "to continue" },
+          { key: "Esc", label: "to close" },
+        ]}
+      />
     </box>
   );
 }

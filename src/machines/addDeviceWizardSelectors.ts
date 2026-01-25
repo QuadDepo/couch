@@ -8,59 +8,46 @@ import {
 type WizardState = StateFrom<typeof addDeviceWizardMachine>;
 type WizardSnapshot = SnapshotFrom<typeof addDeviceWizardMachine>;
 
-type StepState =
-  | "platformSelection"
-  | "deviceInfo"
-  | "connection"
-  | "complete"
-  | "error"
-  | "done"
-  | "cancelled";
+export const isPlatformSelectionState = (state: WizardState) => state.matches("platformSelection");
+export const isDeviceInfoState = (state: WizardState) => state.matches("deviceInfo");
+export const isConnectionState = (state: WizardState) => state.matches("connection");
+export const isCompleteState = (state: WizardState) => state.matches("complete");
+export const isErrorState = (state: WizardState) => state.matches("error");
+export const isDoneState = (state: WizardState) => state.matches("done");
+export const isCancelledState = (state: WizardState) => state.matches("cancelled");
 
-const STEP_LABELS: Record<StepState, string> = {
-  platformSelection: "Select Platform",
-  deviceInfo: "Device Info",
-  connection: "Pairing",
-  complete: "Complete",
-  error: "Error",
-  done: "Done",
-  cancelled: "Cancelled",
-};
-
-export const selectStepState = (state: WizardState): StepState => {
-  const value = state.value;
-  if (typeof value === "string") return value as StepState;
-  return Object.keys(value)[0] as StepState;
-};
-
-export const selectStepLabel = (state: WizardState): string => {
-  const stepState = selectStepState(state);
-  return STEP_LABELS[stepState] ?? "";
-};
-
+// Context selectors
 export const selectPlatform = (state: WizardState) => state.context.platform;
-
 export const selectError = (state: WizardState) => state.context.error;
 
 export const selectPairingActorRef = (snapshot: WizardSnapshot): PairingActorRef | undefined => {
   return snapshot.children[PAIRING_ACTOR_ID] as PairingActorRef | undefined;
 };
 
+// TODO: see if we can improve these step label / progress selectors with a more generic approach
+export const selectStepLabel = (state: WizardState): string => {
+  if (isPlatformSelectionState(state)) return "Select Platform";
+  if (isDeviceInfoState(state)) return "Device Info";
+  if (isConnectionState(state)) return "Pairing";
+  if (isCompleteState(state)) return "Complete";
+  if (isErrorState(state)) return "Error";
+  if (isDoneState(state)) return "Done";
+  if (isCancelledState(state)) return "Cancelled";
+  return "";
+};
+
 export const selectProgressString = (state: WizardState): string => {
-  const stepState = selectStepState(state);
-  if (stepState === "platformSelection") return "";
+  if (isPlatformSelectionState(state)) return "";
+  if (isCancelledState(state)) return "";
 
-  const stepNumbers: Record<StepState, number> = {
-    platformSelection: 0,
-    deviceInfo: 1,
-    connection: 2,
-    complete: 3,
-    error: 2,
-    done: 3,
-    cancelled: 0,
-  };
-
-  const current = stepNumbers[stepState] ?? 0;
   const total = 3;
+  let current = 0;
+
+  if (isDeviceInfoState(state)) current = 1;
+  else if (isConnectionState(state)) current = 2;
+  else if (isErrorState(state)) current = 2;
+  else if (isCompleteState(state)) current = 3;
+  else if (isDoneState(state)) current = 3;
+
   return `${current}/${total}`;
 };
