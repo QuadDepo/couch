@@ -1,15 +1,15 @@
 import type { TVDevice } from "../../types";
-import type { DeviceHandler, CommandResult, PairingState } from "../types";
-import type { WebOSCredentials } from "./credentials";
-import type { RemoteInputSocket } from "./connection";
-import { createStatusManager, createKeySender } from "../utils";
-import { keymap, isInputSocketKey, getInputSocketCommand } from "./keymap";
-import { capabilities } from "./capabilities";
-import { pairingSteps } from "./pairing";
-import { createWebOSConnection } from "./connection";
-import { validateWebOSCredentials, createCredentials } from "./credentials";
 import { logger } from "../../utils/logger";
-import { URI_SET_MUTE, URI_INSERT_TEXT } from "./protocol";
+import type { CommandResult, DeviceHandler, PairingState } from "../types";
+import { createKeySender, createStatusManager } from "../utils";
+import { capabilities } from "./capabilities";
+import type { RemoteInputSocket } from "./connection";
+import { createWebOSConnection } from "./connection";
+import type { WebOSCredentials } from "./credentials";
+import { createCredentials, validateWebOSCredentials } from "./credentials";
+import { getInputSocketCommand, isInputSocketKey, keymap } from "./keymap";
+import { pairingSteps } from "./pairing";
+import { URI_INSERT_TEXT, URI_SET_MUTE } from "./protocol";
 
 export function createWebOSHandler(device: TVDevice): DeviceHandler {
   const statusManager = createStatusManager();

@@ -1,14 +1,13 @@
-import { writeFile, readFile, existsSync } from "fs";
-import type { WebOSCredentials } from "./credentials";
-import type { RemoteCommand } from "./protocol";
+import { existsSync, readFile, writeFile } from "fs";
+import { logger } from "../../utils/logger";
+
 import {
+  getKeyFilePath,
+  PAIRING_MANIFEST,
+  URI_POINTER_INPUT,
   WEBSOCKET_PORT,
   WEBSOCKET_SSL_PORT,
-  URI_POINTER_INPUT,
-  PAIRING_MANIFEST,
-  getKeyFilePath,
 } from "./protocol";
-import { logger } from "../../utils/logger";
 
 export interface WebOSConnection {
   connect(): Promise<void>;
@@ -474,22 +473,4 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     isPaired: () => paired,
     getClientKey: () => clientKey,
   };
-}
-
-export async function loadClientKey(ip: string, mac: string): Promise<string | undefined> {
-  const keyPath = getKeyFilePath(ip, mac);
-
-  return new Promise((resolve) => {
-    readFile(keyPath, "utf-8", (err, data) => {
-      if (err) {
-        resolve(undefined);
-      } else {
-        resolve(data.trim());
-      }
-    });
-  });
-}
-
-export function hasStoredKey(ip: string, mac: string): boolean {
-  return existsSync(getKeyFilePath(ip, mac));
 }

@@ -1,6 +1,6 @@
-import path from "path";
 import { mkdirSync } from "fs";
 import { homedir } from "os";
+import path from "path";
 
 export const WEBSOCKET_PORT = 3000;
 export const WEBSOCKET_SSL_PORT = 3001;
