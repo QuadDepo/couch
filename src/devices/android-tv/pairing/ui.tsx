@@ -71,14 +71,14 @@ interface Props {
 
 export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(
   function AndroidTvPairingUI({ actorRef }, ref) {
-    const currentStepIndex = useSelector(actorRef, (state) => state.context.currentStepIndex);
+    const stepIndex = useSelector(actorRef, (state) => state.context.stepIndex);
     const isConnecting = useSelector(actorRef, (state) => state.matches("connecting"));
     const isSuccess = useSelector(actorRef, (state) => state.matches("success"));
     const isError = useSelector(actorRef, (state) => state.matches("error"));
     const isShowingInfo = useSelector(actorRef, (state) => state.matches("showingInfo"));
     const error = useSelector(actorRef, (state) => state.context.error);
 
-    const currentStep = INFO_STEPS[currentStepIndex];
+    const currentStep = INFO_STEPS[stepIndex];
     const totalSteps = INFO_STEPS.length + 1;
 
     const handleSubmit = useCallback(() => {
@@ -103,7 +103,7 @@ export const AndroidTvPairingUI = forwardRef<PairingHandle, Props>(
           <InfoStep
             title={currentStep.title}
             description={currentStep.description}
-            currentStep={currentStepIndex + 1}
+            currentStep={stepIndex + 1}
             totalSteps={totalSteps}
           />
         )}
