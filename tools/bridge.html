@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>XState Inspector Bridge</title>
+    <style>
+        body { font-family: system-ui; background: #1a1a1a; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .container { text-align: center; }
+        .status { font-size: 14px; color: #888; margin-top: 8px; }
+        .status.connected { color: #4ade80; }
+        .status.error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>XState Inspector Bridge</h2>
+        <div id="status" class="status">Initializing...</div>
+    </div>
+
+    <script>
+        const INSPECTOR_URL = 'https://stately.ai/inspect';
+
+        const statusElement = document.getElementById('status');
+        let inspectorWindow = null;
+        let isInspectorConnected = false;
+        let ws = null;
+
+        function updateStatus(text, type = '') {
+            console.log("[Bridge] " + text);
+            statusElement.textContent = text;
+            statusElement.className = 'status ' + type;
+        }
+
+        function openInspector() {
+            inspectorWindow = window.open(INSPECTOR_URL, 'statelyInspector');
+            if (!inspectorWindow) {
+                updateStatus("Pop-up blocked - allow pop-ups and refresh", 'error');
+                return false;
+            }
+            updateStatus("Waiting for Inspector...");
+            return true;
+        }
+
+        function listenForInspector() {
+            window.addEventListener('message', (event) => {
+                if (event.source !== inspectorWindow) return;
+
+                if (event.data?.type === '@statelyai.connected') {
+                    isInspectorConnected = true;
+                    updateStatus(ws?.readyState === WebSocket.OPEN ?
+                        "Connected" : "Inspector ready (WebSocket disconnected)",
+                        ws?.readyState === WebSocket.OPEN ? 'connected' : '');
+                }
+            });
+        }
+
+        function forwardToInspector(data) {
+            if (!inspectorWindow || inspectorWindow.closed) {
+                updateStatus("Inspector closed - refresh to reconnect", 'error');
+                ws?.close();
+                return;
+            }
+
+            if (!isInspectorConnected) return;
+
+            try {
+                inspectorWindow.postMessage(data, '*');
+            } catch (e) {
+                console.error("[Bridge] postMessage error:", e);
+            }
+        }
+
+        function connectWebSocket() {
+            const wsUrl = `ws://${window.location.host}`;
+            updateStatus("Connecting to server...");
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                updateStatus(isInspectorConnected ? "Connected" : "Server connected (waiting for Inspector)",
+                    isInspectorConnected ? 'connected' : '');
+                ws.send(JSON.stringify({ type: "BRIDGE_CONNECT" }));
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    forwardToInspector(data);
+                } catch (e) {
+                    console.error("[Bridge] Parse error:", e);
+                }
+            };
+
+            ws.onclose = () => {
+                updateStatus("Server disconnected", 'error');
+                inspectorWindow?.close();
+            };
+
+            ws.onerror = () => {
+                updateStatus("WebSocket error", 'error');
+            };
+        }
+
+        listenForInspector();
+        if (openInspector()) {
+            connectWebSocket();
+        }
+    </script>
+</body>
+</html>
