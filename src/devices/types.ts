@@ -28,23 +28,3 @@ export interface CommandResult {
   error?: string;
   latencyMs?: number;
 }
-
-export interface DeviceHandler {
-  platform: TVPlatform;
-  device: TVDevice;
-  capabilities: DeviceCapabilities;
-
-  getStatus(): ConnectionStatus;
-  connect(): Promise<void>;
-  disconnect(): Promise<void>;
-
-  sendKey(key: RemoteKey): Promise<CommandResult>;
-  isKeySupported(key: RemoteKey): boolean;
-  sendText(text: string): Promise<CommandResult>;
-
-  onStatusChange(callback: (status: ConnectionStatus) => void): () => void;
-
-  dispose(): void;
-}
-
-export type CreateDeviceHandler = (device: TVDevice) => DeviceHandler;
