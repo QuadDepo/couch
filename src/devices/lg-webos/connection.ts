@@ -190,7 +190,9 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           if (!useSsl && String(error).includes("ECONNRESET")) {
             logger.info("WebOS", "Connection reset - retrying with SSL");
             useSsl = true;
-            setTimeout(() => connect().catch(() => {}), 1000);
+            setTimeout(() => connect().catch((retryError) => {
+              logger.debug("WebOS", `SSL retry failed: ${retryError}`);
+            }), 1000);
             return;
           }
 
