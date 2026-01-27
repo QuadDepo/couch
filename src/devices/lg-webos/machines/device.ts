@@ -102,8 +102,8 @@ export const webosDeviceMachine = setup({
       promptReceived: true,
     }),
     setCredentials: assign({
-      credentials: (_, params: { clientKey: string }) =>
-        createCredentials({ clientKey: params.clientKey }),
+      credentials: ({ context }, params: { clientKey: string }) =>
+        createCredentials({ clientKey: params.clientKey, useSsl: context.useSsl }),
     }),
     clearCredentials: assign({
       credentials: undefined,
@@ -179,7 +179,7 @@ export const webosDeviceMachine = setup({
       maxRetries: 5,
       promptReceived: false,
       muteState: false,
-      useSsl: false,
+      useSsl: credentials?.useSsl ?? false,
     };
   },
   states: {
@@ -372,6 +372,7 @@ export const webosDeviceMachine = setup({
             ip: context.deviceIp,
             credentials: context.credentials,
             deviceName: context.deviceName,
+            useSsl: context.useSsl,
           };
         },
       },

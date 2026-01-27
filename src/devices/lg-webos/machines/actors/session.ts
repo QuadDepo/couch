@@ -11,6 +11,7 @@ export interface SessionInput {
   ip: string;
   credentials: WebOSCredentials;
   deviceName: string;
+  useSsl?: boolean;
 }
 
 export type SessionEvent =
@@ -26,7 +27,10 @@ export type SessionEvent =
 
 export const sessionActor = fromCallback<SessionEvent, SessionInput>(
   ({ input, sendBack, receive }) => {
-    logger.info("WebOS", `Starting session connection to ${input.deviceName}`, { ip: input.ip });
+    const useSsl = input.useSsl ?? false;
+    logger.info("WebOS", `Starting session connection to ${input.deviceName} (SSL: ${useSsl})`, {
+      ip: input.ip,
+    });
 
     const connection = createWebOSConnection({
       ip: input.ip,
@@ -34,6 +38,7 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
       clientKey: input.credentials.clientKey,
       timeout: 15000,
       reconnect: 0,
+      useSsl,
     });
 
     let inputSocket: RemoteInputSocket | null = null;
