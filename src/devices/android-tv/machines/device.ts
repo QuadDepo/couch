@@ -6,6 +6,18 @@ import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
+export const INSTRUCTION_STEPS = [
+  {
+    title: "Enable Developer Options",
+    description: "Go to Settings > Device Preferences > About and tap Build number 7 times",
+  },
+  {
+    title: "Enable ADB Debugging",
+    description:
+      "Go to Settings > Device Preferences > Developer options and enable 'Network debugging' or 'ADB debugging'",
+  },
+];
+
 interface PlatformMachineInput {
   deviceId: string;
   deviceName: string;
@@ -35,6 +47,7 @@ interface AndroidTVMachineContext {
   maxRetries: number;
   error?: string;
   promptReceived: boolean;
+  instructionStep: number;
 }
 
 type AndroidTVMachineEvent =
@@ -45,6 +58,8 @@ type AndroidTVMachineEvent =
   | { type: "CONNECTION_LOST"; error?: string }
   | { type: "START_PAIRING" }
   | { type: "RESET_TO_SETUP" }
+  | { type: "CONTINUE_INSTRUCTION" }
+  | { type: "BACK_INSTRUCTION" }
   | { type: "PROMPT_RECEIVED" }
   | { type: "PAIRED" }
   | { type: "PAIRING_ERROR"; error: string }
@@ -100,6 +115,16 @@ export const androidTVDeviceMachine = setup({
       deviceIp: "",
       error: undefined,
       promptReceived: false,
+      instructionStep: 0,
+    }),
+    nextInstructionStep: assign({
+      instructionStep: ({ context }) => context.instructionStep + 1,
+    }),
+    prevInstructionStep: assign({
+      instructionStep: ({ context }) => context.instructionStep - 1,
+    }),
+    resetInstructionStep: assign({
+      instructionStep: 0,
     }),
     log: ({ context }, params: { message: string }) => {
       logger.info("ADB", params.message, { ip: context.deviceIp });
@@ -112,6 +137,9 @@ export const androidTVDeviceMachine = setup({
       params.name.trim().length > 0 && isValidIp(params.ip),
     missingDeviceName: (_, params: { name: string }) => params.name.trim().length === 0,
     hasInvalidIp: (_, params: { ip: string }) => !isValidIp(params.ip),
+    hasMoreInstructionSteps: ({ context }) =>
+      context.instructionStep < INSTRUCTION_STEPS.length - 1,
+    canGoBackInInstructions: ({ context }) => context.instructionStep > 0,
   },
   delays: {
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
@@ -129,6 +157,7 @@ export const androidTVDeviceMachine = setup({
         retryCount: 0,
         maxRetries: 5,
         promptReceived: false,
+        instructionStep: 0,
       };
     }
 
@@ -139,6 +168,7 @@ export const androidTVDeviceMachine = setup({
       retryCount: 0,
       maxRetries: 5,
       promptReceived: false,
+      instructionStep: 0,
     };
   },
   states: {
@@ -160,7 +190,7 @@ export const androidTVDeviceMachine = setup({
                 ip: event.ip,
               }),
             },
-            target: "pairing.active",
+            target: "pairing.instructions",
             actions: [
               {
                 type: "setDeviceInfo",
@@ -230,14 +260,38 @@ export const androidTVDeviceMachine = setup({
         idle: {
           on: {
             START_PAIRING: {
-              target: "active",
-              actions: {
-                type: "log",
-                params: ({ context }) => ({
-                  message: `Starting pairing for ${context.deviceName}`,
-                }),
-              },
+              target: "instructions",
+              actions: "resetInstructionStep",
             },
+          },
+        },
+        instructions: {
+          on: {
+            CONTINUE_INSTRUCTION: [
+              {
+                guard: "hasMoreInstructionSteps",
+                actions: "nextInstructionStep",
+              },
+              {
+                target: "active",
+                actions: {
+                  type: "log",
+                  params: ({ context }) => ({
+                    message: `Starting pairing for ${context.deviceName}`,
+                  }),
+                },
+              },
+            ],
+            BACK_INSTRUCTION: [
+              {
+                guard: "canGoBackInInstructions",
+                actions: "prevInstructionStep",
+              },
+              {
+                target: "#androidTVDevice.setup",
+                actions: "resetDeviceInfo",
+              },
+            ],
           },
         },
         active: {
