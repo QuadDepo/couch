@@ -56,7 +56,10 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
           logger.debug("WebOS", "Input socket ready");
         })
         .catch((err) => {
-          logger.warn("WebOS", `Failed to get input socket on connect (will retry on first use): ${err}`);
+          logger.warn(
+            "WebOS",
+            `Failed to get input socket on connect (will retry on first use): ${err}`,
+          );
         });
 
       connection

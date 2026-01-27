@@ -1,27 +1,21 @@
 import type { SnapshotFrom } from "xstate";
+import type { ConnectionStatus } from "../../types";
 import type { webosDeviceMachine } from "./machines/device";
 
 export type WebOSSnapshot = SnapshotFrom<typeof webosDeviceMachine>;
 
-export const isSetup = (snapshot: WebOSSnapshot): boolean =>
-  snapshot.value === "setup";
+export const isSetup = (snapshot: WebOSSnapshot): boolean => snapshot.matches("setup");
 
-export const isPairing = (snapshot: WebOSSnapshot): boolean => {
-  const value = snapshot.value;
-  return typeof value === "object" && value !== null && "pairing" in value;
-};
+export const isPairing = (snapshot: WebOSSnapshot): boolean => snapshot.matches("pairing");
 
 export const isComplete = (snapshot: WebOSSnapshot): boolean =>
-  snapshot.value === "disconnected" && !!snapshot.context.deviceId;
+  snapshot.matches("disconnected") && !!snapshot.context.deviceId;
 
-export const selectDeviceName = (snapshot: WebOSSnapshot): string =>
-  snapshot.context.deviceName;
+export const selectDeviceName = (snapshot: WebOSSnapshot): string => snapshot.context.deviceName;
 
-export const selectDeviceIp = (snapshot: WebOSSnapshot): string =>
-  snapshot.context.deviceIp;
+export const selectDeviceIp = (snapshot: WebOSSnapshot): string => snapshot.context.deviceIp;
 
-export const selectError = (snapshot: WebOSSnapshot): string | undefined =>
-  snapshot.context.error;
+export const selectError = (snapshot: WebOSSnapshot): string | undefined => snapshot.context.error;
 
 export const isPairingConnecting = (snapshot: WebOSSnapshot): boolean =>
   snapshot.matches({ pairing: { active: "connecting" } });
@@ -41,3 +35,11 @@ export const isInitiating = (snapshot: WebOSSnapshot): boolean =>
 
 export const selectPairingError = (snapshot: WebOSSnapshot): string | undefined =>
   snapshot.context.error;
+
+export const selectConnectionStatus = (snapshot: WebOSSnapshot): ConnectionStatus => {
+  if (snapshot.matches("error")) return "error";
+  if (snapshot.matches("pairing")) return "pairing";
+  if (snapshot.matches({ session: { connection: "connected" } })) return "connected";
+  if (snapshot.matches("session")) return "connecting";
+  return "disconnected";
+};
