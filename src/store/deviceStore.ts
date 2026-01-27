@@ -94,8 +94,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     const actor = existingActor ?? createPlatformActor(device);
     const stored: StoredDeviceActor = { platform: device.platform, actor };
 
-    // Only start the actor if we created it (existing actors from wizard are already started)
-    if (!existingActor) {
+    // Ensure actor is running (may have been stopped by wizard unmount race condition)
+    if (actor.getSnapshot().status !== "active") {
       actor.start();
     }
 
