@@ -1,6 +1,8 @@
 import { TextAttributes } from "@opentui/core";
 import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { TEXT_PRIMARY, TEXT_SECONDARY, WARNING_COLOR } from "../../constants/colors.ts";
 import type { TVDevice } from "../../types";
+import { HintGroup } from "../shared/HintGroup.tsx";
 
 interface RemoveDeviceDialogProps {
   device: TVDevice;
@@ -32,22 +34,21 @@ export function RemoveDeviceDialog({
       paddingTop={2}
       paddingBottom={2}
     >
-      <text fg="#FFAA00" attributes={TextAttributes.BOLD}>
+      <text fg={WARNING_COLOR} attributes={TextAttributes.BOLD}>
         Remove Device
       </text>
       <box marginTop={1} flexDirection="column" gap={1}>
-        <text fg="#FFFFFF">Are you sure you want to remove this device?</text>
-        <text fg="#AAAAAA">{device.name}</text>
+        <text fg={TEXT_PRIMARY}>Are you sure you want to remove this device?</text>
+        <text fg={TEXT_SECONDARY}>{device.name}</text>
       </box>
-      <box marginTop={1} flexDirection="row" gap={2}>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Enter
-        </text>
-        <text fg="#666666">to accept, </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Esc
-        </text>
-        <text fg="#666666">to cancel</text>
+      <box marginTop={1}>
+        <HintGroup
+          hints={[
+            { key: "Enter", label: "to accept" },
+            { key: "Esc", label: "to cancel" },
+          ]}
+          variant="plain"
+        />
       </box>
     </box>
   );

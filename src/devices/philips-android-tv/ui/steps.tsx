@@ -1,8 +1,14 @@
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
-import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx";
-import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
+import { HintGroup } from "../../../components/shared/HintGroup.tsx";
+import {
+  ERROR_COLOR,
+  FOCUS_COLOR,
+  TEXT_PRIMARY,
+  TEXT_SECONDARY,
+  WARNING_COLOR,
+} from "../../../constants/colors.ts";
 import type { philipsDeviceMachine } from "../machines/device";
 import {
   isPairingConfirming,
@@ -16,13 +22,19 @@ const HINT_SUBMIT = { key: "Enter", label: "to submit" };
 const HINT_RETRY = { key: "Enter", label: "to retry" };
 const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
 
+function formatPinDisplay(pin: string): string {
+  const filled = pin.split("").map(() => "*");
+  const empty = Array(4 - pin.length).fill("_");
+  return [...filled, ...empty].join(" ");
+}
+
 function StartingPairingStep() {
   return (
     <>
-      <text fg={DIM_COLOR}>
+      <text fg={TEXT_SECONDARY}>
         Make sure your Philips TV is turned on and connected to the same network.
       </text>
-      <text fg="#FFAA00" marginTop={1}>
+      <text fg={WARNING_COLOR} marginTop={1}>
         Initiating pairing...
       </text>
     </>
@@ -30,17 +42,11 @@ function StartingPairingStep() {
 }
 
 function EnteringPinStep({ pinInput }: { pinInput: string }) {
-  const formatPinDisplay = (pin: string): string => {
-    const filled = pin.split("").map(() => "*");
-    const empty = Array(4 - pin.length).fill("_");
-    return [...filled, ...empty].join(" ");
-  };
-
   return (
     <>
-      <text fg={DIM_COLOR}>A 4-digit PIN code is displayed on your TV.</text>
+      <text fg={TEXT_SECONDARY}>A 4-digit PIN code is displayed on your TV.</text>
       <box flexDirection="row" marginTop={1}>
-        <text fg={DIM_COLOR}>Enter PIN: </text>
+        <text fg={TEXT_SECONDARY}>Enter PIN: </text>
         <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
           {formatPinDisplay(pinInput)}
         </text>
@@ -56,14 +62,14 @@ function EnteringPinStep({ pinInput }: { pinInput: string }) {
 }
 
 function ConfirmingStep() {
-  return <text fg="#FFAA00">Confirming PIN with TV...</text>;
+  return <text fg={WARNING_COLOR}>Confirming PIN with TV...</text>;
 }
 
 function ErrorStep({ error }: { error?: string }) {
   return (
     <>
       <text fg={ERROR_COLOR}>{error || "Connection failed"}</text>
-      <text fg={DIM_COLOR} marginTop={1}>
+      <text fg={TEXT_SECONDARY} marginTop={1}>
         Make sure your TV is on and connected to the same network.
       </text>
     </>
@@ -101,9 +107,15 @@ export function PhilipsPairingStep({ actorRef, pinInput }: Props) {
 
   return (
     <box flexDirection="column" gap={1}>
-      <text attributes={TextAttributes.BOLD}>Philips TV Pairing</text>
+      <text fg={TEXT_PRIMARY} attributes={TextAttributes.BOLD}>
+        Philips TV Pairing
+      </text>
       {renderStep()}
-      {hints.length > 0 && <WizardHints hints={hints} />}
+      {hints.length > 0 && (
+        <box marginTop={1}>
+          <HintGroup hints={hints} variant="plain" />
+        </box>
+      )}
     </box>
   );
 }

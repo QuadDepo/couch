@@ -1,5 +1,7 @@
+import { DIM_COLOR, TEXT_DIM, TEXT_PRIMARY, WARNING_COLOR } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
 import { getStatusIndicator } from "../../utils/statusIndicator.ts";
+import { KeyHint } from "../shared/KeyHint.tsx";
 
 interface StatusBarProps {
   isScanning?: boolean;
@@ -14,7 +16,7 @@ export function StatusBar({ isScanning = false }: StatusBarProps) {
   };
 
   const getStatusColor = () => {
-    if (!device) return "#666666";
+    if (!device) return TEXT_DIM;
     return getStatusIndicator(status).color;
   };
 
@@ -42,19 +44,19 @@ export function StatusBar({ isScanning = false }: StatusBarProps) {
       width="100%"
       height={3}
       borderStyle="single"
-      borderColor="#444444"
+      borderColor={DIM_COLOR}
       flexDirection="row"
       alignItems="center"
       paddingLeft={1}
       paddingRight={1}
     >
       <text fg={statusColor}> {getStatusIcon()} </text>
-      <text fg="#FFFFFF">{getStatusText()}</text>
-      {status === "connected" && <text fg="#666666"> ({device?.ip})</text>}
-      {device && !isImplemented && <text fg="#FF6600"> [Platform not implemented]</text>}
+      <text fg={TEXT_PRIMARY}>{getStatusText()}</text>
+      {status === "connected" && <text fg={TEXT_DIM}> ({device?.ip})</text>}
+      {device && !isImplemented && <text fg={WARNING_COLOR}> [Platform not implemented]</text>}
       <box flexGrow={1} />
       {device && isImplemented && (
-        <text fg="#666666">{status === "connected" ? "[C] Disconnect" : "[C] Connect"}</text>
+        <KeyHint keyName="C" label={status === "connected" ? "Disconnect" : "Connect"} />
       )}
     </box>
   );

@@ -1,4 +1,6 @@
 import { TextAttributes } from "@opentui/core";
+import { DIM_COLOR, FOCUS_COLOR, TEXT_DIM } from "../../constants/colors.ts";
+import { KeyHint } from "../shared/KeyHint.tsx";
 
 type FocusPath =
   | "app/dpad"
@@ -28,7 +30,7 @@ export function Header({ focusPath }: HeaderProps) {
       width="100%"
       height={3}
       borderStyle="single"
-      borderColor="#444444"
+      borderColor={DIM_COLOR}
       flexDirection="row"
       justifyContent="space-between"
       alignItems="center"
@@ -36,17 +38,17 @@ export function Header({ focusPath }: HeaderProps) {
       paddingRight={1}
     >
       <box flexDirection="row">
-        <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+        <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
           COUCH
         </text>
-        <text fg="#666666"> - Smart TV Remote</text>
+        <text fg={TEXT_DIM}> - Smart TV Remote</text>
       </box>
       <box flexDirection="row">
-        <text fg="#666666">[Tab] Switch</text>
+        <KeyHint keyName="Tab" label="Switch" />
         {showFocus && (
           <>
-            <text fg="#666666"> | Focus: </text>
-            <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+            <text fg={TEXT_DIM}> | Focus: </text>
+            <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
               {sectionLabel}
             </text>
           </>

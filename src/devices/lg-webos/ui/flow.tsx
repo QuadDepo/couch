@@ -1,13 +1,15 @@
 import { useActorRef, useSelector } from "@xstate/react";
-import { forwardRef, useImperativeHandle } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
-import { DeviceInfoStep } from "../../../components/dialogs/wizard/DeviceInfoStep.tsx";
 import type {
   PairingFlowHandle,
   PairingFlowProps,
 } from "../../../components/dialogs/wizard/types.ts";
 import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
-import { useDeviceInfoInput } from "../../../hooks/useDeviceInfoInput.ts";
+import {
+  DeviceInfoFields,
+  type DeviceInfoFieldsRef,
+} from "../../../components/shared/DeviceInfoFields.tsx";
 import type { TVDevice } from "../../../types";
 import { inspector } from "../../../utils/inspector.ts";
 import { wrapPlatformCredentials } from "../../factory.ts";
@@ -29,7 +31,7 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
       inspect: inspector?.inspect,
     });
 
-    const deviceInfo = useDeviceInfoInput();
+    const deviceInfoRef = useRef<DeviceInfoFieldsRef>(null);
 
     // Flow state selectors
     const isSetupState = useSelector(actorRef, isSetup);
@@ -47,7 +49,7 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
         canGoBack: () => isSetupState || isPairingState,
 
         canContinue: () => {
-          if (isSetupState) return deviceInfo.isValid;
+          if (isSetupState) return deviceInfoRef.current?.isValid ?? false;
           if (isErrorState) return true;
           if (isCompleteState) return true;
           return false;
@@ -56,15 +58,16 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
         handleBack: () => {
           if (isPairingState) {
             actorRef.send({ type: "RESET_TO_SETUP" });
-            deviceInfo.reset();
+            deviceInfoRef.current?.reset();
             return false; // Stay in flow (went back to setup)
           }
           return true; // Exit to platform selection
         },
 
         handleContinue: () => {
-          if (isSetupState && deviceInfo.isValid) {
-            actorRef.send({ type: "SET_DEVICE_INFO", name: deviceInfo.name, ip: deviceInfo.ip });
+          const info = deviceInfoRef.current;
+          if (isSetupState && info?.isValid) {
+            actorRef.send({ type: "SET_DEVICE_INFO", name: info.name, ip: info.ip });
             return;
           }
           if (isErrorState) {
@@ -89,19 +92,19 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
 
         handleChar: (char) => {
           if (isSetupState) {
-            deviceInfo.handleChar(char);
+            deviceInfoRef.current?.handleChar(char);
           }
         },
 
         handleBackspace: () => {
           if (isSetupState) {
-            deviceInfo.handleBackspace();
+            deviceInfoRef.current?.handleBackspace();
           }
         },
 
         handleTab: () => {
           if (isSetupState) {
-            deviceInfo.handleTab();
+            deviceInfoRef.current?.handleTab();
           }
         },
 
@@ -109,26 +112,13 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
           actorRef.stop();
         },
       }),
-      [
-        isSetupState,
-        isPairingState,
-        isCompleteState,
-        isErrorState,
-        deviceInfo,
-        actorRef,
-        onComplete,
-      ],
+      [isSetupState, isPairingState, isCompleteState, isErrorState, actorRef, onComplete],
     );
 
     if (isSetupState) {
       return (
         <WizardShell stepLabel="Device Info" progress="1/3">
-          <DeviceInfoStep
-            name={deviceInfo.name}
-            ip={deviceInfo.ip}
-            activeField={deviceInfo.activeField}
-            error={error}
-          />
+          <DeviceInfoFields ref={deviceInfoRef} error={error} />
         </WizardShell>
       );
     }
@@ -144,7 +134,7 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
     if (isCompleteState) {
       return (
         <WizardShell stepLabel="Complete" progress="3/3">
-          <CompletionStep deviceName={deviceName || deviceInfo.name} />
+          <CompletionStep deviceName={deviceName || deviceInfoRef.current?.name || "Device"} />
         </WizardShell>
       );
     }

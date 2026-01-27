@@ -1,8 +1,15 @@
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
-import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx";
-import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
+import { HintGroup } from "../../../components/shared/HintGroup.tsx";
+import {
+  DIM_COLOR,
+  ERROR_COLOR,
+  FOCUS_COLOR,
+  TEXT_PRIMARY,
+  TEXT_SECONDARY,
+  WARNING_COLOR,
+} from "../../../constants/colors.ts";
 import { type androidTVDeviceMachine, INSTRUCTION_STEPS } from "../machines/device";
 import {
   isPairingConnecting,
@@ -19,10 +26,10 @@ const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
 function ConnectingStep() {
   return (
     <>
-      <text fg={DIM_COLOR}>
+      <text fg={TEXT_SECONDARY}>
         Make sure your Android TV is turned on and ADB debugging is enabled.
       </text>
-      <text fg="#FFAA00" marginTop={1}>
+      <text fg={WARNING_COLOR} marginTop={1}>
         Connecting via ADB...
       </text>
     </>
@@ -32,11 +39,11 @@ function ConnectingStep() {
 function WaitingForUserStep() {
   return (
     <>
-      <text fg={DIM_COLOR}>An ADB debugging prompt should appear on your TV.</text>
+      <text fg={TEXT_SECONDARY}>An ADB debugging prompt should appear on your TV.</text>
       <text fg={FOCUS_COLOR} marginTop={1} attributes={TextAttributes.BOLD}>
         Please allow the USB debugging request on your TV.
       </text>
-      <text fg={DIM_COLOR} marginTop={1}>
+      <text fg={TEXT_SECONDARY} marginTop={1}>
         Make sure "Always allow from this computer" is checked.
       </text>
     </>
@@ -47,7 +54,7 @@ function ErrorStep({ error }: { error?: string }) {
   return (
     <>
       <text fg={ERROR_COLOR}>{error || "Connection failed"}</text>
-      <text fg={DIM_COLOR} marginTop={1}>
+      <text fg={TEXT_SECONDARY} marginTop={1}>
         Make sure ADB debugging is enabled and the TV is on the same network.
       </text>
     </>
@@ -69,8 +76,10 @@ function InstructionStepContent({
 }: InstructionStepContentProps) {
   return (
     <>
-      <text attributes={TextAttributes.BOLD}>{title}</text>
-      <text fg={DIM_COLOR}>{description}</text>
+      <text fg={TEXT_PRIMARY} attributes={TextAttributes.BOLD}>
+        {title}
+      </text>
+      <text fg={TEXT_SECONDARY}>{description}</text>
       <text fg={DIM_COLOR} marginTop={1}>
         Step {currentStep} of {totalSteps}
       </text>
@@ -91,7 +100,9 @@ export function AndroidTVInstructionsStep({ actorRef }: Props) {
 
   return (
     <box flexDirection="column" gap={1}>
-      <text attributes={TextAttributes.BOLD}>Android TV Setup</text>
+      <text fg={TEXT_PRIMARY} attributes={TextAttributes.BOLD}>
+        Android TV Setup
+      </text>
       {currentStep && (
         <InstructionStepContent
           title={currentStep.title}
@@ -100,7 +111,9 @@ export function AndroidTVInstructionsStep({ actorRef }: Props) {
           totalSteps={totalSteps}
         />
       )}
-      <WizardHints hints={hints} />
+      <box marginTop={1}>
+        <HintGroup hints={hints} variant="plain" />
+      </box>
     </box>
   );
 }
@@ -128,9 +141,15 @@ export function AndroidTVPairingStep({ actorRef }: Props) {
 
   return (
     <box flexDirection="column" gap={1}>
-      <text attributes={TextAttributes.BOLD}>Android TV Pairing</text>
+      <text fg={TEXT_PRIMARY} attributes={TextAttributes.BOLD}>
+        Android TV Pairing
+      </text>
       {renderStep()}
-      {hints.length > 0 && <WizardHints hints={hints} />}
+      {hints.length > 0 && (
+        <box marginTop={1}>
+          <HintGroup hints={hints} variant="plain" />
+        </box>
+      )}
     </box>
   );
 }

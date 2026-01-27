@@ -1,20 +1,35 @@
 import { TextAttributes } from "@opentui/core";
+import { ACTIVE_COLOR, HIGHLIGHT_COLOR, TEXT_DIM, TEXT_MUTED } from "../../constants/colors.ts";
+
+export type HintVariant = "bracket" | "plain";
 
 interface KeyHintProps {
-  keyLabel: string;
-  description: string;
+  keyName: string;
+  label: string;
   highlight?: boolean;
+  variant?: HintVariant;
 }
 
-export function KeyHint({ keyLabel, description, highlight = false }: KeyHintProps) {
+export function KeyHint({ keyName, label, highlight, variant = "bracket" }: KeyHintProps) {
   return (
-    <box>
-      <text fg={highlight ? "#00FF00" : "#666666"}>[</text>
-      <text fg={highlight ? "#00FF00" : "#FFFF00"} attributes={TextAttributes.BOLD}>
-        {keyLabel}
-      </text>
-      <text fg={highlight ? "#00FF00" : "#666666"}>]</text>
-      <text fg="#888888"> {description}</text>
+    <box flexDirection="row">
+      {variant === "bracket" ? (
+        <>
+          <text fg={highlight ? ACTIVE_COLOR : TEXT_DIM}>[</text>
+          <text fg={highlight ? ACTIVE_COLOR : HIGHLIGHT_COLOR} attributes={TextAttributes.BOLD}>
+            {keyName}
+          </text>
+          <text fg={highlight ? ACTIVE_COLOR : TEXT_DIM}>]</text>
+          <text fg={TEXT_MUTED}> {label}</text>
+        </>
+      ) : (
+        <>
+          <text fg={TEXT_MUTED} attributes={TextAttributes.BOLD}>
+            {keyName}
+          </text>
+          <text fg={TEXT_DIM}> {label}</text>
+        </>
+      )}
     </box>
   );
 }

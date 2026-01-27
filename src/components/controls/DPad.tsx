@@ -2,9 +2,11 @@ import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback, useState } from "react";
+import { ACTIVE_COLOR, DIM_COLOR, TEXT_PRIMARY } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
 import type { RemoteKey } from "../../types/index.ts";
 import { TextInputModal } from "../dialogs/TextInputModal.tsx";
+import { KeyHint } from "../shared/KeyHint.tsx";
 import { Panel } from "../shared/Panel.tsx";
 
 interface DPadProps {
@@ -14,9 +16,6 @@ interface DPadProps {
 const CELL_WIDTH = 8;
 const CELL_HEIGHT = 3;
 const GAP = 1;
-
-const DIM_COLOR = "#444444";
-const ACTIVE_COLOR = "#00FF00";
 
 export function DPad({ focused = false }: DPadProps) {
   const { device, status, sendKey, sendText, capabilities } = useDevice();
@@ -29,7 +28,7 @@ export function DPad({ focused = false }: DPadProps) {
   const dialog = useDialog();
   const isDialogOpen = useDialogState((s) => s.isOpen);
 
-  const bright = enabled ? "#FFFFFF" : DIM_COLOR;
+  const bright = enabled ? TEXT_PRIMARY : DIM_COLOR;
 
   const c = (key: string) => (lastKey === key ? ACTIVE_COLOR : bright);
   const border = (key: string) => (lastKey === key ? ACTIVE_COLOR : DIM_COLOR);
@@ -185,7 +184,7 @@ export function DPad({ focused = false }: DPadProps) {
         </box>
       </box>
       <box width="100%" justifyContent="flex-end" marginTop="auto" paddingLeft={2} paddingRight={2}>
-        <text fg={focused ? "#AAAAAA" : DIM_COLOR}>[I] Text Input</text>
+        <KeyHint keyName="I" label="Text Input" highlight={focused} />
       </box>
     </Panel>
   );

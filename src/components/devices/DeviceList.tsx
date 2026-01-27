@@ -1,10 +1,12 @@
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
+import { TEXT_DIM, TEXT_MUTED } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice";
 import { useDeviceStore } from "../../store/deviceStore";
 import { type AddDeviceResult, AddDeviceWizard } from "../dialogs/AddDeviceWizard";
 import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog";
+import { HintGroup } from "../shared/HintGroup.tsx";
 import { Panel } from "../shared/Panel";
 import { DeviceListItem } from "./DeviceListItem";
 
@@ -109,7 +111,7 @@ export function DeviceList({ focused = false }: DeviceListProps) {
   if (devices.length === 0) {
     return (
       <Panel title="DEVICES" width={32} focused={focused}>
-        <text fg="#666666">No devices found</text>
+        <text fg={TEXT_DIM}>No devices found</text>
       </Panel>
     );
   }
@@ -125,9 +127,13 @@ export function DeviceList({ focused = false }: DeviceListProps) {
         />
       ))}
       <box marginTop="auto">
-        <text fg="#666666">Use ↑/↓ to navigate</text>
-        <text fg="#666666">[A] to add</text>
-        <text fg="#666666">[X] to remove</text>
+        <text fg={TEXT_MUTED}>↑/↓ to navigate</text>
+        <HintGroup
+          hints={[
+            { key: "A", label: "add" },
+            { key: "X", label: "remove" },
+          ]}
+        />
       </box>
     </Panel>
   );
