@@ -1,13 +1,15 @@
 import { useActorRef, useSelector } from "@xstate/react";
-import { forwardRef, useCallback, useImperativeHandle, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
-import { DeviceInfoStep } from "../../../components/dialogs/wizard/DeviceInfoStep.tsx";
 import type {
   PairingFlowHandle,
   PairingFlowProps,
 } from "../../../components/dialogs/wizard/types.ts";
 import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
-import { useDeviceInfoInput } from "../../../hooks/useDeviceInfoInput.ts";
+import {
+  DeviceInfoFields,
+  type DeviceInfoFieldsRef,
+} from "../../../components/shared/DeviceInfoFields.tsx";
 import type { TVDevice } from "../../../types";
 import { inspector } from "../../../utils/inspector.ts";
 import { wrapPlatformCredentials } from "../../factory.ts";
@@ -30,7 +32,7 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
       inspect: inspector?.inspect,
     });
 
-    const deviceInfo = useDeviceInfoInput();
+    const deviceInfoRef = useRef<DeviceInfoFieldsRef>(null);
 
     // PIN input state (Philips-specific)
     const [pinInput, setPinInput] = useState("");
@@ -46,18 +48,13 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
     const deviceName = useSelector(actorRef, selectDeviceName);
     const error = useSelector(actorRef, selectError);
 
-    const resetPairingState = useCallback(() => {
-      setPinInput("");
-      deviceInfo.reset();
-    }, [deviceInfo]);
-
     useImperativeHandle(
       ref,
       () => ({
         canGoBack: () => isSetupState || isPairingState,
 
         canContinue: () => {
-          if (isSetupState) return deviceInfo.isValid;
+          if (isSetupState) return deviceInfoRef.current?.isValid ?? false;
           if (isWaitingForPinState) return pinInput.length === 4;
           if (isErrorState) return true;
           if (isCompleteState) return true;
@@ -67,15 +64,17 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
         handleBack: () => {
           if (isPairingState) {
             actorRef.send({ type: "RESET_TO_SETUP" });
-            resetPairingState();
+            setPinInput("");
+            deviceInfoRef.current?.reset();
             return false; // Stay in flow (went back to setup)
           }
           return true; // Exit to platform selection
         },
 
         handleContinue: () => {
-          if (isSetupState && deviceInfo.isValid) {
-            actorRef.send({ type: "SET_DEVICE_INFO", name: deviceInfo.name, ip: deviceInfo.ip });
+          const info = deviceInfoRef.current;
+          if (isSetupState && info?.isValid) {
+            actorRef.send({ type: "SET_DEVICE_INFO", name: info.name, ip: info.ip });
             return;
           }
           if (isWaitingForPinState && pinInput.length === 4) {
@@ -105,7 +104,7 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
 
         handleChar: (char) => {
           if (isSetupState) {
-            deviceInfo.handleChar(char);
+            deviceInfoRef.current?.handleChar(char);
           } else if (isWaitingForPinState && pinInput.length < 4 && /^\d$/.test(char)) {
             setPinInput((p) => p + char);
           }
@@ -113,7 +112,7 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
 
         handleBackspace: () => {
           if (isSetupState) {
-            deviceInfo.handleBackspace();
+            deviceInfoRef.current?.handleBackspace();
           } else if (isWaitingForPinState) {
             setPinInput((p) => p.slice(0, -1));
           }
@@ -121,7 +120,7 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
 
         handleTab: () => {
           if (isSetupState) {
-            deviceInfo.handleTab();
+            deviceInfoRef.current?.handleTab();
           }
         },
 
@@ -135,23 +134,16 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
         isCompleteState,
         isErrorState,
         isWaitingForPinState,
-        deviceInfo,
         pinInput,
         actorRef,
         onComplete,
-        resetPairingState,
       ],
     );
 
     if (isSetupState) {
       return (
         <WizardShell stepLabel="Device Info" progress="1/3">
-          <DeviceInfoStep
-            name={deviceInfo.name}
-            ip={deviceInfo.ip}
-            activeField={deviceInfo.activeField}
-            error={error}
-          />
+          <DeviceInfoFields ref={deviceInfoRef} error={error} />
         </WizardShell>
       );
     }
@@ -167,7 +159,7 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
     if (isCompleteState) {
       return (
         <WizardShell stepLabel="Complete" progress="3/3">
-          <CompletionStep deviceName={deviceName || deviceInfo.name} />
+          <CompletionStep deviceName={deviceName || deviceInfoRef.current?.name || "Device"} />
         </WizardShell>
       );
     }
