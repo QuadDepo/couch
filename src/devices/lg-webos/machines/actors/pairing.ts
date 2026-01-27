@@ -4,6 +4,7 @@ import { createWebOSConnection } from "../../connection";
 
 export interface PairingInput {
   ip: string;
+  useSsl?: boolean;
 }
 
 export type PairingEvent =
@@ -12,13 +13,14 @@ export type PairingEvent =
   | { type: "PAIRING_ERROR"; error: string };
 
 export const pairingActor = fromCallback<PairingEvent, PairingInput>(({ input, sendBack }) => {
-  logger.info("WebOS", `Starting pairing connection to ${input.ip}`);
+  logger.info("WebOS", `Starting pairing connection to ${input.ip} (SSL: ${input.useSsl ?? false})`);
 
   const connection = createWebOSConnection({
     ip: input.ip,
     mac: "",
     timeout: 30000,
     reconnect: 0,
+    useSsl: input.useSsl,
   });
 
   connection.on("prompt", () => {

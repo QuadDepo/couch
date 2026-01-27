@@ -40,6 +40,7 @@ interface WebOSMachineContext {
   error?: string;
   promptReceived: boolean;
   muteState: boolean;
+  useSsl: boolean;
 }
 
 type WebOSMachineEvent =
@@ -113,9 +114,13 @@ export const webosDeviceMachine = setup({
       deviceIp: "",
       error: undefined,
       promptReceived: false,
+      useSsl: false,
     }),
     setMuteState: assign({
       muteState: (_, params: { mute: boolean }) => params.mute,
+    }),
+    enableSsl: assign({
+      useSsl: true,
     }),
     log: ({ context }, params: { message: string }) => {
       logger.info("WebOS", params.message, { ip: context.deviceIp });
@@ -129,6 +134,8 @@ export const webosDeviceMachine = setup({
       params.name.trim().length > 0 && isValidIp(params.ip),
     missingDeviceName: (_, params: { name: string }) => params.name.trim().length === 0,
     hasInvalidIp: (_, params: { ip: string }) => !isValidIp(params.ip),
+    shouldRetrySsl: ({ context }, params: { error: string }) =>
+      !context.useSsl && params.error.includes("ECONNRESET"),
   },
   delays: {
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
@@ -149,6 +156,7 @@ export const webosDeviceMachine = setup({
         maxRetries: 5,
         promptReceived: false,
         muteState: false,
+        useSsl: false,
       };
     }
 
@@ -171,6 +179,7 @@ export const webosDeviceMachine = setup({
       maxRetries: 5,
       promptReceived: false,
       muteState: false,
+      useSsl: false,
     };
   },
   states: {
@@ -282,6 +291,7 @@ export const webosDeviceMachine = setup({
             src: "pairingConnection",
             input: ({ context }) => ({
               ip: context.deviceIp,
+              useSsl: context.useSsl,
             }),
           },
           on: {
@@ -297,10 +307,28 @@ export const webosDeviceMachine = setup({
                 },
               ],
             },
-            PAIRING_ERROR: {
-              target: ".error",
-              actions: { type: "setError", params: ({ event }) => ({ error: event.error }) },
-            },
+            PAIRING_ERROR: [
+              {
+                guard: {
+                  type: "shouldRetrySsl",
+                  params: ({ event }: { event: { type: "PAIRING_ERROR"; error: string } }) => ({
+                    error: event.error,
+                  }),
+                },
+                target: "active",
+                actions: [
+                  "enableSsl",
+                  {
+                    type: "log",
+                    params: { message: "Connection reset - retrying with SSL" },
+                  },
+                ],
+              },
+              {
+                target: ".error",
+                actions: { type: "setError", params: ({ event }) => ({ error: event.error }) },
+              },
+            ],
           },
           states: {
             connecting: {

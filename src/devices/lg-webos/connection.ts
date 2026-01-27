@@ -185,21 +185,6 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
         ws.addEventListener("error", (error) => {
           logger.error("WebOS", `WebSocket error: ${error}`);
-
-          // Some WebOS TVs require SSL; ECONNRESET indicates we should retry with wss://
-          if (!useSsl && String(error).includes("ECONNRESET")) {
-            logger.info("WebOS", "Connection reset - retrying with SSL");
-            useSsl = true;
-            setTimeout(
-              () =>
-                connect().catch((retryError) => {
-                  logger.debug("WebOS", `SSL retry failed: ${retryError}`);
-                }),
-              1000,
-            );
-            return;
-          }
-
           emit("error", error);
         });
       } catch (error) {
