@@ -17,12 +17,12 @@ function AppContent() {
 
   const activeDevice = devices.find((d) => d.id === selectedDeviceId) ?? null;
 
-  const { sendKey, sendText, isImplemented, capabilities } = useDeviceHandler(activeDevice);
+  const { status, sendKey, sendText, isImplemented, capabilities } = useDeviceHandler(activeDevice);
 
   useAppKeyboard();
 
   const handleCommand = async (key: RemoteKey) => {
-    if (!activeDevice || activeDevice.status !== "connected") return;
+    if (!activeDevice || status !== "connected") return;
     const result = await sendKey(key);
     if (!result.success) {
       console.error(`Failed to send ${key}: ${result.error}`);
@@ -37,7 +37,7 @@ function AppContent() {
         <DeviceList focused={focusPath === "app/devices"} />
 
         <DPad
-          enabled={activeDevice?.status === "connected"}
+          enabled={status === "connected"}
           focused={focusPath === "app/dpad"}
           onCommand={handleCommand}
           sendText={sendText}
@@ -46,7 +46,7 @@ function AppContent() {
         />
       </box>
 
-      <StatusBar device={activeDevice} isImplemented={isImplemented} />
+      <StatusBar device={activeDevice} status={status} isImplemented={isImplemented} />
     </box>
   );
 }
