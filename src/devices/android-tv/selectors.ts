@@ -1,14 +1,13 @@
+import type { ConnectionStatus } from "../../types";
 import type { AndroidTVDeviceMachineSnapshot } from "./machines/device";
 
 export type { AndroidTVDeviceMachineSnapshot };
 
 export const isSetup = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
-  snapshot.value === "setup";
+  snapshot.matches("setup");
 
-export const isPairing = (snapshot: AndroidTVDeviceMachineSnapshot): boolean => {
-  const value = snapshot.value;
-  return typeof value === "object" && value !== null && "pairing" in value;
-};
+export const isPairing = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
+  snapshot.matches("pairing");
 
 export const isComplete = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
   snapshot.matches("disconnected") && !!snapshot.context.deviceId;
@@ -22,6 +21,9 @@ export const selectDeviceIp = (snapshot: AndroidTVDeviceMachineSnapshot): string
 export const selectError = (snapshot: AndroidTVDeviceMachineSnapshot): string | undefined =>
   snapshot.context.error;
 
+export const isPairingInstructions = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
+  snapshot.matches({ pairing: "instructions" });
+
 export const isPairingConnecting = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
   snapshot.matches({ pairing: { active: "connecting" } });
 
@@ -31,8 +33,21 @@ export const isPairingWaitingForUser = (snapshot: AndroidTVDeviceMachineSnapshot
 export const isPairingError = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
   snapshot.matches({ pairing: { active: "error" } });
 
+export const selectInstructionStep = (snapshot: AndroidTVDeviceMachineSnapshot): number =>
+  snapshot.context.instructionStep;
+
 export const isPairingSuccess = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
   snapshot.matches("disconnected") && !!snapshot.context.deviceId;
 
 export const selectPairingError = (snapshot: AndroidTVDeviceMachineSnapshot): string | undefined =>
   snapshot.context.error;
+
+export const selectConnectionStatus = (
+  snapshot: AndroidTVDeviceMachineSnapshot,
+): ConnectionStatus => {
+  if (snapshot.matches("error")) return "error";
+  if (snapshot.matches("pairing")) return "pairing";
+  if (snapshot.matches({ session: { connection: "connected" } })) return "connected";
+  if (snapshot.matches("session")) return "connecting";
+  return "disconnected";
+};

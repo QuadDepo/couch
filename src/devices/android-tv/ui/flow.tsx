@@ -49,12 +49,17 @@ export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowPro
 
         canContinue: () => {
           if (isSetupState) return deviceInfo.isValid;
+          if (isInstructionsState) return true;
           if (isErrorState) return true;
           if (isCompleteState) return true;
           return false;
         },
 
         handleBack: () => {
+          if (isInstructionsState) {
+            actorRef.send({ type: "BACK_INSTRUCTION" });
+            return false; // Stay in flow
+          }
           if (isPairingState) {
             actorRef.send({ type: "RESET_TO_SETUP" });
             deviceInfo.reset();
@@ -66,6 +71,10 @@ export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowPro
         handleContinue: () => {
           if (isSetupState && deviceInfo.isValid) {
             actorRef.send({ type: "SET_DEVICE_INFO", name: deviceInfo.name, ip: deviceInfo.ip });
+            return;
+          }
+          if (isInstructionsState) {
+            actorRef.send({ type: "CONTINUE_INSTRUCTION" });
             return;
           }
           if (isErrorState) {
@@ -112,6 +121,7 @@ export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowPro
       }),
       [
         isSetupState,
+        isInstructionsState,
         isPairingState,
         isCompleteState,
         isErrorState,
@@ -123,7 +133,7 @@ export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowPro
 
     if (isSetupState) {
       return (
-        <WizardShell stepLabel="Device Info" progress="1/3">
+        <WizardShell stepLabel="Device Info" progress="1/4">
           <DeviceInfoStep
             name={deviceInfo.name}
             ip={deviceInfo.ip}
@@ -134,9 +144,17 @@ export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowPro
       );
     }
 
+    if (isInstructionsState) {
+      return (
+        <WizardShell stepLabel="Setup Instructions" progress="2/4">
+          <AndroidTVInstructionsStep actorRef={actorRef} />
+        </WizardShell>
+      );
+    }
+
     if (isPairingState) {
       return (
-        <WizardShell stepLabel="Pairing" progress="2/3">
+        <WizardShell stepLabel="Pairing" progress="3/4">
           <AndroidTVPairingStep actorRef={actorRef} />
         </WizardShell>
       );
@@ -144,7 +162,7 @@ export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowPro
 
     if (isCompleteState) {
       return (
-        <WizardShell stepLabel="Complete" progress="3/3">
+        <WizardShell stepLabel="Complete" progress="4/4">
           <CompletionStep deviceName={deviceName || deviceInfo.name} />
         </WizardShell>
       );
