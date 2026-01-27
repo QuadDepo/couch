@@ -1,5 +1,4 @@
-import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
-import { useSelectedDevice } from "../../store/deviceStore.ts";
+import { useDevice } from "../../hooks/useDevice.ts";
 import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 
 interface StatusBarProps {
@@ -7,8 +6,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ isScanning = false }: StatusBarProps) {
-  const device = useSelectedDevice();
-  const { status, isImplemented } = useDeviceHandler(device);
+  const { device, status, isImplemented } = useDevice();
   const getStatusIcon = () => {
     if (isScanning) return "...";
     if (!device) return "-";

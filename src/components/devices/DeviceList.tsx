@@ -1,7 +1,7 @@
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
-import { useDeviceHandler } from "../../hooks/useDeviceHandler";
+import { useDevice } from "../../hooks/useDevice";
 import { useDeviceStore } from "../../store/deviceStore";
 import { type AddDeviceResult, AddDeviceWizard } from "../dialogs/AddDeviceWizard";
 import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog";
@@ -22,11 +22,10 @@ export function DeviceList({ focused = false }: DeviceListProps) {
   const addDevice = useDeviceStore((s) => s.addDevice);
   const removeDevice = useDeviceStore((s) => s.removeDevice);
 
-  const activeDevice = devices.find((d) => d.id === selectedDeviceId) ?? null;
   const selectedIndex = devices.findIndex((d) => d.id === selectedDeviceId);
   const safeSelectedIndex = selectedIndex === -1 ? 0 : selectedIndex;
 
-  const { status, connect, disconnect } = useDeviceHandler(activeDevice);
+  const { device: activeDevice, status, connect, disconnect } = useDevice();
 
   const handleAddDevice = useCallback(async () => {
     const result = await dialog.prompt<AddDeviceResult | null>({

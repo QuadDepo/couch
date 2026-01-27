@@ -7,10 +7,11 @@ import { capabilities as philipsCapabilities } from "../devices/philips-android-
 import { selectConnectionStatus } from "../devices/selectors";
 import type { CommandResult, DeviceCapabilities } from "../devices/types";
 import type { DeviceActor } from "../store/deviceStore";
-import { useDeviceStore } from "../store/deviceStore";
+import { useDeviceStore, useSelectedDevice } from "../store/deviceStore";
 import type { ConnectionStatus, RemoteKey, TVDevice } from "../types";
 
-interface UseDeviceHandlerResult {
+interface UseDeviceResult {
+  device: TVDevice | null;
   status: ConnectionStatus;
   actor: DeviceActor | undefined;
   capabilities: DeviceCapabilities | null;
@@ -24,7 +25,11 @@ interface UseDeviceHandlerResult {
   disconnect: () => void;
 }
 
-export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResult {
+export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
+  const selectedDevice = useSelectedDevice();
+  // undefined = use selected device, explicit null/device = use what was passed
+  const device = deviceOverride === undefined ? selectedDevice : deviceOverride;
+
   const actor = useDeviceStore((s) => (device ? s.deviceActors.get(device.id)?.actor : undefined));
 
   const status = useSelector(actor, selectConnectionStatus) ?? "disconnected";
@@ -88,6 +93,7 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
   }, [actor]);
 
   return {
+    device,
     status,
     actor,
     capabilities,
@@ -99,3 +105,6 @@ export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResul
     disconnect,
   };
 }
+
+/** @deprecated Use useDevice instead */
+export const useDeviceHandler = useDevice;

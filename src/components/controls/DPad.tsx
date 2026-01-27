@@ -2,8 +2,7 @@ import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback, useState } from "react";
-import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
-import { useSelectedDevice } from "../../store/deviceStore.ts";
+import { useDevice } from "../../hooks/useDevice.ts";
 import type { RemoteKey } from "../../types/index.ts";
 import { TextInputModal } from "../dialogs/TextInputModal.tsx";
 import { Panel } from "../shared/Panel.tsx";
@@ -20,8 +19,7 @@ const DIM_COLOR = "#444444";
 const ACTIVE_COLOR = "#00FF00";
 
 export function DPad({ focused = false }: DPadProps) {
-  const device = useSelectedDevice();
-  const { status, sendKey, sendText, capabilities } = useDeviceHandler(device);
+  const { device, status, sendKey, sendText, capabilities } = useDevice();
 
   const enabled = status === "connected";
   const deviceType = device?.platform ?? null;
