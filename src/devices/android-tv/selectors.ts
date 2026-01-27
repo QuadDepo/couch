@@ -15,7 +15,7 @@ export const isComplete = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
 export const selectDeviceName = (snapshot: AndroidTVDeviceMachineSnapshot): string =>
   snapshot.context.deviceName;
 
-export const selectDeviceIp = (snapshot: AndroidTVDeviceMachineSnapshot): string =>
+const selectDeviceIp = (snapshot: AndroidTVDeviceMachineSnapshot): string =>
   snapshot.context.deviceIp;
 
 export const selectError = (snapshot: AndroidTVDeviceMachineSnapshot): string | undefined =>
@@ -36,13 +36,13 @@ export const isPairingError = (snapshot: AndroidTVDeviceMachineSnapshot): boolea
 export const selectInstructionStep = (snapshot: AndroidTVDeviceMachineSnapshot): number =>
   snapshot.context.instructionStep;
 
-export const isPairingSuccess = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
+const isPairingSuccess = (snapshot: AndroidTVDeviceMachineSnapshot): boolean =>
   snapshot.matches("disconnected") && !!snapshot.context.deviceId;
 
 export const selectPairingError = (snapshot: AndroidTVDeviceMachineSnapshot): string | undefined =>
   snapshot.context.error;
 
-export const selectConnectionStatus = (
+const selectConnectionStatus = (
   snapshot: AndroidTVDeviceMachineSnapshot,
 ): ConnectionStatus => {
   if (snapshot.matches("error")) return "error";

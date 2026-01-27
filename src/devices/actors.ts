@@ -13,25 +13,25 @@ export interface StoredDeviceActor {
   actor: DeviceActor;
 }
 
-export function isWebOSStoredActor(
+function isWebOSStoredActor(
   stored: StoredDeviceActor,
 ): stored is { platform: "lg-webos"; actor: WebOSDeviceMachineActor } {
   return stored.platform === "lg-webos";
 }
 
-export function isAndroidTVStoredActor(
+function isAndroidTVStoredActor(
   stored: StoredDeviceActor,
 ): stored is { platform: "android-tv"; actor: AndroidTVDeviceMachineActor } {
   return stored.platform === "android-tv";
 }
 
-export function isPhilipsStoredActor(
+function isPhilipsStoredActor(
   stored: StoredDeviceActor,
 ): stored is { platform: "philips-android-tv"; actor: PhilipsDeviceMachineActor } {
   return stored.platform === "philips-android-tv";
 }
 
-export function withTypedActor<T>(
+function withTypedActor<T>(
   stored: StoredDeviceActor,
   operations: {
     webos?: (actor: WebOSDeviceMachineActor) => T;

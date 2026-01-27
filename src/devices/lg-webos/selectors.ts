@@ -13,7 +13,7 @@ export const isComplete = (snapshot: WebOSSnapshot): boolean =>
 
 export const selectDeviceName = (snapshot: WebOSSnapshot): string => snapshot.context.deviceName;
 
-export const selectDeviceIp = (snapshot: WebOSSnapshot): string => snapshot.context.deviceIp;
+const selectDeviceIp = (snapshot: WebOSSnapshot): string => snapshot.context.deviceIp;
 
 export const selectError = (snapshot: WebOSSnapshot): string | undefined => snapshot.context.error;
 
@@ -26,7 +26,7 @@ export const isPairingWaitingForUser = (snapshot: WebOSSnapshot): boolean =>
 export const isPairingError = (snapshot: WebOSSnapshot): boolean =>
   snapshot.matches({ pairing: { active: "error" } });
 
-export const isPairingSuccess = (snapshot: WebOSSnapshot): boolean =>
+const isPairingSuccess = (snapshot: WebOSSnapshot): boolean =>
   snapshot.matches("disconnected") && !!snapshot.context.deviceId;
 
 // Connecting but prompt not yet shown on TV
@@ -36,7 +36,7 @@ export const isInitiating = (snapshot: WebOSSnapshot): boolean =>
 export const selectPairingError = (snapshot: WebOSSnapshot): string | undefined =>
   snapshot.context.error;
 
-export const selectConnectionStatus = (snapshot: WebOSSnapshot): ConnectionStatus => {
+const selectConnectionStatus = (snapshot: WebOSSnapshot): ConnectionStatus => {
   if (snapshot.matches("error")) return "error";
   if (snapshot.matches("pairing")) return "pairing";
   if (snapshot.matches({ session: { connection: "connected" } })) return "connected";

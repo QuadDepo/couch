@@ -13,7 +13,7 @@ export const isComplete = (snapshot: PhilipsSnapshot): boolean =>
 
 export const selectDeviceName = (snapshot: PhilipsSnapshot): string => snapshot.context.deviceName;
 
-export const selectDeviceIp = (snapshot: PhilipsSnapshot): string => snapshot.context.deviceIp;
+const selectDeviceIp = (snapshot: PhilipsSnapshot): string => snapshot.context.deviceIp;
 
 export const selectError = (snapshot: PhilipsSnapshot): string | undefined =>
   snapshot.context.error;
@@ -30,13 +30,13 @@ export const isPairingConfirming = (snapshot: PhilipsSnapshot): boolean =>
 export const isPairingError = (snapshot: PhilipsSnapshot): boolean =>
   snapshot.matches({ pairing: { active: "error" } });
 
-export const isPairingSuccess = (snapshot: PhilipsSnapshot): boolean =>
+const isPairingSuccess = (snapshot: PhilipsSnapshot): boolean =>
   snapshot.matches("disconnected") && !!snapshot.context.deviceId;
 
 export const selectPairingError = (snapshot: PhilipsSnapshot): string | undefined =>
   snapshot.context.error;
 
-export const selectConnectionStatus = (snapshot: PhilipsSnapshot): ConnectionStatus => {
+const selectConnectionStatus = (snapshot: PhilipsSnapshot): ConnectionStatus => {
   if (snapshot.matches("error")) return "error";
   if (snapshot.matches("pairing")) return "pairing";
   if (snapshot.matches({ session: { connection: "connected" } })) return "connected";
