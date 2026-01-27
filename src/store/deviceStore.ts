@@ -1,43 +1,74 @@
-import { type Actor, createActor, type SnapshotFrom } from "xstate";
+import { createActor } from "xstate";
 import { create } from "zustand";
-import { disposeHandler } from "../devices/factory";
-import { deviceConnectionMachine } from "../machines/deviceConnectionMachine";
-import type { ConnectionStatus, TVDevice } from "../types";
+import type { DeviceActor, StoredDeviceActor } from "../devices/actors";
+import { androidTVDeviceMachine } from "../devices/android-tv/machines/device";
+import type { WebOSCredentials } from "../devices/lg-webos/credentials";
+import { webosDeviceMachine } from "../devices/lg-webos/machines/device";
+import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
+import { philipsDeviceMachine } from "../devices/philips-android-tv/machines/device";
+import type { TVDevice } from "../types";
+import { inspector } from "../utils/inspector";
 import { logger } from "../utils/logger";
 import { loadDevices as loadFromStorage, saveDevices } from "../utils/storage";
 
-type MachineSnapshot = SnapshotFrom<typeof deviceConnectionMachine>;
-type ConnectionActor = Actor<typeof deviceConnectionMachine>;
+export type { DeviceActor, StoredDeviceActor } from "../devices/actors";
 
 interface DeviceState {
   devices: TVDevice[];
   selectedDeviceId: string | null;
-  deviceActors: Map<string, ConnectionActor>;
+  deviceActors: Map<string, StoredDeviceActor>;
   isLoaded: boolean;
 
   loadDevices: () => Promise<TVDevice[] | null>;
-  addDevice: (device: TVDevice) => void;
+  addDevice: (device: TVDevice, actor?: DeviceActor) => void;
   removeDevice: (deviceId: string) => void;
   selectDevice: (deviceId: string | null) => void;
   updateDeviceConfig: (deviceId: string, config: Partial<TVDevice["config"]>) => void;
-
-  connectDevice: (deviceId: string) => void;
-  disconnectDevice: (deviceId: string) => void;
-
   getSelectedDevice: () => TVDevice | null;
-  getDeviceStatus: (deviceId: string) => ConnectionStatus;
 }
 
-const stateToStatus = (state: string): ConnectionStatus => {
-  const mapping: Record<string, ConnectionStatus> = {
-    disconnected: "disconnected",
-    connecting: "connecting",
-    connected: "connected",
-    retrying: "connecting",
-    disconnecting: "connecting",
-    error: "error",
-  };
-  return mapping[state] || "disconnected";
+const createPlatformActor = (device: TVDevice): DeviceActor => {
+  const config = device.config as { webos?: unknown; philips?: unknown } | undefined;
+
+  switch (device.platform) {
+    case "lg-webos":
+      return createActor(webosDeviceMachine, {
+        input: {
+          deviceId: device.id,
+          deviceName: device.name,
+          deviceIp: device.ip,
+          platform: "lg-webos",
+          credentials: config?.webos,
+        },
+        inspect: inspector?.inspect,
+      });
+
+    case "android-tv":
+      return createActor(androidTVDeviceMachine, {
+        input: {
+          deviceId: device.id,
+          deviceName: device.name,
+          deviceIp: device.ip,
+          platform: "android-tv",
+        },
+        inspect: inspector?.inspect,
+      });
+
+    case "philips-android-tv":
+      return createActor(philipsDeviceMachine, {
+        input: {
+          deviceId: device.id,
+          deviceName: device.name,
+          deviceIp: device.ip,
+          platform: "philips-android-tv",
+          credentials: config?.philips,
+        },
+        inspect: inspector?.inspect,
+      });
+
+    default:
+      throw new Error(`Unsupported platform: ${device.platform}`);
+  }
 };
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({
@@ -60,51 +91,37 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     return devices;
   },
 
-  addDevice: (device) => {
-    const actor = createActor(deviceConnectionMachine, {
-      input: {
-        deviceId: device.id,
-        ip: device.ip,
-        platform: device.platform,
-      },
-    });
+  addDevice: (device, existingActor) => {
+    // Use existing actor or create a new one
+    const actor = existingActor ?? createPlatformActor(device);
+    const stored: StoredDeviceActor = { platform: device.platform, actor };
 
-    actor.subscribe((snapshot: MachineSnapshot) => {
-      const machineState = snapshot.value as string;
-      const status = stateToStatus(machineState);
-      const context = snapshot.context as { retryCount?: number; error?: string };
-
-      logger.state("XState", device.status, status, machineState);
-      if (context.retryCount && context.retryCount > 0) {
-        logger.info("XState", `Retry attempt ${context.retryCount}`, { deviceId: device.id });
-      }
-      if (context.error) {
-        logger.error("XState", context.error, { deviceId: device.id });
-      }
-
-      set((state) => ({
-        devices: state.devices.map((d) => (d.id === device.id ? { ...d, status } : d)),
-      }));
-    });
-
-    actor.start();
+    // Only start the actor if we created it (existing actors from wizard are already started)
+    if (!existingActor) {
+      actor.start();
+    }
 
     set((state) => ({
       devices: [...state.devices, device],
-      deviceActors: new Map(state.deviceActors).set(device.id, actor),
+      deviceActors: new Map(state.deviceActors).set(device.id, stored),
     }));
 
     if (get().isLoaded) {
       saveDevices(get().devices);
     }
+
+    if (existingActor) {
+      logger.info("Store", `Added device with existing actor: ${device.name}`, {
+        deviceId: device.id,
+      });
+    }
   },
 
   removeDevice: (deviceId) => {
-    const actor = get().deviceActors.get(deviceId);
-    if (actor) {
-      actor.stop();
+    const stored = get().deviceActors.get(deviceId);
+    if (stored) {
+      stored.actor.stop();
     }
-    disposeHandler(deviceId);
 
     set((state) => {
       const newActors = new Map(state.deviceActors);
@@ -134,23 +151,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     saveDevices(get().devices);
   },
 
-  connectDevice: (deviceId) => {
-    const actor = get().deviceActors.get(deviceId);
-    actor?.send({ type: "CONNECT" });
-  },
-
-  disconnectDevice: (deviceId) => {
-    const actor = get().deviceActors.get(deviceId);
-    actor?.send({ type: "DISCONNECT" });
-  },
-
   getSelectedDevice: () => {
     const { devices, selectedDeviceId } = get();
     return devices.find((d) => d.id === selectedDeviceId) || null;
-  },
-
-  getDeviceStatus: (deviceId) => {
-    const device = get().devices.find((d) => d.id === deviceId);
-    return device?.status || "disconnected";
   },
 }));

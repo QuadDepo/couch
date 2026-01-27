@@ -1,11 +1,18 @@
+import { useSelector } from "@xstate/react";
 import { useCallback, useMemo } from "react";
-import { getDeviceHandler, isPlatformImplemented } from "../devices/factory";
+import { capabilities as androidTVCapabilities } from "../devices/android-tv/capabilities";
+import { isPlatformImplemented } from "../devices/factory";
+import { capabilities as webosCapabilities } from "../devices/lg-webos/capabilities";
+import { capabilities as philipsCapabilities } from "../devices/philips-android-tv/capabilities";
+import { selectConnectionStatus } from "../devices/selectors";
 import type { CommandResult, DeviceCapabilities } from "../devices/types";
+import type { DeviceActor } from "../store/deviceStore";
 import { useDeviceStore } from "../store/deviceStore";
-import type { RemoteKey, TVDevice } from "../types";
+import type { ConnectionStatus, RemoteKey, TVDevice } from "../types";
 
 interface UseDeviceHandlerResult {
-  status: TVDevice["status"];
+  status: ConnectionStatus;
+  actor: DeviceActor | undefined;
   capabilities: DeviceCapabilities | null;
   isImplemented: boolean;
 
@@ -18,58 +25,72 @@ interface UseDeviceHandlerResult {
 }
 
 export function useDeviceHandler(device: TVDevice | null): UseDeviceHandlerResult {
-  const connectDevice = useDeviceStore((s) => s.connectDevice);
-  const disconnectDevice = useDeviceStore((s) => s.disconnectDevice);
+  const actor = useDeviceStore((s) => (device ? s.deviceActors.get(device.id)?.actor : undefined));
 
-  const handler = useMemo(() => {
-    if (!device || !isPlatformImplemented(device.platform)) return null;
-    return getDeviceHandler(device);
-  }, [device?.id, device?.platform, device]);
+  const status = useSelector(actor, selectConnectionStatus) ?? "disconnected";
 
   const isImplemented = device ? isPlatformImplemented(device.platform) : false;
 
+  const capabilities = useMemo(() => {
+    switch (device?.platform) {
+      case "lg-webos":
+        return webosCapabilities;
+      case "android-tv":
+        return androidTVCapabilities;
+      case "philips-android-tv":
+        return philipsCapabilities;
+      default:
+        return null;
+    }
+  }, [device?.platform]);
+
   const sendKey = useCallback(
     async (key: RemoteKey): Promise<CommandResult> => {
-      if (!handler) {
-        return { success: false, error: "No handler available" };
+      if (!actor) {
+        return { success: false, error: "No device selected" };
       }
-      return handler.sendKey(key);
+      actor.send({ type: "SEND_KEY", key });
+      return { success: true };
     },
-    [handler],
+    [actor],
   );
 
   const isKeySupported = useCallback(
     (key: RemoteKey): boolean => {
-      return handler?.isKeySupported(key) ?? false;
+      return capabilities?.supportedKeys.has(key) ?? false;
     },
-    [handler],
+    [capabilities],
   );
 
   const sendText = useCallback(
     async (text: string): Promise<CommandResult> => {
-      if (!handler) {
-        return { success: false, error: "No handler available" };
+      if (!actor) {
+        return { success: false, error: "No device selected" };
       }
-      return handler.sendText(text);
+      if (!capabilities?.textInputSupported) {
+        return { success: false, error: "Text input not supported" };
+      }
+      (actor as { send: (event: { type: "SEND_TEXT"; text: string }) => void }).send({
+        type: "SEND_TEXT",
+        text,
+      });
+      return { success: true };
     },
-    [handler],
+    [actor, capabilities],
   );
 
   const connect = useCallback(() => {
-    if (device) {
-      connectDevice(device.id);
-    }
-  }, [device?.id, connectDevice, device]);
+    actor?.send({ type: "CONNECT" });
+  }, [actor]);
 
   const disconnect = useCallback(() => {
-    if (device) {
-      disconnectDevice(device.id);
-    }
-  }, [device?.id, disconnectDevice, device]);
+    actor?.send({ type: "DISCONNECT" });
+  }, [actor]);
 
   return {
-    status: device?.status ?? "disconnected",
-    capabilities: handler?.capabilities ?? null,
+    status,
+    actor,
+    capabilities,
     isImplemented,
     sendKey,
     isKeySupported,
