@@ -1,5 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/index.tsx"],
-  "project": ["src/**/*.{ts,tsx}"]
+  "project": ["**/*.{ts,tsx}"],
+  "ignoreBinaries": ["adb", "tsc"],
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  }
 }
