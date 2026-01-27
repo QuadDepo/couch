@@ -1,120 +1,68 @@
 import { TextAttributes } from "@opentui/core";
-import { forwardRef, useCallback, useImperativeHandle, useState } from "react";
 import { WizardHints } from "./WizardHints.tsx";
 
 interface DeviceInfoStepProps {
-  initialName?: string;
-  initialIp?: string;
+  name: string;
+  ip: string;
+  activeField: "name" | "ip";
   error?: string;
-  onSubmit: (name: string, ip: string) => void;
 }
 
-export interface DeviceInfoStepHandle {
-  handleChar: (char: string) => void;
-  handleBackspace: () => void;
-  handleTab: () => void;
-  handleSubmit: () => void;
-}
+export function DeviceInfoStep({ name, ip, activeField, error }: DeviceInfoStepProps) {
+  return (
+    <box flexDirection="column" gap={1}>
+      <text fg="#666666">Enter device information:</text>
 
-export const DeviceInfoStep = forwardRef<DeviceInfoStepHandle, DeviceInfoStepProps>(
-  function DeviceInfoStep({ initialName = "", initialIp = "", error, onSubmit }, ref) {
-    const [deviceName, setDeviceName] = useState(initialName);
-    const [deviceIp, setDeviceIp] = useState(initialIp);
-    const [activeField, setActiveField] = useState<"name" | "ip">("name");
-
-    const handleChar = useCallback(
-      (char: string) => {
-        if (activeField === "name") {
-          setDeviceName((prev) => prev + char);
-        } else {
-          setDeviceIp((prev) => prev + char);
-        }
-      },
-      [activeField],
-    );
-
-    const handleBackspace = useCallback(() => {
-      if (activeField === "name") {
-        setDeviceName((prev) => prev.slice(0, -1));
-      } else {
-        setDeviceIp((prev) => prev.slice(0, -1));
-      }
-    }, [activeField]);
-
-    const handleTab = useCallback(() => {
-      setActiveField((prev) => (prev === "name" ? "ip" : "name"));
-    }, []);
-
-    const handleSubmit = useCallback(() => {
-      onSubmit(deviceName, deviceIp);
-    }, [deviceName, deviceIp, onSubmit]);
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        handleChar,
-        handleBackspace,
-        handleTab,
-        handleSubmit,
-      }),
-      [handleChar, handleBackspace, handleTab, handleSubmit],
-    );
-
-    return (
-      <box flexDirection="column" gap={1}>
-        <text fg="#666666">Enter device information:</text>
-
-        <box flexDirection="column" marginTop={1} gap={1}>
-          <box flexDirection="row">
-            <text fg="#AAAAAA" width={6}>
-              Name:{" "}
+      <box flexDirection="column" marginTop={1} gap={1}>
+        <box flexDirection="row">
+          <text fg="#AAAAAA" width={6}>
+            Name:{" "}
+          </text>
+          <text
+            fg={activeField === "name" ? "#00AAFF" : "#FFFFFF"}
+            attributes={activeField === "name" ? TextAttributes.UNDERLINE : 0}
+          >
+            {name || (activeField === "name" ? "_" : "")}
+          </text>
+          {activeField === "name" && name && (
+            <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+              _
             </text>
-            <text
-              fg={activeField === "name" ? "#00AAFF" : "#FFFFFF"}
-              attributes={activeField === "name" ? TextAttributes.UNDERLINE : 0}
-            >
-              {deviceName || (activeField === "name" ? "_" : "")}
-            </text>
-            {activeField === "name" && deviceName && (
-              <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
-                _
-              </text>
-            )}
-          </box>
-
-          <box flexDirection="row">
-            <text fg="#AAAAAA" width={6}>
-              IP:{" "}
-            </text>
-            <text
-              fg={activeField === "ip" ? "#00AAFF" : "#FFFFFF"}
-              attributes={activeField === "ip" ? TextAttributes.UNDERLINE : 0}
-            >
-              {deviceIp || (activeField === "ip" ? "_" : "")}
-            </text>
-            {activeField === "ip" && deviceIp && (
-              <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
-                _
-              </text>
-            )}
-          </box>
+          )}
         </box>
 
-        {error && (
-          <text fg="#FF4444" marginTop={1}>
-            {error}
+        <box flexDirection="row">
+          <text fg="#AAAAAA" width={6}>
+            IP:{" "}
           </text>
-        )}
-
-        <WizardHints
-          hints={[
-            { key: "Tab", label: "to switch field" },
-            { key: "Enter", label: "to continue" },
-            { key: "Ctrl+Bs", label: "to go back" },
-            { key: "Esc", label: "to close" },
-          ]}
-        />
+          <text
+            fg={activeField === "ip" ? "#00AAFF" : "#FFFFFF"}
+            attributes={activeField === "ip" ? TextAttributes.UNDERLINE : 0}
+          >
+            {ip || (activeField === "ip" ? "_" : "")}
+          </text>
+          {activeField === "ip" && ip && (
+            <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+              _
+            </text>
+          )}
+        </box>
       </box>
-    );
-  },
-);
+
+      {error && (
+        <text fg="#FF4444" marginTop={1}>
+          {error}
+        </text>
+      )}
+
+      <WizardHints
+        hints={[
+          { key: "Tab", label: "to switch field" },
+          { key: "Enter", label: "to continue" },
+          { key: "Ctrl+Bs", label: "to go back" },
+          { key: "Esc", label: "to close" },
+        ]}
+      />
+    </box>
+  );
+}

@@ -1,178 +1,121 @@
 import { TextAttributes } from "@opentui/core";
 import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useMachine, useSelector } from "@xstate/react";
-import { useCallback, useRef } from "react";
-import { DIM_COLOR, ERROR_COLOR } from "../../constants/colors.ts";
-import { wrapPlatformCredentials } from "../../devices/factory.ts";
 import {
-  addDeviceWizardMachine,
-  type WizardContext as MachineContext,
-} from "../../machines/addDeviceWizardMachine.ts";
-import {
-  isCompleteState,
-  isConnectionState,
-  isDeviceInfoState,
-  isErrorState,
-  isPlatformSelectionState,
-  selectError,
-} from "../../machines/addDeviceWizardSelectors.ts";
-import type { TVDevice } from "../../types/index.ts";
-import { CompletionStep } from "./wizard/CompletionStep.tsx";
-import { DeviceInfoStep, type DeviceInfoStepHandle } from "./wizard/DeviceInfoStep.tsx";
-import { type PairingStepHandle, PairingStepRenderer } from "./wizard/PairingStepRenderer.tsx";
+  type ForwardRefExoticComponent,
+  type RefAttributes,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
+import { AndroidTVPairingFlow } from "../../devices/android-tv/ui/flow.tsx";
+import { implementedPlatforms } from "../../devices/factory.ts";
+import { WebOSPairingFlow } from "../../devices/lg-webos/ui/flow.tsx";
+import { PhilipsPairingFlow } from "../../devices/philips-android-tv/ui/flow.tsx";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
-import { WizardHeader } from "./wizard/WizardHeader.tsx";
-import { WizardProvider } from "./wizard/WizardProvider.tsx";
+import type { PairingFlowHandle, PairingFlowProps, PairingFlowResult } from "./wizard/types.ts";
 
-export interface AddDeviceResult {
-  device: TVDevice;
-}
+export type ImplementedPlatform = "lg-webos" | "android-tv" | "philips-android-tv";
+
+export type { PairingFlowResult as AddDeviceResult };
+
+type PairingFlowComponent = ForwardRefExoticComponent<
+  PairingFlowProps & RefAttributes<PairingFlowHandle>
+>;
+
+const PLATFORM_FLOWS: Record<ImplementedPlatform, PairingFlowComponent> = {
+  "lg-webos": WebOSPairingFlow,
+  "android-tv": AndroidTVPairingFlow,
+  "philips-android-tv": PhilipsPairingFlow,
+};
 
 export function AddDeviceWizard({
   resolve,
   dismiss,
   dialogId,
-}: PromptContext<AddDeviceResult | null>) {
-  const deviceInfoRef = useRef<DeviceInfoStepHandle>(null);
-  const pairingRef = useRef<PairingStepHandle>(null);
+}: PromptContext<PairingFlowResult | null>) {
+  const flowRef = useRef<PairingFlowHandle>(null);
 
-  const buildDevice = (ctx: MachineContext): TVDevice => {
-    if (!ctx.platform) {
-      throw new Error("Platform not selected");
-    }
+  const [platform, setPlatform] = useState<ImplementedPlatform | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
-    return {
-      id: crypto.randomUUID(),
-      name: ctx.deviceName,
-      ip: ctx.deviceIp,
-      platform: ctx.platform,
-      status: "disconnected",
-      config: ctx.credentials ? wrapPlatformCredentials(ctx.platform, ctx.credentials) : undefined,
-    };
-  };
-
-  const [state, send, actorRef] = useMachine(
-    addDeviceWizardMachine.provide({
-      actions: {
-        onComplete: ({ context }) => {
-          resolve({ device: buildDevice(context) });
-        },
-        onCancel: () => {
-          dismiss();
-        },
-      },
-    }),
-  );
-
-  const isPlatformSelection = useSelector(actorRef, isPlatformSelectionState);
-  const isDeviceInfo = useSelector(actorRef, isDeviceInfoState);
-  const isConnection = useSelector(actorRef, isConnectionState);
-  const isComplete = useSelector(actorRef, isCompleteState);
-  const isError = useSelector(actorRef, isErrorState);
-  const error = useSelector(actorRef, selectError);
-
-  const handleDeviceInfoSubmit = useCallback(
-    (name: string, ip: string) => {
-      send({ type: "SET_DEVICE_INFO", name, ip });
+  const handleComplete = useCallback(
+    (result: PairingFlowResult) => {
+      resolve(result);
     },
-    [send],
+    [resolve],
   );
 
-  const handleBack = useCallback(() => {
-    if (isPlatformSelection) return;
+  const handleCancel = useCallback(() => {
+    flowRef.current?.cleanup();
+    dismiss();
+  }, [dismiss]);
 
-    if (isConnection) {
-      const handled = pairingRef.current?.handleBack();
-      if (handled) return;
-    }
-
-    send({ type: "BACK" });
-  }, [isPlatformSelection, isConnection, send]);
-
-  const getActiveRef = () => {
-    if (isDeviceInfo) return deviceInfoRef;
-    if (isConnection) return pairingRef;
-    return null;
-  };
+  const handleBackToPlatformSelection = useCallback(() => {
+    setPlatform(null);
+  }, []);
 
   useDialogKeyboard((event) => {
-    if (event.name === "backspace" && event.ctrl) {
-      handleBack();
+    // Platform selection phase
+    if (!platform) {
+      switch (event.name) {
+        case "up":
+          setSelectedIndex((i) => Math.max(0, i - 1));
+          break;
+        case "down":
+          setSelectedIndex((i) => Math.min(implementedPlatforms.length - 1, i + 1));
+          break;
+        case "return": {
+          const selectedPlatform = implementedPlatforms[selectedIndex];
+          if (selectedPlatform) {
+            setPlatform(selectedPlatform.id as ImplementedPlatform);
+          }
+          break;
+        }
+        case "escape":
+          handleCancel();
+          break;
+      }
       return;
     }
 
-    const activeRef = getActiveRef();
+    // Platform flow phase - delegate to flow via ref
+    if (event.name === "escape") {
+      handleCancel();
+      return;
+    }
 
-    if (activeRef?.current) {
-      switch (event.name) {
-        case "return":
-          activeRef.current.handleSubmit();
-          return;
-        case "backspace":
-          activeRef.current.handleBackspace();
-          return;
-        case "tab":
-          if ("handleTab" in activeRef.current) {
-            activeRef.current.handleTab();
-          }
-          return;
-        case "escape":
-          send({ type: "CANCEL" });
-          return;
-        default:
-          if (event.sequence?.length === 1) {
-            activeRef.current.handleChar(event.sequence);
-          }
-          return;
+    if (event.name === "backspace" && event.ctrl) {
+      if (flowRef.current?.canGoBack()) {
+        const shouldExitToSelection = flowRef.current.handleBack();
+        if (shouldExitToSelection) {
+          handleBackToPlatformSelection();
+        }
       }
+      return;
     }
 
     switch (event.name) {
-      case "up":
-        send({ type: "ARROW_UP" });
-        break;
-      case "down":
-        send({ type: "ARROW_DOWN" });
-        break;
       case "return":
-        send({ type: "SUBMIT" });
+        if (flowRef.current?.canContinue()) {
+          flowRef.current.handleContinue();
+        }
         break;
-      case "escape":
-        send({ type: "CANCEL" });
+      case "backspace":
+        flowRef.current?.handleBackspace();
         break;
+      case "tab":
+        flowRef.current?.handleTab();
+        break;
+      default:
+        if (event.sequence?.length === 1) {
+          flowRef.current?.handleChar(event.sequence);
+        }
     }
   }, dialogId);
 
-  const renderStep = () => {
-    if (isPlatformSelection) return <PlatformSelectionStep context={state.context} />;
-    if (isDeviceInfo) {
-      return (
-        <DeviceInfoStep
-          ref={deviceInfoRef}
-          initialName={state.context.deviceName}
-          initialIp={state.context.deviceIp}
-          error={error}
-          onSubmit={handleDeviceInfoSubmit}
-        />
-      );
-    }
-    if (isConnection) return <PairingStepRenderer ref={pairingRef} />;
-    if (isComplete) return <CompletionStep context={state.context} />;
-    if (isError) {
-      return (
-        <box flexDirection="column" gap={1}>
-          <text fg={ERROR_COLOR} attributes={TextAttributes.BOLD}>
-            Error
-          </text>
-          <text fg={DIM_COLOR}>{error || "An error occurred"}</text>
-        </box>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <WizardProvider actorRef={actorRef}>
+  // Platform selection phase
+  if (!platform) {
+    return (
       <box
         flexDirection="column"
         gap={1}
@@ -181,9 +124,15 @@ export function AddDeviceWizard({
         paddingTop={2}
         paddingBottom={2}
       >
-        <WizardHeader />
-        <box marginTop={1}>{renderStep()}</box>
+        <text attributes={TextAttributes.BOLD}>Select Platform</text>
+        <box marginTop={1}>
+          <PlatformSelectionStep selectedPlatformIndex={selectedIndex} />
+        </box>
       </box>
-    </WizardProvider>
-  );
+    );
+  }
+
+  // Platform-specific flow phase
+  const FlowComponent = PLATFORM_FLOWS[platform];
+  return <FlowComponent ref={flowRef} onComplete={handleComplete} />;
 }

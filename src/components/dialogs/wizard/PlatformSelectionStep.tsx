@@ -1,14 +1,11 @@
 import { implementedPlatforms } from "../../../devices/factory.ts";
-import type { WizardContext } from "../../../machines/addDeviceWizardMachine.ts";
 import { WizardHints } from "./WizardHints.tsx";
 
 interface PlatformSelectionStepProps {
-  context: WizardContext;
+  selectedPlatformIndex: number;
 }
 
-export function PlatformSelectionStep({ context }: PlatformSelectionStepProps) {
-  const { selectedPlatformIndex } = context;
-
+export function PlatformSelectionStep({ selectedPlatformIndex }: PlatformSelectionStepProps) {
   return (
     <box flexDirection="column" gap={1}>
       <text fg="#666666">Select your TV platform:</text>
