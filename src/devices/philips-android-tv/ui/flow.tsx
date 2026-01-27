@@ -1,44 +1,54 @@
 import { useActorRef, useSelector } from "@xstate/react";
-import { forwardRef, useImperativeHandle } from "react";
-import { CompletionStep } from "../../components/dialogs/wizard/CompletionStep.tsx";
-import { DeviceInfoStep } from "../../components/dialogs/wizard/DeviceInfoStep.tsx";
-import type { PairingFlowHandle, PairingFlowProps } from "../../components/dialogs/wizard/types.ts";
-import { WizardShell } from "../../components/dialogs/wizard/WizardShell.tsx";
-import { wrapPlatformCredentials } from "../factory.ts";
-import { useDeviceInfoInput } from "../../hooks/useDeviceInfoInput.ts";
-import type { TVDevice } from "../../types";
-import { inspector } from "../../utils/inspector.ts";
-import { webosDeviceMachine } from "./machines/device";
-import { WebOSPairingStep } from "./PairingStep.tsx";
+import { forwardRef, useImperativeHandle, useState } from "react";
+import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
+import { DeviceInfoStep } from "../../../components/dialogs/wizard/DeviceInfoStep.tsx";
+import type { PairingFlowHandle, PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
+import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
+import { useDeviceInfoInput } from "../../../hooks/useDeviceInfoInput.ts";
+import type { TVDevice } from "../../../types";
+import { inspector } from "../../../utils/inspector.ts";
+import { wrapPlatformCredentials } from "../../factory.ts";
+import { philipsDeviceMachine } from "../machines/device";
+import { PhilipsPairingStep } from "./steps.tsx";
 import {
   isComplete,
   isPairing,
   isPairingError,
+  isPairingWaitingForPin,
   isSetup,
   selectDeviceIp,
   selectDeviceName,
   selectError,
-} from "./selectors";
+} from "../selectors";
 
-export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
-  function WebOSPairingFlow({ onComplete }, ref) {
-    const actorRef = useActorRef(webosDeviceMachine, {
-      input: { platform: "lg-webos" as const },
+export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
+  function PhilipsPairingFlow({ onComplete }, ref) {
+    const actorRef = useActorRef(philipsDeviceMachine, {
+      input: { platform: "philips-android-tv" as const },
       inspect: inspector?.inspect,
     });
 
     const deviceInfo = useDeviceInfoInput();
+
+    // PIN input state (Philips-specific)
+    const [pinInput, setPinInput] = useState("");
 
     // Flow state selectors
     const isSetupState = useSelector(actorRef, isSetup);
     const isPairingState = useSelector(actorRef, isPairing);
     const isCompleteState = useSelector(actorRef, isComplete);
     const isErrorState = useSelector(actorRef, isPairingError);
+    const isWaitingForPinState = useSelector(actorRef, isPairingWaitingForPin);
 
     // Context selectors
     const deviceName = useSelector(actorRef, selectDeviceName);
     const deviceIp = useSelector(actorRef, selectDeviceIp);
     const error = useSelector(actorRef, selectError);
+
+    const resetPairingState = () => {
+      setPinInput("");
+      deviceInfo.reset();
+    };
 
     useImperativeHandle(
       ref,
@@ -47,6 +57,7 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
 
         canContinue: () => {
           if (isSetupState) return deviceInfo.isValid;
+          if (isWaitingForPinState) return pinInput.length === 4;
           if (isErrorState) return true;
           if (isCompleteState) return true;
           return false;
@@ -55,7 +66,7 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
         handleBack: () => {
           if (isPairingState) {
             actorRef.send({ type: "RESET_TO_SETUP" });
-            deviceInfo.reset();
+            resetPairingState();
             return false; // Stay in flow (went back to setup)
           }
           return true; // Exit to platform selection
@@ -66,7 +77,12 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
             actorRef.send({ type: "SET_DEVICE_INFO", name: deviceInfo.name, ip: deviceInfo.ip });
             return;
           }
+          if (isWaitingForPinState && pinInput.length === 4) {
+            actorRef.send({ type: "SUBMIT_PIN", pin: pinInput });
+            return;
+          }
           if (isErrorState) {
+            setPinInput("");
             actorRef.send({ type: "START_PAIRING" });
             return;
           }
@@ -79,8 +95,8 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
               id: deviceId,
               name: deviceName,
               ip: deviceIp,
-              platform: "lg-webos",
-              config: wrapPlatformCredentials("lg-webos", credentials),
+              platform: "philips-android-tv",
+              config: wrapPlatformCredentials("philips-android-tv", credentials),
             };
             onComplete({ device, actor: actorRef });
           }
@@ -89,12 +105,16 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
         handleChar: (char) => {
           if (isSetupState) {
             deviceInfo.handleChar(char);
+          } else if (isWaitingForPinState && pinInput.length < 4 && /^\d$/.test(char)) {
+            setPinInput((p) => p + char);
           }
         },
 
         handleBackspace: () => {
           if (isSetupState) {
             deviceInfo.handleBackspace();
+          } else if (isWaitingForPinState) {
+            setPinInput((p) => p.slice(0, -1));
           }
         },
 
@@ -108,7 +128,17 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
           actorRef.stop();
         },
       }),
-      [isSetupState, isPairingState, isCompleteState, isErrorState, deviceInfo, actorRef, onComplete],
+      [
+        isSetupState,
+        isPairingState,
+        isCompleteState,
+        isErrorState,
+        isWaitingForPinState,
+        deviceInfo,
+        pinInput,
+        actorRef,
+        onComplete,
+      ],
     );
 
     if (isSetupState) {
@@ -127,7 +157,7 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
     if (isPairingState) {
       return (
         <WizardShell stepLabel="Pairing" progress="2/3">
-          <WebOSPairingStep actorRef={actorRef} />
+          <PhilipsPairingStep actorRef={actorRef} pinInput={pinInput} />
         </WizardShell>
       );
     }

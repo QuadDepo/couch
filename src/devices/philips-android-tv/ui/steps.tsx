@@ -1,23 +1,16 @@
-/**
- * Philips Android TV Pairing Step UI
- *
- * Presentational component for the Philips pairing step.
- * PIN input state is managed by the parent PairingFlow.
- * Keyboard handling is managed by the parent PairingFlow.
- */
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
-import { WizardHints } from "../../components/dialogs/wizard/WizardHints.tsx";
-import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../constants/colors.ts";
-import type { philipsDeviceMachine } from "./machines/device";
+import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx";
+import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
+import type { philipsDeviceMachine } from "../machines/device";
 import {
   isPairingConfirming,
   isPairingConnecting,
   isPairingError,
   isPairingWaitingForPin,
   selectPairingError,
-} from "./selectors";
+} from "../selectors";
 
 const HINT_SUBMIT = { key: "Enter", label: "to submit" };
 const HINT_RETRY = { key: "Enter", label: "to retry" };

@@ -1,24 +1,25 @@
 import { useActorRef, useSelector } from "@xstate/react";
 import { forwardRef, useImperativeHandle } from "react";
-import { CompletionStep } from "../../components/dialogs/wizard/CompletionStep.tsx";
-import { DeviceInfoStep } from "../../components/dialogs/wizard/DeviceInfoStep.tsx";
-import type { PairingFlowHandle, PairingFlowProps } from "../../components/dialogs/wizard/types.ts";
-import { WizardShell } from "../../components/dialogs/wizard/WizardShell.tsx";
-import { useDeviceInfoInput } from "../../hooks/useDeviceInfoInput.ts";
-import type { TVDevice } from "../../types";
-import { inspector } from "../../utils/inspector.ts";
-import { wrapPlatformCredentials } from "../factory.ts";
-import { androidTVDeviceMachine } from "./machines/device";
-import { AndroidTVPairingStep } from "./PairingStep.tsx";
+import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
+import { DeviceInfoStep } from "../../../components/dialogs/wizard/DeviceInfoStep.tsx";
+import type { PairingFlowHandle, PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
+import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
+import { useDeviceInfoInput } from "../../../hooks/useDeviceInfoInput.ts";
+import type { TVDevice } from "../../../types";
+import { inspector } from "../../../utils/inspector.ts";
+import { wrapPlatformCredentials } from "../../factory.ts";
+import { androidTVDeviceMachine } from "../machines/device";
+import { AndroidTVInstructionsStep, AndroidTVPairingStep } from "./steps.tsx";
 import {
   isComplete,
   isPairing,
   isPairingError,
+  isPairingInstructions,
   isSetup,
   selectDeviceIp,
   selectDeviceName,
   selectError,
-} from "./selectors";
+} from "../selectors";
 
 export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
   function AndroidTVPairingFlow({ onComplete }, ref) {
@@ -31,6 +32,7 @@ export const AndroidTVPairingFlow = forwardRef<PairingFlowHandle, PairingFlowPro
 
     // Flow state selectors
     const isSetupState = useSelector(actorRef, isSetup);
+    const isInstructionsState = useSelector(actorRef, isPairingInstructions);
     const isPairingState = useSelector(actorRef, isPairing);
     const isCompleteState = useSelector(actorRef, isComplete);
     const isErrorState = useSelector(actorRef, isPairingError);
