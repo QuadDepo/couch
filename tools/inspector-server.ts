@@ -31,7 +31,7 @@ Bun.serve({
     return new Response("Not Found", { status: 404 });
   },
   websocket: {
-    open(ws) {
+    open() {
       console.log(`[+] New connection`);
     },
     message(ws, message) {

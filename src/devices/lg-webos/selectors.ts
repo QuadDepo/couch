@@ -1,5 +1,4 @@
 import type { SnapshotFrom } from "xstate";
-import type { ConnectionStatus } from "../../types";
 import type { webosDeviceMachine } from "./machines/device";
 
 export type WebOSSnapshot = SnapshotFrom<typeof webosDeviceMachine>;
@@ -13,8 +12,6 @@ export const isComplete = (snapshot: WebOSSnapshot): boolean =>
 
 export const selectDeviceName = (snapshot: WebOSSnapshot): string => snapshot.context.deviceName;
 
-const selectDeviceIp = (snapshot: WebOSSnapshot): string => snapshot.context.deviceIp;
-
 export const selectError = (snapshot: WebOSSnapshot): string | undefined => snapshot.context.error;
 
 export const isPairingConnecting = (snapshot: WebOSSnapshot): boolean =>
@@ -26,20 +23,9 @@ export const isPairingWaitingForUser = (snapshot: WebOSSnapshot): boolean =>
 export const isPairingError = (snapshot: WebOSSnapshot): boolean =>
   snapshot.matches({ pairing: { active: "error" } });
 
-const isPairingSuccess = (snapshot: WebOSSnapshot): boolean =>
-  snapshot.matches("disconnected") && !!snapshot.context.deviceId;
-
 // Connecting but prompt not yet shown on TV
 export const isInitiating = (snapshot: WebOSSnapshot): boolean =>
   isPairingConnecting(snapshot) && !snapshot.context.promptReceived;
 
 export const selectPairingError = (snapshot: WebOSSnapshot): string | undefined =>
   snapshot.context.error;
-
-const selectConnectionStatus = (snapshot: WebOSSnapshot): ConnectionStatus => {
-  if (snapshot.matches("error")) return "error";
-  if (snapshot.matches("pairing")) return "pairing";
-  if (snapshot.matches({ session: { connection: "connected" } })) return "connected";
-  if (snapshot.matches("session")) return "connecting";
-  return "disconnected";
-};
