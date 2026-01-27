@@ -1,12 +1,12 @@
 import { useSelector } from "@xstate/react";
 import { useCallback, useMemo } from "react";
+import type { DeviceActor } from "../devices/actors";
 import { capabilities as androidTVCapabilities } from "../devices/android-tv/capabilities";
 import { isPlatformImplemented } from "../devices/factory";
 import { capabilities as webosCapabilities } from "../devices/lg-webos/capabilities";
 import { capabilities as philipsCapabilities } from "../devices/philips-android-tv/capabilities";
 import { selectConnectionStatus } from "../devices/selectors";
 import type { CommandResult, DeviceCapabilities } from "../devices/types";
-import type { DeviceActor } from "../store/deviceStore";
 import { useDeviceStore, useSelectedDevice } from "../store/deviceStore";
 import type { ConnectionStatus, RemoteKey, TVDevice } from "../types";
 

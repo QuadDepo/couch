@@ -34,8 +34,9 @@ export function DeviceList({ focused = false }: DeviceListProps) {
     });
 
     if (result?.device) {
-      // Pass the actor if available (from wizard), otherwise addDevice will create one
-      addDevice(result.device, result.actor);
+      // Don't pass wizard actor - it gets stopped on dialog unmount
+      // Store creates a fresh actor with device credentials
+      addDevice(result.device);
       selectDevice(result.device.id);
     }
   }, [dialog, addDevice, selectDevice]);

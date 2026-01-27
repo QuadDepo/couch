@@ -9,8 +9,6 @@ import { inspector } from "../utils/inspector";
 import { logger } from "../utils/logger";
 import { loadDevices as loadFromStorage, saveDevices } from "../utils/storage";
 
-export type { DeviceActor, StoredDeviceActor } from "../devices/actors";
-
 interface DeviceState {
   devices: TVDevice[];
   selectedDeviceId: string | null;
@@ -94,10 +92,9 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     const actor = existingActor ?? createPlatformActor(device);
     const stored: StoredDeviceActor = { platform: device.platform, actor };
 
-    // Ensure actor is running (may have been stopped by wizard unmount race condition)
-    if (actor.getSnapshot().status !== "active") {
-      actor.start();
-    }
+    // Always start actor - safe to call on already-started actors (no-op)
+    // Handles: newly created actors, and actors stopped by wizard unmount race
+    actor.start();
 
     set((state) => ({
       devices: [...state.devices, device],
