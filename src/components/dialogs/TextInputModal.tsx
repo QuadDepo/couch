@@ -2,10 +2,19 @@ import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import type { PromptContext } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../constants/colors.ts";
+import {
+  ACTIVE_COLOR,
+  DIM_COLOR,
+  ERROR_COLOR,
+  FOCUS_COLOR,
+  TEXT_DIM,
+  TEXT_PRIMARY,
+  TEXT_SECONDARY,
+} from "../../constants/colors.ts";
 import type { CommandResult } from "../../devices/types.ts";
 import { useUIStore } from "../../store/uiStore";
 import type { TVPlatform } from "../../types/index.ts";
+import { KeyHint } from "../shared/KeyHint.tsx";
 
 interface TextInputModalProps extends PromptContext<unknown> {
   enabled: boolean;
@@ -26,7 +35,7 @@ function InputBuffer({
   focused: boolean;
   enabled: boolean;
 }) {
-  const bright = enabled ? "#FFFFFF" : DIM_COLOR;
+  const bright = enabled ? TEXT_PRIMARY : DIM_COLOR;
   return (
     <box
       borderStyle="single"
@@ -63,19 +72,19 @@ function QuickActions({ focused, lastAction }: { focused: boolean; lastAction: s
       </box>
       <box flexDirection="row" gap={2}>
         <text
-          fg={lastAction === "enter" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR}
+          fg={lastAction === "enter" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
           attributes={lastAction === "enter" ? TextAttributes.BOLD : undefined}
         >
           [Enter]
         </text>
         <text
-          fg={lastAction === "space" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR}
+          fg={lastAction === "space" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
           attributes={lastAction === "space" ? TextAttributes.BOLD : undefined}
         >
           [Space]
         </text>
         <text
-          fg={lastAction === "del" ? "#00FF00" : focused ? "#AAAAAA" : DIM_COLOR}
+          fg={lastAction === "del" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
           attributes={lastAction === "del" ? TextAttributes.BOLD : undefined}
         >
           [Bs]
@@ -254,7 +263,7 @@ export function TextInputModal({
         width="100%"
         height={3}
         borderStyle="single"
-        borderColor="#444444"
+        borderColor={DIM_COLOR}
         flexDirection="row"
         justifyContent="space-between"
         alignItems="center"
@@ -262,14 +271,14 @@ export function TextInputModal({
         paddingRight={1}
       >
         <box flexDirection="row">
-          <text fg="#00AAFF" attributes={TextAttributes.BOLD}>
+          <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
             Text input
           </text>
         </box>
         <box flexDirection="row">
-          <text fg="#666666">[Tab] Switch</text>
-          <text fg="#666666"> | </text>
-          <text fg="#666666">[Esc] Close</text>
+          <KeyHint keyName="Tab" label="Switch" />
+          <text fg={TEXT_DIM}> | </text>
+          <KeyHint keyName="Esc" label="Close" />
         </box>
       </box>
 

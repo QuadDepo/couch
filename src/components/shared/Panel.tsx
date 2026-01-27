@@ -1,5 +1,6 @@
 import type { BoxProps } from "@opentui/react";
 import type { ReactNode } from "react";
+import { DIM_COLOR, FOCUS_COLOR, TEXT_MUTED } from "../../constants/colors.ts";
 
 interface PanelProps extends Omit<BoxProps, "borderStyle" | "borderColor" | "flexDirection"> {
   title?: string;
@@ -15,8 +16,8 @@ export function Panel({
   justifyContent,
   ...boxProps
 }: PanelProps) {
-  const borderColor = focused ? "#00AAFF" : "#444444";
-  const titleColor = focused ? "#00AAFF" : "#888888";
+  const borderColor = focused ? FOCUS_COLOR : DIM_COLOR;
+  const titleColor = focused ? FOCUS_COLOR : TEXT_MUTED;
 
   return (
     <box flexDirection="column" borderStyle="single" borderColor={borderColor} {...boxProps}>
