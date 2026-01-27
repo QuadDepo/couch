@@ -1,26 +1,16 @@
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
-import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
-import { useDeviceStore } from "../../store/deviceStore.ts";
-import type { TVDevice } from "../../types/index.ts";
-import { getStatusIndicator } from "../../utils/statusIndicator.ts";
-import { type AddDeviceResult, AddDeviceWizard } from "../dialogs/AddDeviceWizard.tsx";
-import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog.tsx";
-import { Panel } from "../shared/Panel.tsx";
+import { useDeviceHandler } from "../../hooks/useDeviceHandler";
+import { useDeviceStore } from "../../store/deviceStore";
+import { type AddDeviceResult, AddDeviceWizard } from "../dialogs/AddDeviceWizard";
+import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog";
+import { Panel } from "../shared/Panel";
+import { DeviceListItem } from "./DeviceListItem";
 
 interface DeviceListProps {
   focused?: boolean;
 }
-
-const platformLabels: Record<TVDevice["platform"], string> = {
-  "android-tv": "Android",
-  "philips-android-tv": "Philips",
-  "lg-webos": "LG",
-  "samsung-tizen": "Samsung",
-  "titan-os": "Titan",
-  "apple-tv": "Apple",
-};
 
 export function DeviceList({ focused = false }: DeviceListProps) {
   const dialog = useDialog();
@@ -36,7 +26,7 @@ export function DeviceList({ focused = false }: DeviceListProps) {
   const selectedIndex = devices.findIndex((d) => d.id === selectedDeviceId);
   const safeSelectedIndex = selectedIndex === -1 ? 0 : selectedIndex;
 
-  const { connect, disconnect } = useDeviceHandler(activeDevice);
+  const { status, connect, disconnect } = useDeviceHandler(activeDevice);
 
   const handleAddDevice = useCallback(async () => {
     const result = await dialog.prompt<AddDeviceResult | null>({
@@ -45,19 +35,20 @@ export function DeviceList({ focused = false }: DeviceListProps) {
     });
 
     if (result?.device) {
-      addDevice(result.device);
+      // Pass the actor if available (from wizard), otherwise addDevice will create one
+      addDevice(result.device, result.actor);
       selectDevice(result.device.id);
     }
   }, [dialog, addDevice, selectDevice]);
 
   const handleConnect = useCallback(() => {
     if (!activeDevice) return;
-    if (activeDevice.status === "disconnected" || activeDevice.status === "error") {
+    if (status === "disconnected" || status === "error") {
       connect();
-    } else if (activeDevice.status === "connected") {
+    } else if (status === "connected") {
       disconnect();
     }
-  }, [activeDevice, connect, disconnect]);
+  }, [activeDevice, status, connect, disconnect]);
 
   const handleRemoveDevice = useCallback(async () => {
     if (!activeDevice) return;
@@ -125,20 +116,14 @@ export function DeviceList({ focused = false }: DeviceListProps) {
 
   return (
     <Panel title="DEVICES" width={32} focused={focused}>
-      {devices.map((device, index) => {
-        const isSelected = index === safeSelectedIndex;
-        const prefix = isSelected && focused ? ">" : " ";
-        const status = getStatusIndicator(device.status);
-
-        return (
-          <box key={device.id} flexDirection="row">
-            <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}>{prefix}</text>
-            <text fg={status.color}>{status.icon}</text>
-            <text fg={isSelected && focused ? "#00AAFF" : "#FFFFFF"}> {device.name}</text>
-            <text fg="#666666"> [{platformLabels[device.platform]}]</text>
-          </box>
-        );
-      })}
+      {devices.map((device, index) => (
+        <DeviceListItem
+          key={device.id}
+          device={device}
+          isSelected={index === safeSelectedIndex}
+          isFocused={focused}
+        />
+      ))}
       <box marginTop="auto">
         <text fg="#666666">Use ↑/↓ to navigate</text>
         <text fg="#666666">[A] to add</text>
