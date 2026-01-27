@@ -26,9 +26,9 @@
         let ws = null;
 
         function updateStatus(text, type = '') {
-            console.log("[Bridge] " + text);
+            console.log(`[Bridge] ${text}`);
             statusElement.textContent = text;
-            statusElement.className = 'status ' + type;
+            statusElement.className = `status ${type}`;
         }
 
         function openInspector() {
