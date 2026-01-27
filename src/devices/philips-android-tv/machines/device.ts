@@ -415,7 +415,7 @@ export const philipsDeviceMachine = setup({
                 }),
               },
               after: {
-                retryDelay: { target: "connecting" },
+                retryDelay: { target: "#philipsDevice.session", reenter: true },
               },
             },
           },

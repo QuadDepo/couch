@@ -423,7 +423,7 @@ export const androidTVDeviceMachine = setup({
                 }),
               },
               after: {
-                retryDelay: { target: "connecting" },
+                retryDelay: { target: "#androidTVDevice.session", reenter: true },
               },
             },
           },

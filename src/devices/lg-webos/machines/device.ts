@@ -445,7 +445,7 @@ export const webosDeviceMachine = setup({
                 }),
               },
               after: {
-                retryDelay: { target: "connecting" },
+                retryDelay: { target: "#webosDevice.session", reenter: true },
               },
             },
           },
