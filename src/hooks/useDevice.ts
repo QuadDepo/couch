@@ -105,6 +105,3 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
     disconnect,
   };
 }
-
-/** @deprecated Use useDevice instead */
-export const useDeviceHandler = useDevice;
