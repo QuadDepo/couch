@@ -13,7 +13,10 @@ export type PairingEvent =
   | { type: "PAIRING_ERROR"; error: string };
 
 export const pairingActor = fromCallback<PairingEvent, PairingInput>(({ input, sendBack }) => {
-  logger.info("WebOS", `Starting pairing connection to ${input.ip} (SSL: ${input.useSsl ?? false})`);
+  logger.info(
+    "WebOS",
+    `Starting pairing connection to ${input.ip} (SSL: ${input.useSsl ?? false})`,
+  );
 
   const connection = createWebOSConnection({
     ip: input.ip,

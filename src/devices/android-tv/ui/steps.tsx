@@ -3,7 +3,7 @@ import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
 import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx";
 import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
-import { INSTRUCTION_STEPS, type androidTVDeviceMachine } from "../machines/device";
+import { type androidTVDeviceMachine, INSTRUCTION_STEPS } from "../machines/device";
 import {
   isPairingConnecting,
   isPairingError,

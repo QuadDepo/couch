@@ -2,7 +2,7 @@ import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
 import { WizardHints } from "../../../components/dialogs/wizard/WizardHints.tsx";
-import { ACTIVE_COLOR, DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
+import { DIM_COLOR, ERROR_COLOR, FOCUS_COLOR } from "../../../constants/colors.ts";
 import type { webosDeviceMachine } from "../machines/device";
 import {
   isInitiating,

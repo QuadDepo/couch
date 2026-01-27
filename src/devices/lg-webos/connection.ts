@@ -72,7 +72,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   let connected = false;
   let paired = !!config.clientKey;
   let clientKey = config.clientKey;
-  let useSsl = config.useSsl ?? false;
+  const useSsl = config.useSsl ?? false;
   let autoReconnect = config.reconnect ?? DEFAULT_RECONNECT_MS;
   let inputSocket: RemoteInputSocket | null = null;
 

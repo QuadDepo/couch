@@ -2,23 +2,25 @@ import { useActorRef, useSelector } from "@xstate/react";
 import { forwardRef, useImperativeHandle } from "react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
 import { DeviceInfoStep } from "../../../components/dialogs/wizard/DeviceInfoStep.tsx";
-import type { PairingFlowHandle, PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
+import type {
+  PairingFlowHandle,
+  PairingFlowProps,
+} from "../../../components/dialogs/wizard/types.ts";
 import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
 import { useDeviceInfoInput } from "../../../hooks/useDeviceInfoInput.ts";
 import type { TVDevice } from "../../../types";
 import { inspector } from "../../../utils/inspector.ts";
 import { wrapPlatformCredentials } from "../../factory.ts";
 import { webosDeviceMachine } from "../machines/device";
-import { WebOSPairingStep } from "./steps.tsx";
 import {
   isComplete,
   isPairing,
   isPairingError,
   isSetup,
-  selectDeviceIp,
   selectDeviceName,
   selectError,
 } from "../selectors";
+import { WebOSPairingStep } from "./steps.tsx";
 
 export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
   function WebOSPairingFlow({ onComplete }, ref) {
@@ -37,7 +39,6 @@ export const WebOSPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
 
     // Context selectors
     const deviceName = useSelector(actorRef, selectDeviceName);
-    const deviceIp = useSelector(actorRef, selectDeviceIp);
     const error = useSelector(actorRef, selectError);
 
     useImperativeHandle(
