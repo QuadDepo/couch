@@ -10,11 +10,21 @@ export interface ADBConnection {
   isConnected(): Promise<boolean>;
 }
 
-export function createADBConnection(ip: string): ADBConnection {
-  const defaultPort = "5555";
+const DEFAULT_PORT = 5555;
+const TIMEOUT_MS = 5000;
 
+export function createADBConnection(ip: string): ADBConnection {
   const runAdb = async (args: string[]): Promise<string> => {
-    const result = await $`adb ${args}`.quiet().nothrow();
+    const adbPromise = $`adb ${args}`.quiet().nothrow();
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error("ADB command timed out - device may be offline")),
+        TIMEOUT_MS,
+      );
+    });
+
+    const result = await Promise.race([adbPromise, timeoutPromise]);
 
     if (result.exitCode !== 0) {
       const error = result.stderr.toString() || `ADB command failed`;
@@ -26,10 +36,19 @@ export function createADBConnection(ip: string): ADBConnection {
 
   return {
     async connect() {
-      const address = `${ip}:${defaultPort}`;
+      const address = `${ip}:${DEFAULT_PORT}`;
       const output = await runAdb(["connect", address]);
       if (output.includes("failed to connect") || output.includes("cannot connect")) {
         throw new Error(output);
+      }
+
+      // check if screen is on (might be in lowpower state)
+      const screenState = await runAdb(["-s", address, "shell", "dumpsys", "display"]);
+
+      if (screenState.includes("OFF")) {
+        // try to wake up the device
+        await runAdb(["-s", address, "shell", "input", "keyevent", "KEYCODE_WAKEUP"]);
+        logger.info("ADB", `Sent wakeup key to ${address}`);
       }
 
       // Verify connection is actually working
@@ -47,11 +66,20 @@ export function createADBConnection(ip: string): ADBConnection {
     },
 
     async disconnect() {
-      await runAdb(["disconnect", `${ip}:${defaultPort}`]);
+      await runAdb(["disconnect", `${ip}:${DEFAULT_PORT}`]);
     },
 
     async sendKeyEvent(keyCode: string) {
-      await runAdb(["-s", `${ip}:${defaultPort}`, "shell", "input", "keyevent", keyCode]);
+      const res = await runAdb([
+        "-s",
+        `${ip}:${DEFAULT_PORT}`,
+        "shell",
+        "input",
+        "keyevent",
+        keyCode,
+      ]);
+
+      logger.debug("ADB", `Sent key event ${keyCode} to ${ip}: ${res}`);
     },
 
     async sendText(text: string) {
@@ -66,7 +94,7 @@ export function createADBConnection(ip: string): ADBConnection {
       // Check if text is a single special character
       const specialChar = text.length === 1 ? specialChars[text] : undefined;
       if (specialChar) {
-        await runAdb(["-s", `${ip}:${defaultPort}`, "shell", "input", "keyevent", specialChar]);
+        await runAdb(["-s", `${ip}:${DEFAULT_PORT}`, "shell", "input", "keyevent", specialChar]);
         return;
       }
 
@@ -85,7 +113,7 @@ export function createADBConnection(ip: string): ADBConnection {
         .replace(/;/g, "\\;")
         .replace(/\|/g, "\\|");
 
-      await runAdb(["-s", `${ip}:${defaultPort}`, "shell", "input", "text", escapedText]);
+      await runAdb(["-s", `${ip}:${DEFAULT_PORT}`, "shell", "input", "text", escapedText]);
     },
 
     async pair(port: string, code: string) {
@@ -96,8 +124,9 @@ export function createADBConnection(ip: string): ADBConnection {
     },
 
     async isConnected() {
-      const output = await runAdb(["devices"]);
-      return output.includes(`${ip}:${defaultPort}`);
+      const output = await runAdb(["-s", `${ip}:${DEFAULT_PORT}`, "shell", "echo", "ok"]);
+
+      return output.includes("ok");
     },
   };
 }
