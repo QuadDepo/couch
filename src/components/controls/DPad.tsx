@@ -2,18 +2,14 @@ import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback, useState } from "react";
-import type { CommandResult } from "../../devices/types.ts";
-import type { RemoteKey, TVPlatform } from "../../types/index.ts";
+import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
+import { useSelectedDevice } from "../../store/deviceStore.ts";
+import type { RemoteKey } from "../../types/index.ts";
 import { TextInputModal } from "../dialogs/TextInputModal.tsx";
 import { Panel } from "../shared/Panel.tsx";
 
 interface DPadProps {
-  enabled: boolean;
   focused?: boolean;
-  onCommand: (key: RemoteKey) => void;
-  sendText: (text: string) => Promise<CommandResult>;
-  deviceType: TVPlatform | null;
-  textInputSupported: boolean;
 }
 
 const CELL_WIDTH = 8;
@@ -23,14 +19,14 @@ const GAP = 1;
 const DIM_COLOR = "#444444";
 const ACTIVE_COLOR = "#00FF00";
 
-export function DPad({
-  enabled,
-  focused = false,
-  onCommand,
-  sendText,
-  deviceType,
-  textInputSupported,
-}: DPadProps) {
+export function DPad({ focused = false }: DPadProps) {
+  const device = useSelectedDevice();
+  const { status, sendKey, sendText, capabilities } = useDeviceHandler(device);
+
+  const enabled = status === "connected";
+  const deviceType = device?.platform ?? null;
+  const textInputSupported = capabilities?.textInputSupported ?? false;
+
   const [lastKey, setLastKey] = useState<string>();
   const dialog = useDialog();
   const isDialogOpen = useDialogState((s) => s.isOpen);
@@ -40,12 +36,18 @@ export function DPad({
   const c = (key: string) => (lastKey === key ? ACTIVE_COLOR : bright);
   const border = (key: string) => (lastKey === key ? ACTIVE_COLOR : DIM_COLOR);
 
-  const sendCommand = (key: RemoteKey) => {
-    if (!enabled) return;
-    setLastKey(key);
-    onCommand(key);
-    setTimeout(() => setLastKey(undefined), 200);
-  };
+  const handleCommand = useCallback(
+    async (key: RemoteKey) => {
+      if (!enabled) return;
+      setLastKey(key);
+      const result = await sendKey(key);
+      if (!result.success) {
+        console.error(`Failed to send ${key}: ${result.error}`);
+      }
+      setTimeout(() => setLastKey(undefined), 200);
+    },
+    [enabled, sendKey],
+  );
 
   const handleOpenTextInput = useCallback(async () => {
     await dialog.prompt({
@@ -67,22 +69,22 @@ export function DPad({
 
     switch (event.name) {
       case "up":
-        sendCommand("UP");
+        handleCommand("UP");
         break;
       case "down":
-        sendCommand("DOWN");
+        handleCommand("DOWN");
         break;
       case "left":
-        sendCommand("LEFT");
+        handleCommand("LEFT");
         break;
       case "right":
-        sendCommand("RIGHT");
+        handleCommand("RIGHT");
         break;
       case "return":
-        sendCommand("OK");
+        handleCommand("OK");
         break;
       case "backspace":
-        sendCommand("BACK");
+        handleCommand("BACK");
         break;
       case "i":
         event.preventDefault();

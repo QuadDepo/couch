@@ -156,3 +156,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     return devices.find((d) => d.id === selectedDeviceId) || null;
   },
 }));
+
+// Selector hook for selected device - only re-renders when selected device changes
+export const useSelectedDevice = () =>
+  useDeviceStore((s) => s.devices.find((d) => d.id === s.selectedDeviceId) ?? null);

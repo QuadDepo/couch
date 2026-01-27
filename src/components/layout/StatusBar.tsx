@@ -1,19 +1,14 @@
-import type { ConnectionStatus, TVDevice } from "../../types/index.ts";
+import { useDeviceHandler } from "../../hooks/useDeviceHandler.ts";
+import { useSelectedDevice } from "../../store/deviceStore.ts";
 import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 
 interface StatusBarProps {
-  device: TVDevice | null;
-  status: ConnectionStatus;
   isScanning?: boolean;
-  isImplemented?: boolean;
 }
 
-export function StatusBar({
-  device,
-  status,
-  isScanning = false,
-  isImplemented = true,
-}: StatusBarProps) {
+export function StatusBar({ isScanning = false }: StatusBarProps) {
+  const device = useSelectedDevice();
+  const { status, isImplemented } = useDeviceHandler(device);
   const getStatusIcon = () => {
     if (isScanning) return "...";
     if (!device) return "-";
