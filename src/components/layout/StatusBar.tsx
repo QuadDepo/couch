@@ -1,28 +1,27 @@
-import type { TVDevice } from "../../types/index.ts";
+import { useDevice } from "../../hooks/useDevice.ts";
 import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 
 interface StatusBarProps {
-  device: TVDevice | null;
   isScanning?: boolean;
-  isImplemented?: boolean;
 }
 
-export function StatusBar({ device, isScanning = false, isImplemented = true }: StatusBarProps) {
+export function StatusBar({ isScanning = false }: StatusBarProps) {
+  const { device, status, isImplemented } = useDevice();
   const getStatusIcon = () => {
     if (isScanning) return "...";
     if (!device) return "-";
-    return getStatusIndicator(device.status).icon;
+    return getStatusIndicator(status).icon;
   };
 
   const getStatusColor = () => {
     if (!device) return "#666666";
-    return getStatusIndicator(device.status).color;
+    return getStatusIndicator(status).color;
   };
 
   const getStatusText = () => {
     if (isScanning) return "Scanning for devices...";
     if (!device) return "No device selected";
-    switch (device.status) {
+    switch (status) {
       case "connected":
         return `Connected to ${device.name}`;
       case "connecting":
@@ -51,11 +50,11 @@ export function StatusBar({ device, isScanning = false, isImplemented = true }: 
     >
       <text fg={statusColor}> {getStatusIcon()} </text>
       <text fg="#FFFFFF">{getStatusText()}</text>
-      {device?.status === "connected" && <text fg="#666666"> ({device.ip})</text>}
+      {status === "connected" && <text fg="#666666"> ({device?.ip})</text>}
       {device && !isImplemented && <text fg="#FF6600"> [Platform not implemented]</text>}
       <box flexGrow={1} />
       {device && isImplemented && (
-        <text fg="#666666">{device.status === "connected" ? "[C] Disconnect" : "[C] Connect"}</text>
+        <text fg="#666666">{status === "connected" ? "[C] Disconnect" : "[C] Connect"}</text>
       )}
     </box>
   );

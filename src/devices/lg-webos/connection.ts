@@ -72,7 +72,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   let connected = false;
   let paired = !!config.clientKey;
   let clientKey = config.clientKey;
-  let useSsl = config.useSsl ?? false;
+  const useSsl = config.useSsl ?? false;
   let autoReconnect = config.reconnect ?? DEFAULT_RECONNECT_MS;
   let inputSocket: RemoteInputSocket | null = null;
 
@@ -185,15 +185,6 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
         ws.addEventListener("error", (error) => {
           logger.error("WebOS", `WebSocket error: ${error}`);
-
-          // Some WebOS TVs require SSL; ECONNRESET indicates we should retry with wss://
-          if (!useSsl && String(error).includes("ECONNRESET")) {
-            logger.info("WebOS", "Connection reset - retrying with SSL");
-            useSsl = true;
-            setTimeout(() => connect().catch(() => {}), 1000);
-            return;
-          }
-
           emit("error", error);
         });
       } catch (error) {

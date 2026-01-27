@@ -136,7 +136,7 @@ export function createPhilipsConnection(
     return text ? JSON.parse(text) : ({} as T);
   }
 
-  async function startPairing(deviceName: string = "BaghdadRemote"): Promise<{
+  async function startPairing(deviceName: string): Promise<{
     authKey: string;
     timestamp: number;
     deviceId: string;
@@ -182,7 +182,7 @@ export function createPhilipsConnection(
     authKey: string,
     timestamp: number,
     deviceId: string,
-    deviceName: string = "BaghdadRemote",
+    deviceName: string,
   ): Promise<PhilipsCredentials> {
     const secretKeyBytes = Buffer.from(SECRET_KEY, "base64");
     const signData = `${timestamp}${pin}`;

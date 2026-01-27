@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { logger } from "../../utils/logger";
 
 export interface ADBConnection {
   connect(): Promise<void>;
@@ -38,7 +39,9 @@ export function createADBConnection(ip: string): ADBConnection {
           throw new Error("Connection verification failed");
         }
       } catch (error) {
-        await runAdb(["disconnect", address]).catch(() => {});
+        await runAdb(["disconnect", address]).catch((disconnectError) => {
+          logger.debug("ADB", `Error during cleanup disconnect: ${disconnectError}`);
+        });
         throw new Error(`Connection not responsive: ${error}`);
       }
     },

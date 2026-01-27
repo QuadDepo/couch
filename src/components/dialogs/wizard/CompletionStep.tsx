@@ -1,31 +1,19 @@
 import { TextAttributes } from "@opentui/core";
-import type { WizardContext } from "../../../machines/addDeviceWizardMachine.ts";
+import { DIM_COLOR } from "../../../constants/colors.ts";
 
-interface CompletionStepProps {
-  context: WizardContext;
+interface Props {
+  deviceName: string;
 }
 
-export function CompletionStep({ context }: CompletionStepProps) {
-  const { deviceName } = context;
-
+export function CompletionStep({ deviceName }: Props) {
   return (
     <box flexDirection="column" gap={1}>
       <text fg="#00FF00" attributes={TextAttributes.BOLD}>
-        Device Added Successfully!
+        Pairing Complete!
       </text>
-
-      <text fg="#FFFFFF">"{deviceName}" has been added and configured.</text>
-
-      <box marginTop={1} flexDirection="row">
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Enter
-        </text>
-        <text fg="#666666"> or </text>
-        <text fg="#888888" attributes={TextAttributes.BOLD}>
-          Esc
-        </text>
-        <text fg="#666666"> to close</text>
-      </box>
+      <text fg={DIM_COLOR}>
+        Successfully paired with {deviceName}. Press Enter to add the device.
+      </text>
     </box>
   );
 }

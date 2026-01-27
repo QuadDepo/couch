@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
+    "inspect": "bun run tools/inspector-server.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -22,7 +23,9 @@
     "@opentui-ui/dialog": "^0.1.2",
     "@opentui/core": "^0.1.72",
     "@opentui/react": "^0.1.72",
+    "@statelyai/inspect": "^0.4.0",
     "@xstate/react": "^6.0.0",
+    "hono": "^4.11.5",
     "react": "^19.2.3",
     "valibot": "^1.2.0",
     "xstate": "^5.25.1",
