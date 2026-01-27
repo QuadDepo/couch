@@ -3,10 +3,10 @@ import type { RemoteKey, TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
-import { pairingActor } from "./actors/pairing";
-import { sessionActor } from "./actors/session";
 import type { PhilipsCredentials } from "../credentials";
 import { validatePhilipsCredentials } from "../credentials";
+import { pairingActor } from "./actors/pairing";
+import { sessionActor } from "./actors/session";
 
 interface PlatformMachineInput {
   deviceId: string;
