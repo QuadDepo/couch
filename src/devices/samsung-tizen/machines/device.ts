@@ -148,7 +148,9 @@ export const tizenDeviceMachine = setup({
     if (input.credentials) {
       try {
         credentials = validateTizenCredentials(input.credentials);
-      } catch {
+      } catch (error) {
+        // TODO: Show validation error to user via UI toast/notification
+        logger.error("Tizen", `Invalid stored credentials for device ${input.deviceId}: ${error}`);
         credentials = undefined;
       }
     }
