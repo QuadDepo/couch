@@ -1,7 +1,8 @@
+import { APP_NAME } from "../../constants/app";
+
 const WEBSOCKET_PORT = 8001;
 const WEBSOCKET_SSL_PORT = 8002;
 
-const APP_NAME = "Couch";
 const APP_NAME_BASE64 = btoa(APP_NAME);
 
 export function buildWsUrl(ip: string, token?: string): string {
