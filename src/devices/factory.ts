@@ -1,5 +1,6 @@
 import type { WebOSCredentials } from "./lg-webos/credentials";
 import type { PhilipsCredentials } from "./philips-android-tv/credentials";
+import type { TizenCredentials } from "./samsung-tizen/credentials";
 import type { TVDevice, TVPlatform } from "./types";
 
 interface PlatformInfo {
@@ -24,6 +25,11 @@ export const implementedPlatforms: PlatformInfo[] = [
     name: "Philips Android TV",
     description: "Philips Android TVs (via HTTP)",
   },
+  {
+    id: "samsung-tizen",
+    name: "Samsung Tizen TV",
+    description: "Samsung Tizen TVs (via WebSocket)",
+  },
 ];
 
 export function isPlatformImplemented(platform: TVPlatform): boolean {
@@ -39,6 +45,9 @@ export function wrapPlatformCredentials(
   }
   if (platform === "philips-android-tv") {
     return { philips: credentials as PhilipsCredentials };
+  }
+  if (platform === "samsung-tizen") {
+    return { tizen: credentials as TizenCredentials };
   }
   return undefined;
 }
