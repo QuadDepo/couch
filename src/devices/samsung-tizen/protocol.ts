@@ -22,10 +22,20 @@ export function buildKeyCommand(key: string): string {
 }
 
 export function buildTextCommand(text: string): string {
+  let encodedText: string;
+  try {
+    encodedText = btoa(text);
+  } catch {
+    // btoa() fails on non-Latin1 characters (emoji, non-ASCII Unicode).
+    // Encode as UTF-8 bytes first, then convert to base64.
+    const utf8Bytes = new TextEncoder().encode(text);
+    encodedText = btoa(String.fromCharCode(...utf8Bytes));
+  }
+
   return JSON.stringify({
     method: "ms.remote.control",
     params: {
-      Cmd: btoa(text),
+      Cmd: encodedText,
       TypeOfRemote: "SendInputString",
       DataOfCmd: "base64",
     },
