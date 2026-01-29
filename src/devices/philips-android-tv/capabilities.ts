@@ -20,4 +20,5 @@ export const capabilities: DeviceCapabilities = {
   supportedKeys: new Set(supportedKeys),
   supportsWakeOnLan: false,
   textInputSupported: false,
+  textQuickActions: [],
 };
