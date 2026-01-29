@@ -11,10 +11,15 @@ import { AndroidTVPairingFlow } from "../../devices/android-tv/ui/flow.tsx";
 import { implementedPlatforms } from "../../devices/factory.ts";
 import { WebOSPairingFlow } from "../../devices/lg-webos/ui/flow.tsx";
 import { PhilipsPairingFlow } from "../../devices/philips-android-tv/ui/flow.tsx";
+import { TizenPairingFlow } from "../../devices/samsung-tizen/ui/flow.tsx";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import type { PairingFlowHandle, PairingFlowProps, PairingFlowResult } from "./wizard/types.ts";
 
-export type ImplementedPlatform = "lg-webos" | "android-tv" | "philips-android-tv";
+export type ImplementedPlatform =
+  | "lg-webos"
+  | "android-tv"
+  | "philips-android-tv"
+  | "samsung-tizen";
 
 export type { PairingFlowResult as AddDeviceResult };
 
@@ -26,6 +31,7 @@ const PLATFORM_FLOWS: Record<ImplementedPlatform, PairingFlowComponent> = {
   "lg-webos": WebOSPairingFlow,
   "android-tv": AndroidTVPairingFlow,
   "philips-android-tv": PhilipsPairingFlow,
+  "samsung-tizen": TizenPairingFlow,
 };
 
 export function AddDeviceWizard({
