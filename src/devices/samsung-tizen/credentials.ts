@@ -8,7 +8,6 @@ const MacAddressSchema = v.pipe(
 export const TizenCredentialsSchema = v.object({
   token: v.pipe(v.string(), v.minLength(1, "Token cannot be empty")),
   mac: v.optional(v.union([MacAddressSchema, v.literal("")]), ""),
-  lastUpdated: v.optional(v.string(), new Date().toISOString()),
 });
 
 export type TizenCredentials = v.InferOutput<typeof TizenCredentialsSchema>;
@@ -21,6 +20,5 @@ export function createCredentials(params: { token: string; mac?: string }): Tize
   return {
     token: params.token,
     mac: params.mac ?? "",
-    lastUpdated: new Date().toISOString(),
   };
 }
