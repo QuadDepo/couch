@@ -8,6 +8,7 @@ import {
 } from "./protocol";
 
 const DEFAULT_TIMEOUT_MS = 15000;
+const LOG_TRUNCATE_LENGTH = 200;
 
 export type ConnectionEvent = "connect" | "close" | "error" | "prompt" | "message";
 
@@ -70,7 +71,11 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
       const data = (await response.json()) as TizenDeviceInfo;
       return data.device?.wifiMac;
     } catch (err) {
-      logger.debug("Tizen", `MAC discovery failed: ${err}`);
+      if (err instanceof Error && err.name === "TimeoutError") {
+        logger.debug("Tizen", "MAC discovery timed out (TV may be slow to respond)");
+      } else {
+        logger.debug("Tizen", `MAC discovery failed: ${err}`);
+      }
       return undefined;
     }
   }
@@ -93,7 +98,10 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
         if (!resolved) {
           resolved = true;
           reject(new Error("Connection timeout"));
-          ws?.close();
+          if (ws) {
+            ws.close();
+            ws = null;
+          }
         }
       }, timeout);
 
@@ -151,7 +159,10 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
     try {
       message = JSON.parse(data);
     } catch {
-      logger.error("Tizen", `JSON parse error: ${data}`);
+      const truncated = data.length > LOG_TRUNCATE_LENGTH
+        ? `${data.substring(0, LOG_TRUNCATE_LENGTH)}...`
+        : data;
+      logger.error("Tizen", `JSON parse error: ${truncated}`);
       return;
     }
 
