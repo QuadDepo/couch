@@ -97,6 +97,8 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
           return;
         }
 
+        // Samsung WebSocket API does not support backspace/delete operations.
+        // Users must use the TV's native backspace button or clear the field.
         if (event.text === "\b") {
           logger.warn("Tizen", "Backspace not supported via Samsung WebSocket API");
           return;
