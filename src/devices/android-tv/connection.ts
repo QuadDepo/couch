@@ -1,4 +1,3 @@
-import { $ } from "bun";
 import { logger } from "../../utils/logger";
 
 export interface ADBConnection {
@@ -15,23 +14,31 @@ const TIMEOUT_MS = 5000;
 
 export function createADBConnection(ip: string): ADBConnection {
   const runAdb = async (args: string[]): Promise<string> => {
-    const adbPromise = $`adb ${args}`.quiet().nothrow();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(
-        () => reject(new Error("ADB command timed out - device may be offline")),
-        TIMEOUT_MS,
-      );
-    });
+    try {
+      const proc = Bun.spawn(["adb", ...args], {
+        signal: controller.signal,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-    const result = await Promise.race([adbPromise, timeoutPromise]);
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
 
-    if (result.exitCode !== 0) {
-      const error = result.stderr.toString() || `ADB command failed`;
-      throw new Error(error);
+      if (exitCode !== 0) {
+        const error = stderr || `ADB command failed`;
+        throw new Error(error);
+      }
+
+      return stdout.trim();
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return result.stdout.toString().trim();
   };
 
   const target = `${ip}:${DEFAULT_PORT}`;
@@ -43,13 +50,12 @@ export function createADBConnection(ip: string): ADBConnection {
         throw new Error(output);
       }
 
-      // check if screen is on (might be in lowpower state)
-      const screenState = await runAdb(["-s", target, "shell", "dumpsys", "display"]);
-
-      if (screenState.includes("OFF")) {
-        // try to wake up the device
+      // Always send wakeup key in case device is asleep (harmless if already awake)
+      try {
         await runAdb(["-s", target, "shell", "input", "keyevent", "KEYCODE_WAKEUP"]);
-        logger.info("ADB", `Sent wakeup key to ${target}`);
+        logger.debug("ADB", `Sent wakeup key to ${target}`);
+      } catch (error) {
+        logger.debug("ADB", `Wakeup key failed (non-critical): ${error}`);
       }
 
       // Verify connection is actually working
@@ -120,7 +126,7 @@ export function createADBConnection(ip: string): ADBConnection {
     async isConnected() {
       const output = await runAdb(["-s", target, "shell", "echo", "ok"]);
 
-      return output.includes("ok");
+      return output.trim() === "ok";
     },
   };
 }
