@@ -18,11 +18,9 @@ const CELL_HEIGHT = 3;
 const GAP = 1;
 
 export function DPad({ focused = false }: DPadProps) {
-  const { device, status, sendKey, sendText, capabilities } = useDevice();
+  const { status, sendKey } = useDevice();
 
   const enabled = status === "connected";
-  const deviceType = device?.platform ?? null;
-  const textInputSupported = capabilities?.textInputSupported ?? false;
 
   const [lastKey, setLastKey] = useState<string>();
   const dialog = useDialog();
@@ -48,18 +46,10 @@ export function DPad({ focused = false }: DPadProps) {
 
   const handleOpenTextInput = useCallback(async () => {
     await dialog.prompt({
-      content: (ctx) => (
-        <TextInputModal
-          {...ctx}
-          enabled={enabled}
-          deviceType={deviceType}
-          onSendText={sendText}
-          textInputSupported={textInputSupported}
-        />
-      ),
+      content: (ctx) => <TextInputModal {...ctx} />,
       size: "large",
     });
-  }, [dialog, enabled, deviceType, sendText, textInputSupported]);
+  }, [dialog]);
 
   useKeyboard((event) => {
     if (!focused || isDialogOpen) return;

@@ -11,17 +11,12 @@ import {
   TEXT_PRIMARY,
   TEXT_SECONDARY,
 } from "../../constants/colors.ts";
-import type { CommandResult } from "../../devices/types.ts";
+import { useDevice } from "../../hooks/useDevice.ts";
 import { useUIStore } from "../../store/uiStore";
-import type { TVPlatform } from "../../types/index.ts";
 import { KeyHint } from "../shared/KeyHint.tsx";
 
-interface TextInputModalProps extends PromptContext<unknown> {
-  enabled: boolean;
-  deviceType: TVPlatform | null;
-  onSendText: (text: string) => Promise<CommandResult>;
-  textInputSupported: boolean;
-}
+type TextInputModalProps = PromptContext<unknown>;
+
 const STATUS_CLEAR_DELAY = 2000;
 const ACTION_HIGHLIGHT_DELAY = 200;
 const SEND_DEBOUNCE_MS = 100;
@@ -94,7 +89,10 @@ function QuickActions({ focused, lastAction }: { focused: boolean; lastAction: s
   );
 }
 
-function UnsupportedMessage({ deviceType }: { deviceType: TVPlatform | null }) {
+function UnsupportedMessage() {
+  const { device } = useDevice();
+  const deviceType = device?.platform ?? null;
+
   return (
     <box flexDirection="column" gap={1}>
       <box justifyContent="center">
@@ -113,13 +111,12 @@ function UnsupportedMessage({ deviceType }: { deviceType: TVPlatform | null }) {
   );
 }
 
-export function TextInputModal({
-  enabled,
-  deviceType,
-  onSendText,
-  dismiss,
-  textInputSupported,
-}: TextInputModalProps) {
+export function TextInputModal({ dismiss }: TextInputModalProps) {
+  const { status, sendText, capabilities } = useDevice();
+
+  const enabled = status === "connected";
+  const textInputSupported = capabilities?.textInputSupported ?? false;
+
   const focusPath = useUIStore((s) => s.focusPath);
   const setFocusPath = useUIStore((s) => s.setFocusPath);
 
@@ -162,7 +159,7 @@ export function TextInputModal({
 
       showStatus("Sending...", "sending");
       try {
-        const result = await onSendText(text);
+        const result = await sendText(text);
         if (result.success) {
           showStatus(`Sent (${result.latencyMs}ms)`, "success");
         } else {
@@ -172,21 +169,28 @@ export function TextInputModal({
         showStatus("Error: Failed to send", "error");
       }
     },
-    [enabled, onSendText, showStatus],
+    [enabled, sendText, showStatus],
   );
 
   const triggerAction = useCallback(
-    (actionId: string, value: string) => {
+    (actionId: string) => {
       if (actionTimeoutRef.current) {
         clearTimeout(actionTimeoutRef.current);
       }
       setLastAction(actionId);
-      sendToTV(value);
+      // Send special control characters that the device machine handles appropriately
+      if (actionId === "enter") {
+        sendText("\n"); // Enter/Return - triggers search/go
+      } else if (actionId === "del") {
+        sendText("\b"); // Backspace - delete one character
+      } else if (actionId === "space") {
+        sendText(" "); // Space - insert space character
+      }
       actionTimeoutRef.current = setTimeout(() => {
         setLastAction(null);
       }, ACTION_HIGHLIGHT_DELAY);
     },
-    [sendToTV],
+    [sendText],
   );
 
   useKeyboard((event) => {
@@ -230,13 +234,13 @@ export function TextInputModal({
     } else {
       if (event.name === "return") {
         event.preventDefault();
-        triggerAction("enter", "\n");
+        triggerAction("enter");
       } else if (event.name === "space") {
         event.preventDefault();
-        triggerAction("space", " ");
+        triggerAction("space");
       } else if (event.name === "backspace") {
         event.preventDefault();
-        triggerAction("del", "\b");
+        triggerAction("del");
       }
     }
   });
@@ -284,7 +288,7 @@ export function TextInputModal({
 
       <box>
         {!textInputSupported ? (
-          <UnsupportedMessage deviceType={deviceType} />
+          <UnsupportedMessage />
         ) : (
           <box flexDirection="column" gap={1}>
             <InputBuffer input={input} focused={inputFocused} enabled={enabled} />

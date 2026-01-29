@@ -19,6 +19,8 @@ export const URI_FAST_FORWARD = "ssap://media.controls/fastForward";
 export const URI_SWITCH_INPUT = "ssap://tv/switchInput";
 export const URI_POINTER_INPUT = "ssap://com.webos.service.networkinput/getPointerInputSocket";
 export const URI_INSERT_TEXT = "ssap://com.webos.service.ime/insertText";
+export const URI_SEND_ENTER_KEY = "ssap://com.webos.service.ime/sendEnterKey";
+export const URI_DELETE_CHARACTERS = "ssap://com.webos.service.ime/deleteCharacters";
 
 // TODO: Additional URIs for future implementation
 // Reference: https://github.com/merdok/homebridge-webos-tv
