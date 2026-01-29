@@ -5,7 +5,15 @@ import type { RemoteInputSocket } from "../../connection";
 import { createWebOSConnection } from "../../connection";
 import type { WebOSCredentials } from "../../credentials";
 import { getInputSocketCommand, isInputSocketKey, keymap } from "../../keymap";
-import { URI_INSERT_TEXT, URI_SET_MUTE } from "../../protocol";
+import {
+  URI_DELETE_CHARACTERS,
+  URI_INSERT_TEXT,
+  URI_SEND_ENTER_KEY,
+  URI_SET_MUTE,
+} from "../../protocol";
+
+// Delay to allow on-screen keyboard to close before sending ENTER key
+const OSK_CLOSE_DELAY_MS = 100;
 
 export interface SessionInput {
   ip: string;
@@ -94,6 +102,44 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
       sendBack({ type: "CONNECTION_LOST", error: String(error) });
     });
 
+    // Helper to send enter key via IME then input socket
+    const sendEnterKey = async () => {
+      // First send the IME enter key to close the OSK, then send ENTER via input socket
+      // to actually trigger the search/submit action
+      try {
+        await connection.request(URI_SEND_ENTER_KEY, {});
+        // Small delay to let the OSK close, then send the actual ENTER key
+        await new Promise((resolve) => setTimeout(resolve, OSK_CLOSE_DELAY_MS));
+        if (!inputSocket) {
+          try {
+            inputSocket = await connection.getInputSocket();
+          } catch (err) {
+            logger.warn("WebOS", `Could not get input socket for ENTER: ${err}`);
+            return;
+          }
+        }
+        inputSocket.send("button", { name: "ENTER" });
+        logger.debug("WebOS", "Sent ENTER via input socket after IME sendEnterKey");
+      } catch (error) {
+        logger.error("WebOS", `Enter key send failed: ${error}`);
+        sendBack({ type: "CONNECTION_LOST", error: `Enter key command failed: ${error}` });
+      }
+    };
+
+    // Helper to delete characters
+    const deleteCharacters = async (count: number) => {
+      try {
+        await connection.request(URI_DELETE_CHARACTERS, { count });
+        logger.debug("WebOS", `Deleted ${count} character(s)`);
+      } catch (error) {
+        logger.error("WebOS", `Delete characters failed: ${error}`);
+        sendBack({
+          type: "CONNECTION_LOST",
+          error: `Delete characters command failed: ${error}`,
+        });
+      }
+    };
+
     // Handle commands from the parent machine
     receive((event) => {
       if (event.type === "CHECK_HEARTBEAT") {
@@ -158,6 +204,20 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
           return;
         }
 
+        // Handle special control characters with dedicated IME commands
+        if (text === "\n") {
+          // Enter/Return - trigger search/go action
+          sendEnterKey();
+          return;
+        }
+
+        if (text === "\b") {
+          // Backspace - delete one character
+          deleteCharacters(1);
+          return;
+        }
+
+        // Regular text - use insertText API
         connection.request(URI_INSERT_TEXT, { text, replace: 0 }).catch((error) => {
           logger.error("WebOS", `Text send failed: ${error}`);
           sendBack({ type: "CONNECTION_LOST", error: `Text command failed: ${error}` });
