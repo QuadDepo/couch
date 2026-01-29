@@ -4,6 +4,7 @@ import type { DeviceActor, StoredDeviceActor } from "../devices/actors";
 import { androidTVDeviceMachine } from "../devices/android-tv/machines/device";
 import { webosDeviceMachine } from "../devices/lg-webos/machines/device";
 import { philipsDeviceMachine } from "../devices/philips-android-tv/machines/device";
+import { tizenDeviceMachine } from "../devices/samsung-tizen/machines/device";
 import type { TVDevice } from "../types";
 import { inspector } from "../utils/inspector";
 import { logger } from "../utils/logger";
@@ -24,7 +25,9 @@ interface DeviceState {
 }
 
 const createPlatformActor = (device: TVDevice): DeviceActor => {
-  const config = device.config as { webos?: unknown; philips?: unknown } | undefined;
+  const config = device.config as
+    | { webos?: unknown; philips?: unknown; tizen?: unknown }
+    | undefined;
 
   switch (device.platform) {
     case "lg-webos":
@@ -58,6 +61,18 @@ const createPlatformActor = (device: TVDevice): DeviceActor => {
           deviceIp: device.ip,
           platform: "philips-android-tv",
           credentials: config?.philips,
+        },
+        inspect: inspector?.inspect,
+      });
+
+    case "samsung-tizen":
+      return createActor(tizenDeviceMachine, {
+        input: {
+          deviceId: device.id,
+          deviceName: device.name,
+          deviceIp: device.ip,
+          platform: "samsung-tizen",
+          credentials: config?.tizen,
         },
         inspect: inspector?.inspect,
       });

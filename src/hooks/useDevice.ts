@@ -5,6 +5,7 @@ import { capabilities as androidTVCapabilities } from "../devices/android-tv/cap
 import { isPlatformImplemented } from "../devices/factory";
 import { capabilities as webosCapabilities } from "../devices/lg-webos/capabilities";
 import { capabilities as philipsCapabilities } from "../devices/philips-android-tv/capabilities";
+import { capabilities as tizenCapabilities } from "../devices/samsung-tizen/capabilities";
 import { selectConnectionStatus } from "../devices/selectors";
 import type { CommandResult, DeviceCapabilities } from "../devices/types";
 import { useDeviceStore, useSelectedDevice } from "../store/deviceStore";
@@ -44,6 +45,8 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
         return androidTVCapabilities;
       case "philips-android-tv":
         return philipsCapabilities;
+      case "samsung-tizen":
+        return tizenCapabilities;
       default:
         return null;
     }
