@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validateWebOSCredentials, createCredentials } from "./credentials";
+import { createCredentials, validateWebOSCredentials } from "./credentials";
 
 describe("validateWebOSCredentials", () => {
   test("should validate valid credentials with clientKey", () => {

@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
-import { philipsDeviceMachine } from "./device";
 import type { PhilipsCredentials } from "../credentials";
+import { philipsDeviceMachine } from "./device";
 
-const noopActor = fromCallback(() => () => {});
+// biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
+const noopActor = fromCallback(() => () => {}) as any;
 
 const testMachine = philipsDeviceMachine.provide({
   actors: {
@@ -217,9 +218,7 @@ describe("philipsDeviceMachine", () => {
         | { type: "PAIRED"; credentials: PhilipsCredentials }
         | { type: "PAIRING_ERROR"; error: string }
       >(({ sendBack }) => {
-        Promise.resolve().then(() =>
-          sendBack({ type: "PAIRING_ERROR", error: "TV unreachable" }),
-        );
+        Promise.resolve().then(() => sendBack({ type: "PAIRING_ERROR", error: "TV unreachable" }));
         return () => {};
       });
 
@@ -231,9 +230,7 @@ describe("philipsDeviceMachine", () => {
       actor.start();
       actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
 
-      const snapshot = await waitFor(actor, (s) =>
-        s.matches({ pairing: { active: "error" } }),
-      );
+      const snapshot = await waitFor(actor, (s) => s.matches({ pairing: { active: "error" } }));
       expect(snapshot.context.error).toBe("TV unreachable");
       actor.stop();
     });

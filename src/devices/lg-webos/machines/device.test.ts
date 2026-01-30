@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
 import { webosDeviceMachine } from "./device";
 
-const noopActor = fromCallback(() => () => {});
+// biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
+const noopActor = fromCallback(() => () => {}) as any;
 
 const testMachine = webosDeviceMachine.provide({
   actors: {
@@ -213,9 +214,7 @@ describe("webosDeviceMachine", () => {
         | { type: "PAIRED"; clientKey: string }
         | { type: "PAIRING_ERROR"; error: string }
       >(({ sendBack }) => {
-        Promise.resolve().then(() =>
-          sendBack({ type: "PAIRING_ERROR", error: "TV rejected" }),
-        );
+        Promise.resolve().then(() => sendBack({ type: "PAIRING_ERROR", error: "TV rejected" }));
         return () => {};
       });
 
@@ -227,9 +226,7 @@ describe("webosDeviceMachine", () => {
       actor.start();
       actor.send({ type: "SET_DEVICE_INFO", name: "LG TV", ip: "192.168.1.200" });
 
-      const snapshot = await waitFor(actor, (s) =>
-        s.matches({ pairing: { active: "error" } }),
-      );
+      const snapshot = await waitFor(actor, (s) => s.matches({ pairing: { active: "error" } }));
       expect(snapshot.context.error).toBe("TV rejected");
       actor.stop();
     });

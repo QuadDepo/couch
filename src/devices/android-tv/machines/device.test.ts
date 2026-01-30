@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
 import { androidTVDeviceMachine } from "./device";
 
-const noopActor = fromCallback(() => () => {});
+// biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
+const noopActor = fromCallback(() => () => {}) as any;
 
 const testMachine = androidTVDeviceMachine.provide({
   actors: {
@@ -172,9 +173,7 @@ describe("androidTVDeviceMachine", () => {
       actor.send({ type: "CONNECT" });
       actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
 
-      expect(
-        actor.getSnapshot().matches({ session: { connection: "retrying" } }),
-      ).toBe(true);
+      expect(actor.getSnapshot().matches({ session: { connection: "retrying" } })).toBe(true);
       expect(actor.getSnapshot().context.retryCount).toBe(1);
       expect(actor.getSnapshot().context.error).toBe("Timeout");
     });
@@ -296,9 +295,7 @@ describe("androidTVDeviceMachine", () => {
       actor.send({ type: "CONTINUE_INSTRUCTION" });
       actor.send({ type: "CONTINUE_INSTRUCTION" });
 
-      const snapshot = await waitFor(actor, (s) =>
-        s.matches({ pairing: { active: "error" } }),
-      );
+      const snapshot = await waitFor(actor, (s) => s.matches({ pairing: { active: "error" } }));
       expect(snapshot.context.error).toBe("Connection refused");
       actor.stop();
     });
