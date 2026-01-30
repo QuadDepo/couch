@@ -5,6 +5,7 @@ import type { PhilipsSnapshot } from "./philips-android-tv/selectors";
 
 export type DeviceSnapshot = WebOSSnapshot | AndroidTVDeviceMachineSnapshot | PhilipsSnapshot;
 
+// TODO: split priority logic into a pure function for testability
 export const selectConnectionStatus = (snapshot: DeviceSnapshot | undefined): ConnectionStatus => {
   if (!snapshot) return "disconnected";
   if (snapshot.matches("error")) return "error";
