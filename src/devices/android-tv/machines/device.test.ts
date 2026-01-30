@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
+import type { PairingEvent, PairingInput } from "./actors/pairing";
+import type { SessionEvent, SessionInput } from "./actors/session";
 import { androidTVDeviceMachine } from "./device";
 
 // biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
@@ -248,9 +250,7 @@ describe("androidTVDeviceMachine", () => {
 
   describe("actor integration", () => {
     test("should complete full pairing flow with successful connection actor", async () => {
-      const mockPairingActor = fromCallback<
-        { type: "PROMPT_RECEIVED" } | { type: "PAIRED" } | { type: "PAIRING_ERROR"; error: string }
-      >(({ sendBack }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack }) => {
         sendBack({ type: "PROMPT_RECEIVED" });
         Promise.resolve().then(() => sendBack({ type: "PAIRED" }));
         return () => {};
@@ -274,9 +274,7 @@ describe("androidTVDeviceMachine", () => {
     });
 
     test("should handle pairing error from actor", async () => {
-      const mockPairingActor = fromCallback<
-        { type: "PROMPT_RECEIVED" } | { type: "PAIRED" } | { type: "PAIRING_ERROR"; error: string }
-      >(({ sendBack }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack }) => {
         sendBack({ type: "PROMPT_RECEIVED" });
         Promise.resolve().then(() =>
           sendBack({ type: "PAIRING_ERROR", error: "Connection refused" }),
@@ -301,9 +299,7 @@ describe("androidTVDeviceMachine", () => {
     });
 
     test("should connect and reach connected state via session actor", async () => {
-      const mockSessionActor = fromCallback<
-        { type: "CONNECTED" } | { type: "CONNECTION_LOST"; error?: string }
-      >(({ sendBack }) => {
+      const mockSessionActor = fromCallback<SessionEvent, SessionInput>(({ sendBack }) => {
         Promise.resolve().then(() => sendBack({ type: "CONNECTED" }));
         return () => {};
       });
@@ -331,9 +327,7 @@ describe("androidTVDeviceMachine", () => {
     });
 
     test("should handle connection failure from session actor", async () => {
-      const mockSessionActor = fromCallback<
-        { type: "CONNECTED" } | { type: "CONNECTION_LOST"; error?: string }
-      >(({ sendBack }) => {
+      const mockSessionActor = fromCallback<SessionEvent, SessionInput>(({ sendBack }) => {
         Promise.resolve().then(() =>
           sendBack({ type: "CONNECTION_LOST", error: "Network unreachable" }),
         );

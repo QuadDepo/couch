@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
+import type { PairingEvent, PairingInput } from "./actors/pairing";
+import type { SessionEvent, SessionInput } from "./actors/session";
 import { webosDeviceMachine } from "./device";
 
 // biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
@@ -185,11 +187,7 @@ describe("webosDeviceMachine", () => {
 
   describe("actor integration", () => {
     test("should complete full pairing flow and store credentials", async () => {
-      const mockPairingActor = fromCallback<
-        | { type: "PROMPT_RECEIVED" }
-        | { type: "PAIRED"; clientKey: string }
-        | { type: "PAIRING_ERROR"; error: string }
-      >(({ sendBack }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack }) => {
         sendBack({ type: "PROMPT_RECEIVED" });
         Promise.resolve().then(() => sendBack({ type: "PAIRED", clientKey: "paired-key" }));
         return () => {};
@@ -209,11 +207,7 @@ describe("webosDeviceMachine", () => {
     });
 
     test("should handle pairing error from actor", async () => {
-      const mockPairingActor = fromCallback<
-        | { type: "PROMPT_RECEIVED" }
-        | { type: "PAIRED"; clientKey: string }
-        | { type: "PAIRING_ERROR"; error: string }
-      >(({ sendBack }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack }) => {
         Promise.resolve().then(() => sendBack({ type: "PAIRING_ERROR", error: "TV rejected" }));
         return () => {};
       });
@@ -232,9 +226,7 @@ describe("webosDeviceMachine", () => {
     });
 
     test("should connect and reach connected state via session actor", async () => {
-      const mockSessionActor = fromCallback<
-        { type: "CONNECTED" } | { type: "CONNECTION_LOST"; error?: string }
-      >(({ sendBack }) => {
+      const mockSessionActor = fromCallback<SessionEvent, SessionInput>(({ sendBack }) => {
         Promise.resolve().then(() => sendBack({ type: "CONNECTED" }));
         return () => {};
       });
