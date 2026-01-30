@@ -159,9 +159,8 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
     try {
       message = JSON.parse(data);
     } catch {
-      const truncated = data.length > LOG_TRUNCATE_LENGTH
-        ? `${data.substring(0, LOG_TRUNCATE_LENGTH)}...`
-        : data;
+      const truncated =
+        data.length > LOG_TRUNCATE_LENGTH ? `${data.substring(0, LOG_TRUNCATE_LENGTH)}...` : data;
       logger.error("Tizen", `JSON parse error: ${truncated}`);
       return;
     }

@@ -10,6 +10,7 @@ export type DeviceSnapshot =
   | PhilipsSnapshot
   | TizenSnapshot;
 
+// TODO: split priority logic into a pure function for testability
 export const selectConnectionStatus = (snapshot: DeviceSnapshot | undefined): ConnectionStatus => {
   if (!snapshot) return "disconnected";
   if (snapshot.matches("error")) return "error";
