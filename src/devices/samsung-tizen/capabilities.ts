@@ -10,7 +10,6 @@ const supportedFeatures: DeviceFeature[] = [
   "navigation",
   "playback",
   "input_select",
-  "app_launcher",
   "text_input",
   "wake_on_lan",
 ];
@@ -22,5 +21,5 @@ export const capabilities: DeviceCapabilities = {
   supportedKeys: new Set(supportedKeys),
   supportsWakeOnLan: true,
   textInputSupported: true,
-  textQuickActions: ["enter", "space", "backspace"],
+  textQuickActions: ["enter"],
 };

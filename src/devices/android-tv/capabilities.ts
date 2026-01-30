@@ -40,4 +40,5 @@ export const capabilities: DeviceCapabilities = {
   supportedKeys: new Set(supportedKeys),
   supportsWakeOnLan: true,
   textInputSupported: true,
+  textQuickActions: ["enter", "space", "backspace"],
 };

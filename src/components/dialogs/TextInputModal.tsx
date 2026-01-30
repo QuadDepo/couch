@@ -57,7 +57,15 @@ function InputBuffer({
   );
 }
 
-function QuickActions({ focused, lastAction }: { focused: boolean; lastAction: string | null }) {
+function QuickActions({
+  focused,
+  lastAction,
+  actions,
+}: {
+  focused: boolean;
+  lastAction: string | null;
+  actions: readonly string[];
+}) {
   return (
     <>
       <box>
@@ -66,24 +74,30 @@ function QuickActions({ focused, lastAction }: { focused: boolean; lastAction: s
         </text>
       </box>
       <box flexDirection="row" gap={2}>
-        <text
-          fg={lastAction === "enter" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
-          attributes={lastAction === "enter" ? TextAttributes.BOLD : undefined}
-        >
-          [Enter]
-        </text>
-        <text
-          fg={lastAction === "space" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
-          attributes={lastAction === "space" ? TextAttributes.BOLD : undefined}
-        >
-          [Space]
-        </text>
-        <text
-          fg={lastAction === "del" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
-          attributes={lastAction === "del" ? TextAttributes.BOLD : undefined}
-        >
-          [Bs]
-        </text>
+        {actions.includes("enter") && (
+          <text
+            fg={lastAction === "enter" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
+            attributes={lastAction === "enter" ? TextAttributes.BOLD : undefined}
+          >
+            [Enter]
+          </text>
+        )}
+        {actions.includes("space") && (
+          <text
+            fg={lastAction === "space" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
+            attributes={lastAction === "space" ? TextAttributes.BOLD : undefined}
+          >
+            [Space]
+          </text>
+        )}
+        {actions.includes("backspace") && (
+          <text
+            fg={lastAction === "del" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
+            attributes={lastAction === "del" ? TextAttributes.BOLD : undefined}
+          >
+            [Bs]
+          </text>
+        )}
       </box>
     </>
   );
@@ -116,6 +130,7 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
 
   const enabled = status === "connected";
   const textInputSupported = capabilities?.textInputSupported ?? false;
+  const quickActions = capabilities?.textQuickActions ?? [];
 
   const focusPath = useUIStore((s) => s.focusPath);
   const setFocusPath = useUIStore((s) => s.setFocusPath);
@@ -232,13 +247,13 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
           }
       }
     } else {
-      if (event.name === "return") {
+      if (event.name === "return" && quickActions.includes("enter")) {
         event.preventDefault();
         triggerAction("enter");
-      } else if (event.name === "space") {
+      } else if (event.name === "space" && quickActions.includes("space")) {
         event.preventDefault();
         triggerAction("space");
-      } else if (event.name === "backspace") {
+      } else if (event.name === "backspace" && quickActions.includes("backspace")) {
         event.preventDefault();
         triggerAction("del");
       }
@@ -293,7 +308,13 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
           <box flexDirection="column" gap={1}>
             <InputBuffer input={input} focused={inputFocused} enabled={enabled} />
 
-            <QuickActions focused={actionsFocused} lastAction={lastAction} />
+            {quickActions.length > 0 && (
+              <QuickActions
+                focused={actionsFocused}
+                lastAction={lastAction}
+                actions={quickActions}
+              />
+            )}
           </box>
         )}
       </box>
