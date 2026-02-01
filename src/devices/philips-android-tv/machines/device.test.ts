@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
 import type { PhilipsCredentials } from "../credentials";
+import type { PairingEvent, PairingInput } from "./actors/pairing";
+import type { SessionEvent, SessionInput } from "./actors/session";
 import { philipsDeviceMachine } from "./device";
 
 // biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
@@ -176,12 +178,7 @@ describe("philipsDeviceMachine", () => {
     test("should complete full pairing flow with PIN confirmation", async () => {
       const mockCredentials: PhilipsCredentials = { deviceId: "dev-1", authKey: "final-key" };
 
-      const mockPairingActor = fromCallback<
-        | { type: "PROMPT_RECEIVED" }
-        | { type: "PAIRED"; credentials: PhilipsCredentials }
-        | { type: "PAIRING_ERROR"; error: string }
-        | { type: "SUBMIT_PIN"; pin: string }
-      >(({ sendBack, receive }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack, receive }) => {
         Promise.resolve().then(() => sendBack({ type: "PROMPT_RECEIVED" }));
 
         receive((event) => {
@@ -213,11 +210,7 @@ describe("philipsDeviceMachine", () => {
     });
 
     test("should handle pairing error from actor", async () => {
-      const mockPairingActor = fromCallback<
-        | { type: "PROMPT_RECEIVED" }
-        | { type: "PAIRED"; credentials: PhilipsCredentials }
-        | { type: "PAIRING_ERROR"; error: string }
-      >(({ sendBack }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack }) => {
         Promise.resolve().then(() => sendBack({ type: "PAIRING_ERROR", error: "TV unreachable" }));
         return () => {};
       });
@@ -236,9 +229,7 @@ describe("philipsDeviceMachine", () => {
     });
 
     test("should connect and reach connected state via session actor", async () => {
-      const mockSessionActor = fromCallback<
-        { type: "CONNECTED" } | { type: "CONNECTION_LOST"; error?: string }
-      >(({ sendBack }) => {
+      const mockSessionActor = fromCallback<SessionEvent, SessionInput>(({ sendBack }) => {
         Promise.resolve().then(() => sendBack({ type: "CONNECTED" }));
         return () => {};
       });

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
+import type { PairingEvent, PairingInput } from "./actors/pairing";
+import type { SessionEvent, SessionInput } from "./actors/session";
 import { tizenDeviceMachine } from "./device";
 
 // biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
@@ -231,11 +233,7 @@ describe("tizenDeviceMachine", () => {
 
   describe("actor integration", () => {
     test("should complete pairing flow via actor", async () => {
-      const mockPairingActor = fromCallback<
-        | { type: "PROMPT_RECEIVED" }
-        | { type: "PAIRED"; token: string }
-        | { type: "PAIRING_ERROR"; error: string }
-      >(({ sendBack }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack }) => {
         sendBack({ type: "PROMPT_RECEIVED" });
         Promise.resolve().then(() => sendBack({ type: "PAIRED", token: "actor-token" }));
         return () => {};
@@ -255,11 +253,7 @@ describe("tizenDeviceMachine", () => {
     });
 
     test("should handle pairing error via actor", async () => {
-      const mockPairingActor = fromCallback<
-        | { type: "PROMPT_RECEIVED" }
-        | { type: "PAIRED"; token: string }
-        | { type: "PAIRING_ERROR"; error: string }
-      >(({ sendBack }) => {
+      const mockPairingActor = fromCallback<PairingEvent, PairingInput>(({ sendBack }) => {
         sendBack({ type: "PROMPT_RECEIVED" });
         Promise.resolve().then(() => sendBack({ type: "PAIRING_ERROR", error: "TV denied" }));
         return () => {};
@@ -279,12 +273,7 @@ describe("tizenDeviceMachine", () => {
     });
 
     test("should handle session connected via actor", async () => {
-      const mockSessionActor = fromCallback<
-        | { type: "CONNECTED" }
-        | { type: "CONNECTION_LOST"; error?: string }
-        | { type: "HEARTBEAT_OK" }
-        | { type: "HEARTBEAT_FAILED"; error: string }
-      >(({ sendBack }) => {
+      const mockSessionActor = fromCallback<SessionEvent, SessionInput>(({ sendBack }) => {
         Promise.resolve().then(() => sendBack({ type: "CONNECTED" }));
         return () => {};
       });
