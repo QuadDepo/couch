@@ -7,7 +7,9 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "bun run tui",
     "tui": "bun run --filter @couch/tui dev",
+    "tui:watch": "bun run --filter @couch/tui dev:watch",
     "inspect": "bun run --filter @couch/inspector dev",
     "build": "bun run --filter @couch/devices build && bun run --filter @couch/inspector build && bun run --filter @couch/tui build",
     "lint": "biome check .",
