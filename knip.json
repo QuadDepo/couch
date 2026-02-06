@@ -1,7 +1,22 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "project": ["**/*.{ts,tsx}"],
-  "ignoreBinaries": ["adb", "tsc"],
+  "workspaces": {
+    ".": {
+      "ignoreBinaries": ["adb", "tsc"]
+    },
+    "packages/devices": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/inspector": {
+      "entry": ["src/server.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "apps/tui": {
+      "entry": ["src/index.tsx"],
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  },
   "ignoreExportsUsedInFile": {
     "interface": true,
     "type": true

@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/devices" },
+    { "path": "./packages/inspector" },
+    { "path": "./apps/tui" }
+  ]
+}

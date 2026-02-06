@@ -4,24 +4,44 @@
   "workspaces": {
     "": {
       "name": "react",
+      "devDependencies": {
+        "@biomejs/biome": "^2.3.11",
+        "@types/bun": "latest",
+        "knip": "^5.82.1",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "apps/tui": {
+      "name": "@couch/tui",
+      "version": "0.0.1",
       "dependencies": {
+        "@couch/devices": "workspace:*",
         "@opentui-ui/dialog": "^0.1.2",
         "@opentui/core": "^0.1.72",
         "@opentui/react": "^0.1.72",
         "@statelyai/inspect": "^0.4.0",
         "@xstate/react": "^6.0.0",
-        "knip": "^5.82.1",
         "react": "^19.2.3",
-        "valibot": "^1.2.0",
         "xstate": "^5.25.1",
         "zustand": "^5.0.10",
       },
-      "devDependencies": {
-        "@biomejs/biome": "^2.3.11",
-        "@types/bun": "latest",
+    },
+    "packages/devices": {
+      "name": "@couch/devices",
+      "version": "0.0.1",
+      "dependencies": {
+        "@statelyai/inspect": "^0.4.0",
+        "valibot": "^1.2.0",
+        "xstate": "^5.25.1",
       },
-      "peerDependencies": {
-        "typescript": "^5",
+    },
+    "packages/inspector": {
+      "name": "@couch/inspector",
+      "version": "0.0.1",
+      "dependencies": {
+        "@statelyai/inspect": "^0.4.0",
       },
     },
   },
@@ -43,6 +63,12 @@
     "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.3.11", "", { "os": "win32", "cpu": "arm64" }, "sha512-PZQ6ElCOnkYapSsysiTy0+fYX+agXPlWugh6+eQ6uPKI3vKAqNp6TnMhoM3oY2NltSB89hz59o8xIfOdyhi9Iw=="],
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.3.11", "", { "os": "win32", "cpu": "x64" }, "sha512-43VrG813EW+b5+YbDbz31uUsheX+qFKCpXeY9kfdAx+ww3naKxeVkTD9zLIWxUPfJquANMHrmW3wbe/037G0Qg=="],
+
+    "@couch/devices": ["@couch/devices@workspace:packages/devices"],
+
+    "@couch/inspector": ["@couch/inspector@workspace:packages/inspector"],
+
+    "@couch/tui": ["@couch/tui@workspace:apps/tui"],
 
     "@dimforge/rapier2d-simd-compat": ["@dimforge/rapier2d-simd-compat@0.17.3", "", {}, "sha512-bijvwWz6NHsNj5e5i1vtd3dU2pDhthSaTUZSh14DUGGKJfw8eMnlWZsxwHBxB/a3AXVNDjL9abuHw1k9FGR+jg=="],
 
