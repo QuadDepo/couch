@@ -4,10 +4,6 @@
   "type": "module",
   "main": "src/server.ts",
   "scripts": {
-    "dev": "bun run src/server.ts",
-    "build": "bun build src/server.ts --outdir dist --target bun --format esm && cp src/bridge.html dist/bridge.html"
-  },
-  "dependencies": {
-    "@statelyai/inspect": "^0.4.0"
+    "dev": "bun run src/server.ts"
   }
 }
