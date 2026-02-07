@@ -7,11 +7,10 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "bun run tui",
-    "tui": "bun run --filter @couch/tui dev",
-    "tui:watch": "bun run --filter @couch/tui dev:watch",
+    "tui:dev": "bun run --watch apps/tui/src/index.tsx",
+    "tui:build": "bun run --filter @couch/tui build",
     "inspect": "bun run --filter @couch/inspector dev",
-    "build": "bun run --filter @couch/devices build && bun run --filter @couch/inspector build && bun run --filter @couch/tui build",
+    "build": "bun run tui:build",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
