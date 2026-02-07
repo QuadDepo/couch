@@ -1,19 +1,18 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
 export interface SDKAvailability {
   adb: boolean;
   aresDevice: boolean;
   sdb: boolean;
 }
 
-const execFileAsync = promisify(execFile);
-
 async function isCommandAvailable(command: string): Promise<boolean> {
   try {
     const probeCommand = process.platform === "win32" ? "where" : "which";
-    await execFileAsync(probeCommand, [command]);
-    return true;
+    const proc = Bun.spawn([probeCommand, command], {
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    const exitCode = await proc.exited;
+    return exitCode === 0;
   } catch {
     return false;
   }
