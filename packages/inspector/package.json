@@ -1,0 +1,9 @@
+{
+  "name": "@couch/inspector",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/server.ts",
+  "scripts": {
+    "dev": "bun run src/server.ts"
+  }
+}
