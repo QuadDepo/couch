@@ -11,6 +11,7 @@ import { useDeviceStore } from "../../store/deviceStore";
 
 const platformLabels: Record<TVDevice["platform"], string> = {
   "android-tv": "Android",
+  "android-tv-remote": "Android (Remote)",
   "philips-android-tv": "Philips",
   "lg-webos": "LG",
   "samsung-tizen": "Samsung",

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { AndroidTVPairingFlow } from "../../devices/android-tv/ui/flow.tsx";
+import { AndroidTvRemotePairingFlow } from "../../devices/android-tv-remote/ui/flow.tsx";
 import { WebOSPairingFlow } from "../../devices/lg-webos/ui/flow.tsx";
 import { PhilipsPairingFlow } from "../../devices/philips-android-tv/ui/flow.tsx";
 import { TizenPairingFlow } from "../../devices/samsung-tizen/ui/flow.tsx";
@@ -18,6 +19,7 @@ import type { PairingFlowHandle, PairingFlowProps, PairingFlowResult } from "./w
 export type ImplementedPlatform =
   | "lg-webos"
   | "android-tv"
+  | "android-tv-remote"
   | "philips-android-tv"
   | "samsung-tizen";
 
@@ -30,6 +32,7 @@ type PairingFlowComponent = ForwardRefExoticComponent<
 const PLATFORM_FLOWS: Record<ImplementedPlatform, PairingFlowComponent> = {
   "lg-webos": WebOSPairingFlow,
   "android-tv": AndroidTVPairingFlow,
+  "android-tv-remote": AndroidTvRemotePairingFlow,
   "philips-android-tv": PhilipsPairingFlow,
   "samsung-tizen": TizenPairingFlow,
 };

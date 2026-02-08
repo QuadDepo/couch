@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "bun run build:js && bun run build:types",
-    "build:js": "bun build src/index.ts src/devices/android-tv/selectors.ts src/devices/lg-webos/selectors.ts src/devices/philips-android-tv/selectors.ts src/devices/samsung-tizen/selectors.ts --outdir dist --root src --target bun --format esm",
+    "build:js": "bun build src/index.ts src/devices/android-tv/selectors.ts src/devices/android-tv-remote/selectors.ts src/devices/lg-webos/selectors.ts src/devices/philips-android-tv/selectors.ts src/devices/samsung-tizen/selectors.ts --outdir dist --root src --target bun --format esm",
     "build:types": "tsc -b tsconfig.json --force"
   },
   "exports": {
@@ -32,11 +32,21 @@
       "types": "./dist/devices/samsung-tizen/selectors.d.ts",
       "bun": "./src/devices/samsung-tizen/selectors.ts",
       "default": "./dist/devices/samsung-tizen/selectors.js"
+    },
+    "./android-tv-remote/selectors": {
+      "types": "./dist/devices/android-tv-remote/selectors.d.ts",
+      "bun": "./src/devices/android-tv-remote/selectors.ts",
+      "default": "./dist/devices/android-tv-remote/selectors.js"
     }
   },
   "dependencies": {
     "@statelyai/inspect": "^0.4.0",
+    "node-forge": "^1.3.1",
+    "protobufjs": "^7.4.0",
     "valibot": "^1.2.0",
     "xstate": "^5.25.1"
+  },
+  "devDependencies": {
+    "@types/node-forge": "^1.3.11"
   }
 }

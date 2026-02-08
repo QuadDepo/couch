@@ -18,6 +18,8 @@ export {
 
 // Actor types
 export type { DeviceActor, StoredDeviceActor } from "./devices/actors";
+// Common device events
+export type { CommonDeviceEvent } from "./devices/commonEvents";
 export { capabilities as androidTVCapabilities } from "./devices/android-tv/capabilities";
 export type {
   AndroidTVDeviceMachine,
@@ -28,6 +30,13 @@ export {
   androidTVDeviceMachine,
   INSTRUCTION_STEPS,
 } from "./devices/android-tv/machines/device";
+export { capabilities as androidTvRemoteCapabilities } from "./devices/android-tv-remote/capabilities";
+export type {
+  AndroidTvRemoteDeviceMachine,
+  AndroidTvRemoteDeviceMachineActor,
+  AndroidTvRemoteDeviceMachineSnapshot,
+} from "./devices/android-tv-remote/machines/device";
+export { androidTvRemoteDeviceMachine } from "./devices/android-tv-remote/machines/device";
 // Device constants
 export { calculateRetryDelay, HEARTBEAT_INTERVAL } from "./devices/constants";
 // Factory

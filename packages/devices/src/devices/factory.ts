@@ -1,3 +1,4 @@
+import type { AndroidTvRemoteCredentials } from "./android-tv-remote/credentials";
 import type { WebOSCredentials } from "./lg-webos/credentials";
 import type { PhilipsCredentials } from "./philips-android-tv/credentials";
 import type { TizenCredentials } from "./samsung-tizen/credentials";
@@ -30,6 +31,11 @@ export const implementedPlatforms: PlatformInfo[] = [
     name: "Samsung Tizen TV",
     description: "Samsung Tizen TVs (via WebSocket)",
   },
+  {
+    id: "android-tv-remote",
+    name: "Android TV (Remote Protocol)",
+    description: "Android TVs via TLS remote protocol",
+  },
 ];
 
 export function isPlatformImplemented(platform: TVPlatform): boolean {
@@ -48,6 +54,9 @@ export function wrapPlatformCredentials(
   }
   if (platform === "samsung-tizen") {
     return { tizen: credentials as TizenCredentials };
+  }
+  if (platform === "android-tv-remote") {
+    return { androidTvRemote: credentials as AndroidTvRemoteCredentials };
   }
   return undefined;
 }
