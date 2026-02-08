@@ -18,11 +18,11 @@ interface PlatformMachineInput {
 }
 
 export interface PhilipsSetupInput {
-  platform: "philips-android-tv";
+  platform: "philips-tv";
 }
 
 export interface PhilipsLoadInput extends PlatformMachineInput {
-  platform: "philips-android-tv";
+  platform: "philips-tv";
 }
 
 export type PhilipsMachineInput = PhilipsSetupInput | PhilipsLoadInput;

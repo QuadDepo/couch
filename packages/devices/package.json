@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "bun run build:js && bun run build:types",
-    "build:js": "bun build src/index.ts src/devices/android-tv/selectors.ts src/devices/android-tv-remote/selectors.ts src/devices/lg-webos/selectors.ts src/devices/philips-android-tv/selectors.ts src/devices/samsung-tizen/selectors.ts --outdir dist --root src --target bun --format esm",
+    "build:js": "bun build src/index.ts src/devices/android-tv/selectors.ts src/devices/android-tv-remote/selectors.ts src/devices/lg-webos/selectors.ts src/devices/philips-tv/selectors.ts src/devices/samsung-tizen/selectors.ts --outdir dist --root src --target bun --format esm",
     "build:types": "tsc -b tsconfig.json --force"
   },
   "exports": {
@@ -23,10 +23,10 @@
       "bun": "./src/devices/lg-webos/selectors.ts",
       "default": "./dist/devices/lg-webos/selectors.js"
     },
-    "./philips-android-tv/selectors": {
-      "types": "./dist/devices/philips-android-tv/selectors.d.ts",
-      "bun": "./src/devices/philips-android-tv/selectors.ts",
-      "default": "./dist/devices/philips-android-tv/selectors.js"
+    "./philips-tv/selectors": {
+      "types": "./dist/devices/philips-tv/selectors.d.ts",
+      "bun": "./src/devices/philips-tv/selectors.ts",
+      "default": "./dist/devices/philips-tv/selectors.js"
     },
     "./samsung-tizen/selectors": {
       "types": "./dist/devices/samsung-tizen/selectors.d.ts",

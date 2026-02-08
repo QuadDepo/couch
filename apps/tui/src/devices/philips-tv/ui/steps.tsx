@@ -12,7 +12,7 @@ import {
   isPairingError,
   isPairingWaitingForPin,
   selectPairingError,
-} from "@couch/devices/philips-android-tv/selectors";
+} from "@couch/devices/philips-tv/selectors";
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";

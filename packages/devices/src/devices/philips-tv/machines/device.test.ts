@@ -16,7 +16,7 @@ const testMachine = philipsDeviceMachine.provide({
 });
 
 function setupActor() {
-  const actor = createActor(testMachine, { input: { platform: "philips-android-tv" } });
+  const actor = createActor(testMachine, { input: { platform: "philips-tv" } });
   actor.start();
   return actor;
 }
@@ -24,7 +24,7 @@ function setupActor() {
 function loadedWithCredentials() {
   const actor = createActor(testMachine, {
     input: {
-      platform: "philips-android-tv",
+      platform: "philips-tv",
       deviceId: "test-id",
       deviceName: "Philips TV",
       deviceIp: "192.168.1.150",
@@ -38,7 +38,7 @@ function loadedWithCredentials() {
 function loadedWithoutCredentials() {
   const actor = createActor(testMachine, {
     input: {
-      platform: "philips-android-tv",
+      platform: "philips-tv",
       deviceId: "test-id",
       deviceName: "Philips TV",
       deviceIp: "192.168.1.150",
@@ -196,7 +196,7 @@ describe("philipsDeviceMachine", () => {
         actors: { pairingConnection: mockPairingActor, connectionManager: noopActor },
       });
 
-      const actor = createActor(machine, { input: { platform: "philips-android-tv" } });
+      const actor = createActor(machine, { input: { platform: "philips-tv" } });
       actor.start();
       actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
 
@@ -219,7 +219,7 @@ describe("philipsDeviceMachine", () => {
         actors: { pairingConnection: mockPairingActor, connectionManager: noopActor },
       });
 
-      const actor = createActor(machine, { input: { platform: "philips-android-tv" } });
+      const actor = createActor(machine, { input: { platform: "philips-tv" } });
       actor.start();
       actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
 
@@ -240,7 +240,7 @@ describe("philipsDeviceMachine", () => {
 
       const actor = createActor(machine, {
         input: {
-          platform: "philips-android-tv",
+          platform: "philips-tv",
           deviceId: "test-id",
           deviceName: "Philips TV",
           deviceIp: "192.168.1.150",

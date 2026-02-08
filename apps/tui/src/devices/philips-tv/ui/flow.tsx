@@ -12,7 +12,7 @@ import {
   isSetup,
   selectDeviceName,
   selectError,
-} from "@couch/devices/philips-android-tv/selectors";
+} from "@couch/devices/philips-tv/selectors";
 import { useActorRef, useSelector } from "@xstate/react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
@@ -30,7 +30,7 @@ import { PhilipsPairingStep } from "./steps.tsx";
 export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
   function PhilipsPairingFlow({ onComplete }, ref) {
     const actorRef = useActorRef(philipsDeviceMachine, {
-      input: { platform: "philips-android-tv" as const },
+      input: { platform: "philips-tv" as const },
       inspect: inspector?.inspect,
     });
 
@@ -97,8 +97,8 @@ export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps
               id: deviceId,
               name: deviceName,
               ip: deviceIp,
-              platform: "philips-android-tv",
-              config: wrapPlatformCredentials("philips-android-tv", credentials),
+              platform: "philips-tv",
+              config: wrapPlatformCredentials("philips-tv", credentials),
             };
             onComplete({ device, actor: actorRef });
           }

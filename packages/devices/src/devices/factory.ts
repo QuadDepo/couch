@@ -1,6 +1,6 @@
 import type { AndroidTvRemoteCredentials } from "./android-tv-remote/credentials";
 import type { WebOSCredentials } from "./lg-webos/credentials";
-import type { PhilipsCredentials } from "./philips-android-tv/credentials";
+import type { PhilipsCredentials } from "./philips-tv/credentials";
 import type { TizenCredentials } from "./samsung-tizen/credentials";
 import type { TVDevice, TVPlatform } from "./types";
 
@@ -22,9 +22,9 @@ export const implementedPlatforms: PlatformInfo[] = [
     description: "Android TVs via ADB debugging",
   },
   {
-    id: "philips-android-tv",
-    name: "Philips Android TV",
-    description: "Philips Android TVs (via HTTP)",
+    id: "philips-tv",
+    name: "Philips TV",
+    description: "Philips TVs (via JointSpace)",
   },
   {
     id: "samsung-tizen",
@@ -49,7 +49,7 @@ export function wrapPlatformCredentials(
   if (platform === "lg-webos") {
     return { webos: credentials as WebOSCredentials };
   }
-  if (platform === "philips-android-tv") {
+  if (platform === "philips-tv") {
     return { philips: credentials as PhilipsCredentials };
   }
   if (platform === "samsung-tizen") {

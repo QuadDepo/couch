@@ -54,12 +54,12 @@ export type {
 } from "./devices/lg-webos/machines/device";
 // Machines
 export { webosDeviceMachine } from "./devices/lg-webos/machines/device";
-export { capabilities as philipsCapabilities } from "./devices/philips-android-tv/capabilities";
+export { capabilities as philipsCapabilities } from "./devices/philips-tv/capabilities";
 export type {
   PhilipsDeviceMachine,
   PhilipsDeviceMachineActor,
-} from "./devices/philips-android-tv/machines/device";
-export { philipsDeviceMachine } from "./devices/philips-android-tv/machines/device";
+} from "./devices/philips-tv/machines/device";
+export { philipsDeviceMachine } from "./devices/philips-tv/machines/device";
 export { capabilities as tizenCapabilities } from "./devices/samsung-tizen/capabilities";
 export type {
   TizenDeviceMachine,

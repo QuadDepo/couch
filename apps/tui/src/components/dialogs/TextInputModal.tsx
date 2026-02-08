@@ -116,8 +116,8 @@ function UnsupportedMessage() {
       </box>
       <box justifyContent="center">
         <text fg={DIM_COLOR}>
-          {deviceType === "philips-android-tv"
-            ? "Philips Android TV does not support text input via the JointSpace API"
+          {deviceType === "philips-tv"
+            ? "Philips TV does not support text input via the JointSpace API"
             : "This device does not support text input"}
         </text>
       </box>

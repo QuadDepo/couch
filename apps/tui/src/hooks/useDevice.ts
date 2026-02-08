@@ -51,7 +51,7 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
         return androidTVCapabilities;
       case "android-tv-remote":
         return androidTvRemoteCapabilities;
-      case "philips-android-tv":
+      case "philips-tv":
         return philipsCapabilities;
       case "samsung-tizen":
         return tizenCapabilities;

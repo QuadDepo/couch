@@ -11,7 +11,7 @@ import {
 import { AndroidTVPairingFlow } from "../../devices/android-tv/ui/flow.tsx";
 import { AndroidTvRemotePairingFlow } from "../../devices/android-tv-remote/ui/flow.tsx";
 import { WebOSPairingFlow } from "../../devices/lg-webos/ui/flow.tsx";
-import { PhilipsPairingFlow } from "../../devices/philips-android-tv/ui/flow.tsx";
+import { PhilipsPairingFlow } from "../../devices/philips-tv/ui/flow.tsx";
 import { TizenPairingFlow } from "../../devices/samsung-tizen/ui/flow.tsx";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import type { PairingFlowHandle, PairingFlowProps, PairingFlowResult } from "./wizard/types.ts";
@@ -20,7 +20,7 @@ export type ImplementedPlatform =
   | "lg-webos"
   | "android-tv"
   | "android-tv-remote"
-  | "philips-android-tv"
+  | "philips-tv"
   | "samsung-tizen";
 
 export type { PairingFlowResult as AddDeviceResult };
@@ -33,7 +33,7 @@ const PLATFORM_FLOWS: Record<ImplementedPlatform, PairingFlowComponent> = {
   "lg-webos": WebOSPairingFlow,
   "android-tv": AndroidTVPairingFlow,
   "android-tv-remote": AndroidTvRemotePairingFlow,
-  "philips-android-tv": PhilipsPairingFlow,
+  "philips-tv": PhilipsPairingFlow,
   "samsung-tizen": TizenPairingFlow,
 };
 
