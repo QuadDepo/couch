@@ -1,5 +1,6 @@
 import {
   androidTVDeviceMachine,
+  androidTvRemoteDeviceMachine,
   type DeviceActor,
   inspector,
   loadDevices as loadFromStorage,
@@ -30,7 +31,7 @@ interface DeviceState {
 
 const createPlatformActor = (device: TVDevice): DeviceActor => {
   const config = device.config as
-    | { webos?: unknown; philips?: unknown; tizen?: unknown }
+    | { webos?: unknown; philips?: unknown; tizen?: unknown; androidTvRemote?: unknown }
     | undefined;
 
   switch (device.platform) {
@@ -77,6 +78,18 @@ const createPlatformActor = (device: TVDevice): DeviceActor => {
           deviceIp: device.ip,
           platform: "samsung-tizen",
           credentials: config?.tizen,
+        },
+        inspect: inspector?.inspect,
+      });
+
+    case "android-tv-remote":
+      return createActor(androidTvRemoteDeviceMachine, {
+        input: {
+          deviceId: device.id,
+          deviceName: device.name,
+          deviceIp: device.ip,
+          platform: "android-tv-remote",
+          credentials: config?.androidTvRemote,
         },
         inspect: inspector?.inspect,
       });

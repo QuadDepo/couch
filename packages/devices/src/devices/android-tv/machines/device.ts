@@ -3,6 +3,7 @@ import type { RemoteKey, TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
+import type { CommonDeviceEvent } from "../../commonEvents";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
@@ -51,25 +52,17 @@ interface AndroidTVMachineContext {
 }
 
 type AndroidTVMachineEvent =
+  | CommonDeviceEvent
+  // Platform-specific events
   | { type: "SET_DEVICE_INFO"; name: string; ip: string }
   | { type: "SUBMIT_DEVICE_INFO" }
-  | { type: "CONNECT" }
-  | { type: "DISCONNECT" }
-  | { type: "CONNECTION_LOST"; error?: string }
   | { type: "START_PAIRING" }
   | { type: "RESET_TO_SETUP" }
   | { type: "CONTINUE_INSTRUCTION" }
   | { type: "BACK_INSTRUCTION" }
   | { type: "PROMPT_RECEIVED" }
   | { type: "PAIRED" }
-  | { type: "PAIRING_ERROR"; error: string }
-  | { type: "FORGET" }
-  | { type: "SEND_KEY"; key: RemoteKey }
-  | { type: "SEND_TEXT"; text: string }
-  | { type: "CONNECTED" }
-  | { type: "HEARTBEAT_OK" }
-  | { type: "HEARTBEAT_FAILED"; error: string }
-  | { type: "CANCEL" };
+  | { type: "PAIRING_ERROR"; error: string };
 
 export const androidTVDeviceMachine = setup({
   types: {

@@ -1,0 +1,26 @@
+import type { KeyMap } from "../types";
+
+export const keymap: KeyMap = {
+  UP: 19,
+  DOWN: 20,
+  LEFT: 21,
+  RIGHT: 22,
+  OK: 23,
+  BACK: 4,
+  HOME: 3,
+  MENU: 82,
+  EXIT: 4,
+  INFO: 165,
+  POWER: 26,
+  VOLUME_UP: 24,
+  VOLUME_DOWN: 25,
+  MUTE: 164,
+  CHANNEL_UP: 166,
+  CHANNEL_DOWN: 167,
+  INPUT: 178,
+  PLAY: 126,
+  PAUSE: 127,
+  STOP: 86,
+  REWIND: 89,
+  FAST_FORWARD: 90,
+};

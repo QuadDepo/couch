@@ -3,6 +3,7 @@ import type { RemoteKey, TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
+import type { CommonDeviceEvent } from "../../commonEvents";
 import type { TizenCredentials } from "../credentials";
 import { createCredentials, validateTizenCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
@@ -42,23 +43,15 @@ interface TizenMachineContext {
 }
 
 type TizenMachineEvent =
+  | CommonDeviceEvent
+  // Platform-specific events
   | { type: "SET_DEVICE_INFO"; name: string; ip: string }
   | { type: "SUBMIT_DEVICE_INFO" }
-  | { type: "CONNECT" }
-  | { type: "DISCONNECT" }
-  | { type: "CONNECTION_LOST"; error?: string }
   | { type: "START_PAIRING" }
   | { type: "RESET_TO_SETUP" }
   | { type: "PROMPT_RECEIVED" }
   | { type: "PAIRED"; token: string }
-  | { type: "PAIRING_ERROR"; error: string }
-  | { type: "FORGET" }
-  | { type: "SEND_KEY"; key: RemoteKey }
-  | { type: "SEND_TEXT"; text: string }
-  | { type: "CONNECTED" }
-  | { type: "HEARTBEAT_OK" }
-  | { type: "HEARTBEAT_FAILED"; error: string }
-  | { type: "CANCEL" };
+  | { type: "PAIRING_ERROR"; error: string };
 
 export const tizenDeviceMachine = setup({
   types: {

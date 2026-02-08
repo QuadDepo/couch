@@ -1,11 +1,11 @@
-import { type Actor, assign, sendTo, setup } from "xstate";
+import { type Actor, assign, type SnapshotFrom, sendTo, setup } from "xstate";
 import type { RemoteKey, TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import type { CommonDeviceEvent } from "../../commonEvents";
-import type { WebOSCredentials } from "../credentials";
-import { createCredentials, validateWebOSCredentials } from "../credentials";
+import type { AndroidTvRemoteCredentials } from "../credentials";
+import { createCredentials, validateAndroidTvRemoteCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
@@ -17,50 +17,49 @@ interface PlatformMachineInput {
   credentials?: unknown;
 }
 
-export interface WebOSSetupInput {
-  platform: "lg-webos";
+export interface AndroidTvRemoteSetupInput {
+  platform: "android-tv-remote";
 }
 
-export interface WebOSLoadInput extends PlatformMachineInput {
-  platform: "lg-webos";
+export interface AndroidTvRemoteLoadInput extends PlatformMachineInput {
+  platform: "android-tv-remote";
 }
 
-export type WebOSMachineInput = WebOSSetupInput | WebOSLoadInput;
+export type AndroidTvRemoteMachineInput = AndroidTvRemoteSetupInput | AndroidTvRemoteLoadInput;
 
-function isLoadInput(input: WebOSMachineInput): input is WebOSLoadInput {
+function isLoadInput(input: AndroidTvRemoteMachineInput): input is AndroidTvRemoteLoadInput {
   return "deviceId" in input && "deviceName" in input && "deviceIp" in input;
 }
 
-interface WebOSMachineContext {
+interface AndroidTvRemoteMachineContext {
   deviceId: string | null;
   deviceName: string;
   deviceIp: string;
-  credentials?: WebOSCredentials;
+  credentials?: AndroidTvRemoteCredentials;
   retryCount: number;
   maxRetries: number;
   error?: string;
   promptReceived: boolean;
-  muteState: boolean;
-  useSsl: boolean;
+  pairingCode: string;
 }
 
-type WebOSMachineEvent =
+type AndroidTvRemoteMachineEvent =
   | CommonDeviceEvent
   // Platform-specific events
   | { type: "SET_DEVICE_INFO"; name: string; ip: string }
-  | { type: "SUBMIT_DEVICE_INFO" }
   | { type: "START_PAIRING" }
   | { type: "RESET_TO_SETUP" }
   | { type: "PROMPT_RECEIVED" }
-  | { type: "PAIRED"; clientKey: string }
+  | { type: "PAIRED"; credentials: AndroidTvRemoteCredentials }
   | { type: "PAIRING_ERROR"; error: string }
-  | { type: "MUTE_STATE_CHANGED"; mute: boolean };
+  | { type: "SUBMIT_CODE"; code: string }
+  | { type: "SET_PAIRING_CODE"; code: string };
 
-export const webosDeviceMachine = setup({
+export const androidTvRemoteDeviceMachine = setup({
   types: {
-    context: {} as WebOSMachineContext,
-    events: {} as WebOSMachineEvent,
-    input: {} as WebOSMachineInput,
+    context: {} as AndroidTvRemoteMachineContext,
+    events: {} as AndroidTvRemoteMachineEvent,
+    input: {} as AndroidTvRemoteMachineInput,
   },
   actors: {
     pairingConnection: pairingActor,
@@ -95,8 +94,8 @@ export const webosDeviceMachine = setup({
       promptReceived: true,
     }),
     setCredentials: assign({
-      credentials: ({ context }, params: { clientKey: string }) =>
-        createCredentials({ clientKey: params.clientKey, useSsl: context.useSsl }),
+      credentials: (_, params: { credentials: AndroidTvRemoteCredentials }) =>
+        createCredentials(params.credentials),
     }),
     clearCredentials: assign({
       credentials: undefined,
@@ -107,38 +106,35 @@ export const webosDeviceMachine = setup({
       deviceIp: "",
       error: undefined,
       promptReceived: false,
-      useSsl: false,
+      pairingCode: "",
     }),
-    setMuteState: assign({
-      muteState: (_, params: { mute: boolean }) => params.mute,
+    setPairingCode: assign({
+      pairingCode: (_, params: { code: string }) => params.code,
     }),
-    enableSsl: assign({
-      useSsl: true,
+    clearPairingCode: assign({
+      pairingCode: "",
     }),
     log: ({ context }, params: { message: string }) => {
-      logger.info("WebOS", params.message, { ip: context.deviceIp });
+      logger.info("AndroidTVRemote", params.message, { ip: context.deviceIp });
     },
   },
   guards: {
     isSetupMode: ({ context }) => context.deviceId === null,
-    hasCredentials: ({ context }) => !!context.credentials?.clientKey,
+    hasCredentials: ({ context }) => !!context.credentials?.certificate,
     canRetry: ({ context }) => context.retryCount < context.maxRetries,
     hasValidDeviceInfo: (_, params: { name: string; ip: string }) =>
       params.name.trim().length > 0 && isValidIp(params.ip),
     missingDeviceName: (_, params: { name: string }) => params.name.trim().length === 0,
     hasInvalidIp: (_, params: { ip: string }) => !isValidIp(params.ip),
-    shouldRetrySsl: ({ context }, params: { error: string }) =>
-      !context.useSsl && params.error.includes("ECONNRESET"),
   },
   delays: {
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
   },
 }).createMachine({
-  id: "webosDevice",
+  id: "androidTvRemoteDevice",
   initial: "initializing",
   context: ({ input }) => {
-    // Setup mode: new device, needs to collect info
     if (!isLoadInput(input)) {
       return {
         deviceId: null,
@@ -148,16 +144,14 @@ export const webosDeviceMachine = setup({
         retryCount: 0,
         maxRetries: 5,
         promptReceived: false,
-        muteState: false,
-        useSsl: false,
+        pairingCode: "",
       };
     }
 
-    // Load mode: existing device with all info
-    let credentials: WebOSCredentials | undefined;
+    let credentials: AndroidTvRemoteCredentials | undefined;
     if (input.credentials) {
       try {
-        credentials = validateWebOSCredentials(input.credentials);
+        credentials = validateAndroidTvRemoteCredentials(input.credentials);
       } catch {
         credentials = undefined;
       }
@@ -171,8 +165,7 @@ export const webosDeviceMachine = setup({
       retryCount: 0,
       maxRetries: 5,
       promptReceived: false,
-      muteState: false,
-      useSsl: credentials?.useSsl ?? false,
+      pairingCode: "",
     };
   },
   states: {
@@ -260,7 +253,7 @@ export const webosDeviceMachine = setup({
       initial: "idle",
       on: {
         RESET_TO_SETUP: {
-          target: "#webosDevice.setup",
+          target: "#androidTvRemoteDevice.setup",
           actions: "resetDeviceInfo",
         },
       },
@@ -281,17 +274,20 @@ export const webosDeviceMachine = setup({
         active: {
           initial: "connecting",
           invoke: {
+            id: "pairingConnection",
             src: "pairingConnection",
             input: ({ context }) => ({
               ip: context.deviceIp,
-              useSsl: context.useSsl,
             }),
           },
           on: {
             PAIRED: {
-              target: "#webosDevice.disconnected",
+              target: "#androidTvRemoteDevice.disconnected",
               actions: [
-                { type: "setCredentials", params: ({ event }) => ({ clientKey: event.clientKey }) },
+                {
+                  type: "setCredentials",
+                  params: ({ event }) => ({ credentials: event.credentials }),
+                },
                 {
                   type: "log",
                   params: ({ context }) => ({
@@ -300,28 +296,10 @@ export const webosDeviceMachine = setup({
                 },
               ],
             },
-            PAIRING_ERROR: [
-              {
-                guard: {
-                  type: "shouldRetrySsl",
-                  params: ({ event }: { event: { type: "PAIRING_ERROR"; error: string } }) => ({
-                    error: event.error,
-                  }),
-                },
-                target: "active",
-                actions: [
-                  "enableSsl",
-                  {
-                    type: "log",
-                    params: { message: "Connection reset - retrying with SSL" },
-                  },
-                ],
-              },
-              {
-                target: ".error",
-                actions: { type: "setError", params: ({ event }) => ({ error: event.error }) },
-              },
-            ],
+            PAIRING_ERROR: {
+              target: ".error",
+              actions: { type: "setError", params: ({ event }) => ({ error: event.error }) },
+            },
           },
           states: {
             connecting: {
@@ -332,10 +310,30 @@ export const webosDeviceMachine = setup({
                 },
               },
             },
-            waitingForUser: {},
+            waitingForUser: {
+              on: {
+                SET_PAIRING_CODE: {
+                  actions: {
+                    type: "setPairingCode",
+                    params: ({ event }) => ({ code: event.code }),
+                  },
+                },
+                SUBMIT_CODE: {
+                  target: "verifying",
+                  actions: sendTo("pairingConnection", ({ event }) => ({
+                    type: "SUBMIT_CODE" as const,
+                    code: event.code,
+                  })),
+                },
+              },
+            },
+            verifying: {},
             error: {
               on: {
-                START_PAIRING: { target: "connecting", actions: "clearError" },
+                START_PAIRING: {
+                  target: "connecting",
+                  actions: ["clearError", "clearPairingCode"],
+                },
               },
             },
           },
@@ -365,7 +363,6 @@ export const webosDeviceMachine = setup({
             ip: context.deviceIp,
             credentials: context.credentials,
             deviceName: context.deviceName,
-            useSsl: context.useSsl,
           };
         },
       },
@@ -426,9 +423,6 @@ export const webosDeviceMachine = setup({
                 SEND_TEXT: {
                   actions: sendTo("connectionManager", ({ event }) => event),
                 },
-                MUTE_STATE_CHANGED: {
-                  actions: { type: "setMuteState", params: ({ event }) => ({ mute: event.mute }) },
-                },
               },
             },
             retrying: {
@@ -439,7 +433,7 @@ export const webosDeviceMachine = setup({
                 }),
               },
               after: {
-                retryDelay: { target: "#webosDevice.session", reenter: true },
+                retryDelay: { target: "#androidTvRemoteDevice.session", reenter: true },
               },
             },
           },
@@ -481,5 +475,8 @@ export const webosDeviceMachine = setup({
   },
 });
 
-export type WebOSDeviceMachine = typeof webosDeviceMachine;
-export type WebOSDeviceMachineActor = Actor<WebOSDeviceMachine>;
+export type AndroidTvRemoteDeviceMachine = typeof androidTvRemoteDeviceMachine;
+export type AndroidTvRemoteDeviceMachineActor = Actor<AndroidTvRemoteDeviceMachine>;
+export type AndroidTvRemoteDeviceMachineSnapshot = SnapshotFrom<
+  typeof androidTvRemoteDeviceMachine
+>;

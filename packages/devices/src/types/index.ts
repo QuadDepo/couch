@@ -1,5 +1,6 @@
 export type TVPlatform =
   | "android-tv"
+  | "android-tv-remote"
   | "philips-android-tv"
   | "lg-webos"
   | "samsung-tizen"
@@ -32,17 +33,20 @@ export type RemoteKey =
   | "REWIND"
   | "FAST_FORWARD";
 
+import type { AndroidTvRemoteCredentials } from "../devices/android-tv-remote/credentials";
 import type { WebOSCredentials } from "../devices/lg-webos/credentials";
 import type { PhilipsCredentials } from "../devices/philips-android-tv/credentials";
 import type { TizenCredentials } from "../devices/samsung-tizen/credentials";
 
 type PlatformConfig<P extends TVPlatform> = P extends "lg-webos"
   ? { webos: WebOSCredentials }
-  : P extends "philips-android-tv"
-    ? { philips: PhilipsCredentials }
-    : P extends "samsung-tizen"
-      ? { tizen: TizenCredentials }
-      : Record<string, unknown>;
+  : P extends "android-tv-remote"
+    ? { androidTvRemote: AndroidTvRemoteCredentials }
+    : P extends "philips-android-tv"
+      ? { philips: PhilipsCredentials }
+      : P extends "samsung-tizen"
+        ? { tizen: TizenCredentials }
+        : Record<string, unknown>;
 
 export interface TVDevice<P extends TVPlatform = TVPlatform> {
   id: string;
