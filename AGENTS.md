@@ -21,7 +21,7 @@ bun dev            # Run dev server with watch mode
 ```
 src/
 ├── components/    # React components (controls, devices, dialogs, layout, shared)
-├── devices/       # Platform-specific handlers (android-tv, philips-android-tv, etc.)
+├── devices/       # Platform-specific handlers (android-tv, philips-tv, etc.)
 ├── hooks/         # Custom React hooks
 ├── machines/      # XState state machines
 ├── store/         # Zustand stores

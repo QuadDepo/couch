@@ -58,13 +58,13 @@ const createPlatformActor = (device: TVDevice): DeviceActor => {
         inspect: inspector?.inspect,
       });
 
-    case "philips-android-tv":
+    case "philips-tv":
       return createActor(philipsDeviceMachine, {
         input: {
           deviceId: device.id,
           deviceName: device.name,
           deviceIp: device.ip,
-          platform: "philips-android-tv",
+          platform: "philips-tv",
           credentials: config?.philips,
         },
         inspect: inspector?.inspect,
