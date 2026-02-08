@@ -3,6 +3,7 @@ import type { RemoteKey, TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
+import type { CommonDeviceEvent } from "../../commonEvents";
 import type { WebOSCredentials } from "../credentials";
 import { createCredentials, validateWebOSCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
@@ -44,24 +45,16 @@ interface WebOSMachineContext {
 }
 
 type WebOSMachineEvent =
+  | CommonDeviceEvent
+  // Platform-specific events
   | { type: "SET_DEVICE_INFO"; name: string; ip: string }
   | { type: "SUBMIT_DEVICE_INFO" }
-  | { type: "CONNECT" }
-  | { type: "DISCONNECT" }
-  | { type: "CONNECTION_LOST"; error?: string }
   | { type: "START_PAIRING" }
   | { type: "RESET_TO_SETUP" }
   | { type: "PROMPT_RECEIVED" }
   | { type: "PAIRED"; clientKey: string }
   | { type: "PAIRING_ERROR"; error: string }
-  | { type: "FORGET" }
-  | { type: "SEND_KEY"; key: RemoteKey }
-  | { type: "SEND_TEXT"; text: string }
-  | { type: "CONNECTED" }
-  | { type: "HEARTBEAT_OK" }
-  | { type: "HEARTBEAT_FAILED"; error: string }
-  | { type: "MUTE_STATE_CHANGED"; mute: boolean }
-  | { type: "CANCEL" };
+  | { type: "MUTE_STATE_CHANGED"; mute: boolean };
 
 export const webosDeviceMachine = setup({
   types: {

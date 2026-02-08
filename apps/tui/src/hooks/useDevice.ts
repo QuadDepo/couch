@@ -1,5 +1,6 @@
 import {
   androidTVCapabilities,
+  androidTvRemoteCapabilities,
   type CommandResult,
   type ConnectionStatus,
   type DeviceActor,
@@ -48,6 +49,8 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
         return webosCapabilities;
       case "android-tv":
         return androidTVCapabilities;
+      case "android-tv-remote":
+        return androidTvRemoteCapabilities;
       case "philips-android-tv":
         return philipsCapabilities;
       case "samsung-tizen":
@@ -62,7 +65,10 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
       if (!actor) {
         return { success: false, error: "No device selected" };
       }
-      actor.send({ type: "SEND_KEY", key });
+      actor.send({
+        type: "SEND_KEY",
+        key,
+      });
       return { success: true };
     },
     [actor],
@@ -83,7 +89,7 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
       if (!capabilities?.textInputSupported) {
         return { success: false, error: "Text input not supported" };
       }
-      (actor as { send: (event: { type: "SEND_TEXT"; text: string }) => void }).send({
+      actor.send({
         type: "SEND_TEXT",
         text,
       });
@@ -93,11 +99,15 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
   );
 
   const connect = useCallback(() => {
-    actor?.send({ type: "CONNECT" });
+    actor?.send({
+      type: "CONNECT",
+    });
   }, [actor]);
 
   const disconnect = useCallback(() => {
-    actor?.send({ type: "DISCONNECT" });
+    actor?.send({
+      type: "DISCONNECT",
+    });
   }, [actor]);
 
   return {
