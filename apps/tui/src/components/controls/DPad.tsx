@@ -2,7 +2,7 @@ import { ACTIVE_COLOR, DIM_COLOR, type RemoteKey, TEXT_PRIMARY } from "@couch/de
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
-import { useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useDevice } from "../../hooks/useDevice.ts";
 import { TextInputModal } from "../dialogs/TextInputModal.tsx";
 import { KeyHint } from "../shared/KeyHint.tsx";
@@ -15,6 +15,40 @@ interface DPadProps {
 const CELL_WIDTH = 8;
 const CELL_HEIGHT = 3;
 const GAP = 1;
+const HIGHLIGHT_RESET_MS = 200;
+
+interface DPadCellProps {
+  glyph: string;
+  active: boolean;
+  enabled: boolean;
+  bold?: boolean;
+}
+
+const DPadCell = memo(function DPadCell({ glyph, active, enabled, bold }: DPadCellProps) {
+  const bright = enabled ? TEXT_PRIMARY : DIM_COLOR;
+  return (
+    <box
+      width={CELL_WIDTH}
+      height={CELL_HEIGHT}
+      borderStyle="single"
+      borderColor={active ? ACTIVE_COLOR : DIM_COLOR}
+      justifyContent="center"
+      alignItems="center"
+    >
+      <text fg={active ? ACTIVE_COLOR : bright} attributes={bold ? TextAttributes.BOLD : undefined}>
+        {glyph}
+      </text>
+    </box>
+  );
+});
+
+function DPadSpacer() {
+  return (
+    <box width={CELL_WIDTH} height={CELL_HEIGHT}>
+      <text fg={DIM_COLOR}> </text>
+    </box>
+  );
+}
 
 export function DPad({ focused = false }: DPadProps) {
   const { status, sendKey } = useDevice();
@@ -25,10 +59,7 @@ export function DPad({ focused = false }: DPadProps) {
   const dialog = useDialog();
   const isDialogOpen = useDialogState((s) => s.isOpen);
 
-  const bright = enabled ? TEXT_PRIMARY : DIM_COLOR;
-
-  const c = (key: string) => (lastKey === key ? ACTIVE_COLOR : bright);
-  const border = (key: string) => (lastKey === key ? ACTIVE_COLOR : DIM_COLOR);
+  const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCommand = useCallback(
     async (key: RemoteKey) => {
@@ -38,7 +69,10 @@ export function DPad({ focused = false }: DPadProps) {
       if (!result.success) {
         console.error(`Failed to send ${key}: ${result.error}`);
       }
-      setTimeout(() => setLastKey(undefined), 200);
+      if (resetTimeoutRef.current) {
+        clearTimeout(resetTimeoutRef.current);
+      }
+      resetTimeoutRef.current = setTimeout(() => setLastKey(undefined), HIGHLIGHT_RESET_MS);
     },
     [enabled, sendKey],
   );
@@ -79,6 +113,14 @@ export function DPad({ focused = false }: DPadProps) {
     }
   });
 
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current) {
+        clearTimeout(resetTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <Panel
       title="D-PAD"
@@ -88,7 +130,6 @@ export function DPad({ focused = false }: DPadProps) {
       alignItems="center"
       justifyContent="center"
     >
-      <box width="100%" justifyContent="flex-end" marginTop="auto"></box>
       <box flexDirection="column" gap={1}>
         <box
           flexDirection="row"
@@ -97,79 +138,17 @@ export function DPad({ focused = false }: DPadProps) {
           rowGap={GAP}
           columnGap={GAP}
         >
-          <box
-            width={CELL_WIDTH}
-            height={CELL_HEIGHT}
-            borderStyle="single"
-            borderColor={border("BACK")}
-            justifyContent="center"
-            alignItems="center"
-          >
-            <text fg={c("BACK")}>←</text>
-          </box>
-          <box
-            width={CELL_WIDTH}
-            height={CELL_HEIGHT}
-            borderStyle="single"
-            borderColor={border("UP")}
-            justifyContent="center"
-            alignItems="center"
-          >
-            <text fg={c("UP")}>▲</text>
-          </box>
+          <DPadCell glyph="←" active={lastKey === "BACK"} enabled={enabled} />
+          <DPadCell glyph="▲" active={lastKey === "UP"} enabled={enabled} />
 
-          <box width={CELL_WIDTH} height={CELL_HEIGHT}>
-            <text fg={DIM_COLOR}> </text>
-          </box>
-          <box
-            width={CELL_WIDTH}
-            height={CELL_HEIGHT}
-            borderStyle="single"
-            borderColor={border("LEFT")}
-            justifyContent="center"
-            alignItems="center"
-          >
-            <text fg={c("LEFT")}>◀</text>
-          </box>
-          <box
-            width={CELL_WIDTH}
-            height={CELL_HEIGHT}
-            borderStyle="single"
-            borderColor={border("OK")}
-            justifyContent="center"
-            alignItems="center"
-          >
-            <text fg={c("OK")} attributes={TextAttributes.BOLD}>
-              OK
-            </text>
-          </box>
-          <box
-            width={CELL_WIDTH}
-            height={CELL_HEIGHT}
-            borderStyle="single"
-            borderColor={border("RIGHT")}
-            justifyContent="center"
-            alignItems="center"
-          >
-            <text fg={c("RIGHT")}>▶</text>
-          </box>
+          <DPadSpacer />
+          <DPadCell glyph="◀" active={lastKey === "LEFT"} enabled={enabled} />
+          <DPadCell glyph="OK" active={lastKey === "OK"} enabled={enabled} bold />
+          <DPadCell glyph="▶" active={lastKey === "RIGHT"} enabled={enabled} />
 
-          <box width={CELL_WIDTH} height={CELL_HEIGHT}>
-            <text fg={DIM_COLOR}> </text>
-          </box>
-          <box
-            width={CELL_WIDTH}
-            height={CELL_HEIGHT}
-            borderStyle="single"
-            borderColor={border("DOWN")}
-            justifyContent="center"
-            alignItems="center"
-          >
-            <text fg={c("DOWN")}>▼</text>
-          </box>
-          <box width={CELL_WIDTH} height={CELL_HEIGHT}>
-            <text fg={DIM_COLOR}> </text>
-          </box>
+          <DPadSpacer />
+          <DPadCell glyph="▼" active={lastKey === "DOWN"} enabled={enabled} />
+          <DPadSpacer />
         </box>
       </box>
       <box width="100%" justifyContent="flex-end" marginTop="auto" paddingLeft={2} paddingRight={2}>
