@@ -1,7 +1,6 @@
 import {
   type AndroidTVDeviceMachine,
   DIM_COLOR,
-  ERROR_COLOR,
   FOCUS_COLOR,
   INSTRUCTION_STEPS,
   TEXT_PRIMARY,
@@ -18,7 +17,8 @@ import {
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
-import { HintGroup } from "../../../components/shared/HintGroup.tsx";
+import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
+import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
 
 const HINT_CONTINUE = { key: "Enter", label: "to continue" };
 const HINT_RETRY = { key: "Enter", label: "to retry" };
@@ -46,17 +46,6 @@ function WaitingForUserStep() {
       </text>
       <text fg={TEXT_SECONDARY} marginTop={1}>
         Make sure "Always allow from this computer" is checked.
-      </text>
-    </>
-  );
-}
-
-function ErrorStep({ error }: { error?: string }) {
-  return (
-    <>
-      <text fg={ERROR_COLOR}>{error || "Connection failed"}</text>
-      <text fg={TEXT_SECONDARY} marginTop={1}>
-        Make sure ADB debugging is enabled and the TV is on the same network.
       </text>
     </>
   );
@@ -100,10 +89,7 @@ export function AndroidTVInstructionsStep({ actorRef }: Props) {
   const hints = [HINT_CONTINUE, HINT_BACK];
 
   return (
-    <box flexDirection="column" gap={1}>
-      <text fg={TEXT_PRIMARY} attributes={TextAttributes.BOLD}>
-        Android TV Setup
-      </text>
+    <PairingStepLayout title="Android TV Setup" hints={hints}>
       {currentStep && (
         <InstructionStepContent
           title={currentStep.title}
@@ -112,10 +98,7 @@ export function AndroidTVInstructionsStep({ actorRef }: Props) {
           totalSteps={totalSteps}
         />
       )}
-      <box marginTop={1}>
-        <HintGroup hints={hints} variant="plain" />
-      </box>
-    </box>
+    </PairingStepLayout>
   );
 }
 
@@ -134,23 +117,13 @@ export function AndroidTVPairingStep({ actorRef }: Props) {
   const renderStep = () => {
     if (isConnecting) return <ConnectingStep />;
     if (isWaitingForUser) return <WaitingForUserStep />;
-    if (isError) return <ErrorStep error={error} />;
+    if (isError) return <PairingErrorStep error={error} />;
     return null;
   };
 
-  const hints = getHints();
-
   return (
-    <box flexDirection="column" gap={1}>
-      <text fg={TEXT_PRIMARY} attributes={TextAttributes.BOLD}>
-        Android TV Pairing
-      </text>
+    <PairingStepLayout title="Android TV Pairing" hints={getHints()}>
       {renderStep()}
-      {hints.length > 0 && (
-        <box marginTop={1}>
-          <HintGroup hints={hints} variant="plain" />
-        </box>
-      )}
-    </box>
+    </PairingStepLayout>
   );
 }

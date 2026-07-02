@@ -1,8 +1,6 @@
 import {
   type AndroidTvRemoteDeviceMachine,
-  ERROR_COLOR,
   FOCUS_COLOR,
-  TEXT_PRIMARY,
   TEXT_SECONDARY,
   WARNING_COLOR,
 } from "@couch/devices";
@@ -17,7 +15,8 @@ import {
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
-import { HintGroup } from "../../../components/shared/HintGroup.tsx";
+import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
+import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
 
 const HINT_SUBMIT = { key: "Enter", label: "to submit code" };
 const HINT_RETRY = { key: "Enter", label: "to retry" };
@@ -53,17 +52,6 @@ function VerifyingStep() {
   return <text fg={WARNING_COLOR}>Verifying pairing code...</text>;
 }
 
-function ErrorStep({ error }: { error?: string }) {
-  return (
-    <>
-      <text fg={ERROR_COLOR}>{error || "Pairing failed"}</text>
-      <text fg={TEXT_SECONDARY} marginTop={1}>
-        Make sure the TV is on and the code was entered correctly.
-      </text>
-    </>
-  );
-}
-
 interface Props {
   actorRef: ActorRefFrom<AndroidTvRemoteDeviceMachine>;
 }
@@ -88,23 +76,13 @@ export function AndroidTvRemotePairingStep({ actorRef }: Props) {
     if (isConnecting) return <ConnectingStep />;
     if (isWaitingForUser) return <CodeEntryStep code={code} />;
     if (isVerifying) return <VerifyingStep />;
-    if (isError) return <ErrorStep error={error} />;
+    if (isError) return <PairingErrorStep error={error} />;
     return null;
   };
 
-  const hints = getHints();
-
   return (
-    <box flexDirection="column" gap={1}>
-      <text fg={TEXT_PRIMARY} attributes={TextAttributes.BOLD}>
-        Android TV Remote Pairing
-      </text>
+    <PairingStepLayout title="Android TV Remote Pairing" hints={getHints()}>
       {renderStep()}
-      {hints.length > 0 && (
-        <box marginTop={1}>
-          <HintGroup hints={hints} variant="plain" />
-        </box>
-      )}
-    </box>
+    </PairingStepLayout>
   );
 }
