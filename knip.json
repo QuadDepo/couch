@@ -5,7 +5,25 @@
       "ignoreBinaries": ["tsc"]
     },
     "packages/devices": {
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreMembers": [
+        "OPTIONS_ACK",
+        "UNKNOWN",
+        "ALPHANUMERIC",
+        "NUMERIC",
+        "QRCODE",
+        "OUTPUT",
+        "REMOTE_SET_ACTIVE",
+        "REMOTE_ERROR",
+        "IME_KEY_INJECT",
+        "IME_SHOW_REQUEST",
+        "VOICE_BEGIN",
+        "VOICE_PAYLOAD",
+        "VOICE_END",
+        "REMOTE_START",
+        "SET_VOLUME_LEVEL",
+        "ADJUST_VOLUME_LEVEL"
+      ]
     },
     "packages/inspector": {
       "project": ["src/**/*.{ts,tsx}"]

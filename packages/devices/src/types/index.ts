@@ -3,9 +3,7 @@ export type TVPlatform =
   | "android-tv-remote"
   | "philips-tv"
   | "lg-webos"
-  | "samsung-tizen"
-  | "titan-os"
-  | "apple-tv";
+  | "samsung-tizen";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "pairing" | "error";
 
