@@ -1,7 +1,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 
 const LOG_FILE = "debug.log";
-const ENABLED = process.env.DEBUG === "1" || true;
+const ENABLED = process.env.DEBUG === "1";
 
 function timestamp(): string {
   return new Date().toISOString().slice(11, 23);

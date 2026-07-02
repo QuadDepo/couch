@@ -54,7 +54,7 @@ interface RsaKeyComponents {
   exponent: Uint8Array;
 }
 
-export function extractRsaModulusAndExponent(certificatePem: string): RsaKeyComponents {
+function extractRsaModulusAndExponent(certificatePem: string): RsaKeyComponents {
   const cert = forge.pki.certificateFromPem(certificatePem);
   const publicKey = cert.publicKey as forge.pki.rsa.PublicKey;
 

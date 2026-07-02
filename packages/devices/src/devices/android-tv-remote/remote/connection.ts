@@ -208,7 +208,7 @@ export function createAndroidTvRemoteConnection(
           reconnectAttempts < MAX_RECONNECT_ATTEMPTS
         ) {
           const delay = Math.min(
-            baseReconnectDelay * Math.pow(2, reconnectAttempts),
+            baseReconnectDelay * 2 ** reconnectAttempts,
             MAX_RECONNECT_DELAY_MS,
           );
           reconnectAttempts++;

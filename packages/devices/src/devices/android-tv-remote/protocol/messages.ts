@@ -158,12 +158,6 @@ export function buildTextInput(
   return wrapMessage(RemoteMessageType.IME_BATCH_EDIT, payload);
 }
 
-export function buildPingRequest(): Uint8Array {
-  const message = RemotePing.create({ val1: 0 });
-  const payload = RemotePing.encode(message).finish();
-  return wrapMessage(RemoteMessageType.PING_REQUEST, payload);
-}
-
 export function buildPingResponse(): Uint8Array {
   const message = RemotePing.create({ val1: 0 });
   const payload = RemotePing.encode(message).finish();

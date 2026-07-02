@@ -50,7 +50,7 @@ export interface FrameReaderResult {
   remainingBuffer: Uint8Array;
 }
 
-export function readFramedMessage(buffer: Uint8Array): FrameReaderResult {
+function readFramedMessage(buffer: Uint8Array): FrameReaderResult {
   if (buffer.length === 0) {
     return { message: null, remainingBuffer: buffer };
   }

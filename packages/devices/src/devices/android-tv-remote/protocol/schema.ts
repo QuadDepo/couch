@@ -153,10 +153,7 @@ export const PairingOption = pairingRoot.lookupType("PairingOption");
 export const PairingConfiguration = pairingRoot.lookupType("PairingConfiguration");
 export const PairingSecret = pairingRoot.lookupType("PairingSecret");
 
-export const RemoteDeviceInfo = remoteRoot.lookupType("RemoteDeviceInfo");
 export const RemoteConfigure = remoteRoot.lookupType("RemoteConfigure");
 export const RemoteKeyInject = remoteRoot.lookupType("RemoteKeyInject");
 export const RemotePing = remoteRoot.lookupType("RemotePing");
-export const RemoteImeObject = remoteRoot.lookupType("RemoteImeObject");
-export const RemoteEditInfo = remoteRoot.lookupType("RemoteEditInfo");
 export const RemoteImeBatchEdit = remoteRoot.lookupType("RemoteImeBatchEdit");
