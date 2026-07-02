@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createActor, fromCallback, waitFor } from "xstate";
+import { createActor, fromCallback, SimulatedClock, waitFor } from "xstate";
+import { PAIRING_CONNECT_TIMEOUT, PAIRING_USER_INPUT_TIMEOUT } from "../../constants";
 import type { PhilipsCredentials } from "../credentials";
 import type { PairingEvent, PairingInput } from "./actors/pairing";
 import type { SessionEvent, SessionInput } from "./actors/session";
@@ -160,6 +161,56 @@ describe("philipsDeviceMachine", () => {
 
       expect(actor.getSnapshot().value).toBe("error");
       expect(actor.getSnapshot().context.error).toBe("Max retries exceeded");
+    });
+  });
+
+  describe("pairing timeouts", () => {
+    test("should time out from connecting to error state", () => {
+      const clock = new SimulatedClock();
+      const actor = createActor(testMachine, { input: { platform: "philips-tv" }, clock });
+      actor.start();
+      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
+      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
+
+      clock.increment(PAIRING_CONNECT_TIMEOUT);
+      expect(actor.getSnapshot().value).toBe("error");
+      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
+    });
+
+    test("should time out from waitingForPin to error state", () => {
+      const clock = new SimulatedClock();
+      const actor = createActor(testMachine, { input: { platform: "philips-tv" }, clock });
+      actor.start();
+      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
+      actor.send({ type: "PROMPT_RECEIVED" });
+      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForPin" } })).toBe(true);
+
+      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
+      expect(actor.getSnapshot().value).toBe("error");
+      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
+    });
+
+    test("should time out from confirming to error state", () => {
+      const clock = new SimulatedClock();
+      const actor = createActor(testMachine, { input: { platform: "philips-tv" }, clock });
+      actor.start();
+      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
+      actor.send({ type: "PROMPT_RECEIVED" });
+      actor.send({ type: "SUBMIT_PIN", pin: "1234" });
+      expect(actor.getSnapshot().matches({ pairing: { active: "confirming" } })).toBe(true);
+
+      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
+      expect(actor.getSnapshot().value).toBe("error");
+      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
+    });
+  });
+
+  describe("connect guard", () => {
+    test("should not start session on CONNECT without credentials", () => {
+      const actor = loadedWithoutCredentials();
+      actor.send({ type: "CONNECT" });
+      expect(actor.getSnapshot().matches({ session: {} })).toBe(false);
+      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
     });
   });
 

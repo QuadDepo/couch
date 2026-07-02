@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createActor, fromCallback } from "xstate";
+import { createActor, fromCallback, SimulatedClock } from "xstate";
+import { PAIRING_CONNECT_TIMEOUT, PAIRING_USER_INPUT_TIMEOUT } from "../../constants";
 import type { AndroidTvRemoteCredentials } from "../credentials";
 import { androidTvRemoteDeviceMachine } from "./device";
 
@@ -184,6 +185,56 @@ describe("androidTvRemoteDeviceMachine", () => {
       actor.send({ type: "PAIRING_ERROR", error: "Failed" });
       actor.send({ type: "START_PAIRING" });
       expect(actor.getSnapshot().context.pairingCode).toBe("");
+    });
+  });
+
+  describe("pairing timeouts", () => {
+    test("should time out from connecting to error state", () => {
+      const clock = new SimulatedClock();
+      const actor = createActor(testMachine, { input: { platform: "android-tv-remote" }, clock });
+      actor.start();
+      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
+      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
+
+      clock.increment(PAIRING_CONNECT_TIMEOUT);
+      expect(actor.getSnapshot().value).toBe("error");
+      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
+    });
+
+    test("should time out from waitingForUser to error state", () => {
+      const clock = new SimulatedClock();
+      const actor = createActor(testMachine, { input: { platform: "android-tv-remote" }, clock });
+      actor.start();
+      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
+      actor.send({ type: "PROMPT_RECEIVED" });
+      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForUser" } })).toBe(true);
+
+      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
+      expect(actor.getSnapshot().value).toBe("error");
+      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
+    });
+
+    test("should time out from verifying to error state", () => {
+      const clock = new SimulatedClock();
+      const actor = createActor(testMachine, { input: { platform: "android-tv-remote" }, clock });
+      actor.start();
+      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
+      actor.send({ type: "PROMPT_RECEIVED" });
+      actor.send({ type: "SUBMIT_CODE", code: "ABC123" });
+      expect(actor.getSnapshot().matches({ pairing: { active: "verifying" } })).toBe(true);
+
+      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
+      expect(actor.getSnapshot().value).toBe("error");
+      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
+    });
+  });
+
+  describe("connect guard", () => {
+    test("should not start session on CONNECT without credentials", () => {
+      const actor = loadedWithoutCredentials();
+      actor.send({ type: "CONNECT" });
+      expect(actor.getSnapshot().matches({ session: {} })).toBe(false);
+      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
     });
   });
 

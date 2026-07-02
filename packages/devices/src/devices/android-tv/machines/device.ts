@@ -3,7 +3,14 @@ import type { TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import type { CommonDeviceEvent } from "../../commonEvents";
-import { CONNECTION_TIMEOUT, calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
+import {
+  CONNECTION_TIMEOUT,
+  calculateRetryDelay,
+  HEARTBEAT_INTERVAL,
+  MAX_SESSION_RETRIES,
+  PAIRING_CONNECT_TIMEOUT,
+  PAIRING_USER_INPUT_TIMEOUT,
+} from "../../constants";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
@@ -137,6 +144,8 @@ export const androidTVDeviceMachine = setup({
     connectionTimeout: CONNECTION_TIMEOUT,
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
+    pairingConnectTimeout: PAIRING_CONNECT_TIMEOUT,
+    pairingUserInputTimeout: PAIRING_USER_INPUT_TIMEOUT,
   },
 }).createMachine({
   id: "androidTVDevice",
@@ -148,7 +157,7 @@ export const androidTVDeviceMachine = setup({
         deviceName: "",
         deviceIp: "",
         retryCount: 0,
-        maxRetries: 5,
+        maxRetries: MAX_SESSION_RETRIES,
         promptReceived: false,
         instructionStep: 0,
       };
@@ -159,7 +168,7 @@ export const androidTVDeviceMachine = setup({
       deviceName: input.deviceName,
       deviceIp: input.deviceIp,
       retryCount: 0,
-      maxRetries: 5,
+      maxRetries: MAX_SESSION_RETRIES,
       promptReceived: false,
       instructionStep: 0,
     };
@@ -318,8 +327,31 @@ export const androidTVDeviceMachine = setup({
                   actions: "setPromptReceived",
                 },
               },
+              after: {
+                pairingConnectTimeout: {
+                  target: "#androidTVDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
             },
-            waitingForUser: {},
+            waitingForUser: {
+              after: {
+                pairingUserInputTimeout: {
+                  target: "#androidTVDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
+            },
             error: {
               on: {
                 START_PAIRING: { target: "connecting", actions: "clearError" },

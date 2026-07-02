@@ -3,7 +3,14 @@ import type { TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import type { CommonDeviceEvent } from "../../commonEvents";
-import { CONNECTION_TIMEOUT, calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
+import {
+  CONNECTION_TIMEOUT,
+  calculateRetryDelay,
+  HEARTBEAT_INTERVAL,
+  MAX_SESSION_RETRIES,
+  PAIRING_CONNECT_TIMEOUT,
+  PAIRING_USER_INPUT_TIMEOUT,
+} from "../../constants";
 import type { PhilipsCredentials } from "../credentials";
 import { validatePhilipsCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
@@ -122,6 +129,8 @@ export const philipsDeviceMachine = setup({
     connectionTimeout: CONNECTION_TIMEOUT,
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
+    pairingConnectTimeout: PAIRING_CONNECT_TIMEOUT,
+    pairingUserInputTimeout: PAIRING_USER_INPUT_TIMEOUT,
   },
 }).createMachine({
   id: "philipsDevice",
@@ -134,17 +143,23 @@ export const philipsDeviceMachine = setup({
         deviceIp: "",
         credentials: undefined,
         retryCount: 0,
-        maxRetries: 5,
+        maxRetries: MAX_SESSION_RETRIES,
         promptReceived: false,
       };
     }
 
     let credentials: PhilipsCredentials | undefined;
+    let error: string | undefined;
     if (input.credentials) {
       try {
         credentials = validatePhilipsCredentials(input.credentials);
-      } catch {
+      } catch (validationError) {
+        logger.warn(
+          "Philips",
+          `Invalid stored credentials for device ${input.deviceId}: ${validationError}`,
+        );
         credentials = undefined;
+        error = "Stored credentials are invalid — pair again";
       }
     }
 
@@ -154,7 +169,8 @@ export const philipsDeviceMachine = setup({
       deviceIp: input.deviceIp,
       credentials,
       retryCount: 0,
-      maxRetries: 5,
+      maxRetries: MAX_SESSION_RETRIES,
+      error,
       promptReceived: false,
     };
   },
@@ -300,6 +316,17 @@ export const philipsDeviceMachine = setup({
                   actions: "setPromptReceived",
                 },
               },
+              after: {
+                pairingConnectTimeout: {
+                  target: "#philipsDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
             },
             waitingForPin: {
               on: {
@@ -308,8 +335,31 @@ export const philipsDeviceMachine = setup({
                   actions: sendTo("pairingConnection", ({ event }) => event),
                 },
               },
+              after: {
+                pairingUserInputTimeout: {
+                  target: "#philipsDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
             },
-            confirming: {},
+            confirming: {
+              after: {
+                pairingUserInputTimeout: {
+                  target: "#philipsDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
+            },
             error: {
               on: {
                 START_PAIRING: { target: "connecting", actions: "clearError" },
@@ -325,7 +375,7 @@ export const philipsDeviceMachine = setup({
         params: ({ context }) => ({ message: `Disconnected from ${context.deviceName}` }),
       },
       on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
+        CONNECT: { target: "session", guard: "hasCredentials", actions: "resetRetry" },
         FORGET: { target: "pairing.idle", actions: "clearCredentials" },
       },
     },
@@ -334,16 +384,11 @@ export const philipsDeviceMachine = setup({
       invoke: {
         id: "connectionManager",
         src: "connectionManager",
-        input: ({ context }) => {
-          if (!context.credentials) {
-            throw new Error("Cannot connect without credentials");
-          }
-          return {
-            ip: context.deviceIp,
-            credentials: context.credentials,
-            deviceName: context.deviceName,
-          };
-        },
+        input: ({ context }) => ({
+          ip: context.deviceIp,
+          credentials: context.credentials as PhilipsCredentials,
+          deviceName: context.deviceName,
+        }),
       },
       on: {
         DISCONNECT: { target: "disconnected", actions: "resetRetry" },
@@ -456,7 +501,7 @@ export const philipsDeviceMachine = setup({
     },
     error: {
       on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
+        CONNECT: { target: "session", guard: "hasCredentials", actions: "resetRetry" },
         DISCONNECT: { target: "disconnected", actions: "resetRetry" },
         FORGET: { target: "pairing.idle", actions: ["clearCredentials", "resetRetry"] },
       },

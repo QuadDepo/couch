@@ -3,7 +3,14 @@ import type { TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import type { CommonDeviceEvent } from "../../commonEvents";
-import { CONNECTION_TIMEOUT, calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
+import {
+  CONNECTION_TIMEOUT,
+  calculateRetryDelay,
+  HEARTBEAT_INTERVAL,
+  MAX_SESSION_RETRIES,
+  PAIRING_CONNECT_TIMEOUT,
+  PAIRING_USER_INPUT_TIMEOUT,
+} from "../../constants";
 import type { WebOSCredentials } from "../credentials";
 import { createCredentials, validateWebOSCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
@@ -133,6 +140,8 @@ export const webosDeviceMachine = setup({
     connectionTimeout: CONNECTION_TIMEOUT,
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
+    pairingConnectTimeout: PAIRING_CONNECT_TIMEOUT,
+    pairingUserInputTimeout: PAIRING_USER_INPUT_TIMEOUT,
   },
 }).createMachine({
   id: "webosDevice",
@@ -146,7 +155,7 @@ export const webosDeviceMachine = setup({
         deviceIp: "",
         credentials: undefined,
         retryCount: 0,
-        maxRetries: 5,
+        maxRetries: MAX_SESSION_RETRIES,
         promptReceived: false,
         muteState: false,
         useSsl: false,
@@ -155,11 +164,17 @@ export const webosDeviceMachine = setup({
 
     // Load mode: existing device with all info
     let credentials: WebOSCredentials | undefined;
+    let error: string | undefined;
     if (input.credentials) {
       try {
         credentials = validateWebOSCredentials(input.credentials);
-      } catch {
+      } catch (validationError) {
+        logger.warn(
+          "WebOS",
+          `Invalid stored credentials for device ${input.deviceId}: ${validationError}`,
+        );
         credentials = undefined;
+        error = "Stored credentials are invalid — pair again";
       }
     }
 
@@ -169,7 +184,8 @@ export const webosDeviceMachine = setup({
       deviceIp: input.deviceIp,
       credentials,
       retryCount: 0,
-      maxRetries: 5,
+      maxRetries: MAX_SESSION_RETRIES,
+      error,
       promptReceived: false,
       muteState: false,
       useSsl: credentials?.useSsl ?? false,
@@ -331,8 +347,31 @@ export const webosDeviceMachine = setup({
                   actions: "setPromptReceived",
                 },
               },
+              after: {
+                pairingConnectTimeout: {
+                  target: "#webosDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
             },
-            waitingForUser: {},
+            waitingForUser: {
+              after: {
+                pairingUserInputTimeout: {
+                  target: "#webosDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
+            },
             error: {
               on: {
                 START_PAIRING: { target: "connecting", actions: "clearError" },
@@ -348,7 +387,7 @@ export const webosDeviceMachine = setup({
         params: ({ context }) => ({ message: `Disconnected from ${context.deviceName}` }),
       },
       on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
+        CONNECT: { target: "session", guard: "hasCredentials", actions: "resetRetry" },
         FORGET: { target: "pairing.idle", actions: "clearCredentials" },
       },
     },
@@ -357,17 +396,12 @@ export const webosDeviceMachine = setup({
       invoke: {
         id: "connectionManager",
         src: "connectionManager",
-        input: ({ context }) => {
-          if (!context.credentials) {
-            throw new Error("Cannot connect without credentials");
-          }
-          return {
-            ip: context.deviceIp,
-            credentials: context.credentials,
-            deviceName: context.deviceName,
-            useSsl: context.useSsl,
-          };
-        },
+        input: ({ context }) => ({
+          ip: context.deviceIp,
+          credentials: context.credentials as WebOSCredentials,
+          deviceName: context.deviceName,
+          useSsl: context.useSsl,
+        }),
       },
       on: {
         DISCONNECT: { target: "disconnected", actions: "resetRetry" },
@@ -486,7 +520,7 @@ export const webosDeviceMachine = setup({
     },
     error: {
       on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
+        CONNECT: { target: "session", guard: "hasCredentials", actions: "resetRetry" },
         DISCONNECT: { target: "disconnected", actions: "resetRetry" },
         FORGET: { target: "pairing.idle", actions: ["clearCredentials", "resetRetry"] },
       },

@@ -3,7 +3,14 @@ import type { TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
 import type { CommonDeviceEvent } from "../../commonEvents";
-import { CONNECTION_TIMEOUT, calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
+import {
+  CONNECTION_TIMEOUT,
+  calculateRetryDelay,
+  HEARTBEAT_INTERVAL,
+  MAX_SESSION_RETRIES,
+  PAIRING_CONNECT_TIMEOUT,
+  PAIRING_USER_INPUT_TIMEOUT,
+} from "../../constants";
 import type { TizenCredentials } from "../credentials";
 import { createCredentials, validateTizenCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
@@ -120,6 +127,8 @@ export const tizenDeviceMachine = setup({
     connectionTimeout: CONNECTION_TIMEOUT,
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
+    pairingConnectTimeout: PAIRING_CONNECT_TIMEOUT,
+    pairingUserInputTimeout: PAIRING_USER_INPUT_TIMEOUT,
   },
 }).createMachine({
   id: "tizenDevice",
@@ -132,19 +141,23 @@ export const tizenDeviceMachine = setup({
         deviceIp: "",
         credentials: undefined,
         retryCount: 0,
-        maxRetries: 5,
+        maxRetries: MAX_SESSION_RETRIES,
         promptReceived: false,
       };
     }
 
     let credentials: TizenCredentials | undefined;
+    let error: string | undefined;
     if (input.credentials) {
       try {
         credentials = validateTizenCredentials(input.credentials);
-      } catch (error) {
-        // TODO: Show validation error to user via UI toast/notification
-        logger.error("Tizen", `Invalid stored credentials for device ${input.deviceId}: ${error}`);
+      } catch (validationError) {
+        logger.warn(
+          "Tizen",
+          `Invalid stored credentials for device ${input.deviceId}: ${validationError}`,
+        );
         credentials = undefined;
+        error = "Stored credentials are invalid — pair again";
       }
     }
 
@@ -154,7 +167,8 @@ export const tizenDeviceMachine = setup({
       deviceIp: input.deviceIp,
       credentials,
       retryCount: 0,
-      maxRetries: 5,
+      maxRetries: MAX_SESSION_RETRIES,
+      error,
       promptReceived: false,
     };
   },
@@ -295,8 +309,31 @@ export const tizenDeviceMachine = setup({
                   actions: "setPromptReceived",
                 },
               },
+              after: {
+                pairingConnectTimeout: {
+                  target: "#tizenDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
             },
-            waitingForUser: {},
+            waitingForUser: {
+              after: {
+                pairingUserInputTimeout: {
+                  target: "#tizenDevice.error",
+                  actions: {
+                    type: "setError",
+                    params: {
+                      error: "Pairing timed out — make sure the TV is on and accepting connections",
+                    },
+                  },
+                },
+              },
+            },
             error: {
               on: {
                 START_PAIRING: { target: "connecting", actions: "clearError" },
@@ -312,7 +349,7 @@ export const tizenDeviceMachine = setup({
         params: ({ context }) => ({ message: `Disconnected from ${context.deviceName}` }),
       },
       on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
+        CONNECT: { target: "session", guard: "hasCredentials", actions: "resetRetry" },
         FORGET: { target: "pairing.idle", actions: "clearCredentials" },
       },
     },
@@ -321,16 +358,11 @@ export const tizenDeviceMachine = setup({
       invoke: {
         id: "connectionManager",
         src: "connectionManager",
-        input: ({ context }) => {
-          if (!context.credentials) {
-            throw new Error("Cannot connect without credentials");
-          }
-          return {
-            ip: context.deviceIp,
-            credentials: context.credentials,
-            deviceName: context.deviceName,
-          };
-        },
+        input: ({ context }) => ({
+          ip: context.deviceIp,
+          credentials: context.credentials as TizenCredentials,
+          deviceName: context.deviceName,
+        }),
       },
       on: {
         DISCONNECT: { target: "disconnected", actions: "resetRetry" },
@@ -446,7 +478,7 @@ export const tizenDeviceMachine = setup({
     },
     error: {
       on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
+        CONNECT: { target: "session", guard: "hasCredentials", actions: "resetRetry" },
         DISCONNECT: { target: "disconnected", actions: "resetRetry" },
         FORGET: { target: "pairing.idle", actions: ["clearCredentials", "resetRetry"] },
       },
