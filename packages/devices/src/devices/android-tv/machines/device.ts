@@ -1,9 +1,9 @@
 import { type Actor, assign, type SnapshotFrom, sendTo, setup } from "xstate";
-import type { RemoteKey, TVPlatform } from "../../../types";
+import type { TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
-import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import type { CommonDeviceEvent } from "../../commonEvents";
+import { CONNECTION_TIMEOUT, calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
@@ -55,7 +55,6 @@ type AndroidTVMachineEvent =
   | CommonDeviceEvent
   // Platform-specific events
   | { type: "SET_DEVICE_INFO"; name: string; ip: string }
-  | { type: "SUBMIT_DEVICE_INFO" }
   | { type: "START_PAIRING" }
   | { type: "RESET_TO_SETUP" }
   | { type: "CONTINUE_INSTRUCTION" }
@@ -135,6 +134,7 @@ export const androidTVDeviceMachine = setup({
     canGoBackInInstructions: ({ context }) => context.instructionStep > 0,
   },
   delays: {
+    connectionTimeout: CONNECTION_TIMEOUT,
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
   },
@@ -392,6 +392,22 @@ export const androidTVDeviceMachine = setup({
               },
               on: {
                 CONNECTED: { target: "connected", actions: "resetRetry" },
+              },
+              after: {
+                connectionTimeout: [
+                  {
+                    target: "retrying",
+                    guard: "canRetry",
+                    actions: [
+                      "incrementRetry",
+                      { type: "setError", params: { error: "Connection timed out" } },
+                    ],
+                  },
+                  {
+                    target: "#androidTVDevice.error",
+                    actions: { type: "setError", params: { error: "Connection timed out" } },
+                  },
+                ],
               },
             },
             connected: {

@@ -1,9 +1,9 @@
 import { type Actor, assign, sendTo, setup } from "xstate";
-import type { RemoteKey, TVPlatform } from "../../../types";
+import type { TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
-import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import type { CommonDeviceEvent } from "../../commonEvents";
+import { CONNECTION_TIMEOUT, calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import type { PhilipsCredentials } from "../credentials";
 import { validatePhilipsCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
@@ -46,7 +46,6 @@ type PhilipsMachineEvent =
   | CommonDeviceEvent
   // Platform-specific events
   | { type: "SET_DEVICE_INFO"; name: string; ip: string }
-  | { type: "SUBMIT_DEVICE_INFO" }
   | { type: "START_PAIRING" }
   | { type: "RESET_TO_SETUP" }
   | { type: "PROMPT_RECEIVED" }
@@ -120,6 +119,7 @@ export const philipsDeviceMachine = setup({
     hasInvalidIp: (_, params: { ip: string }) => !isValidIp(params.ip),
   },
   delays: {
+    connectionTimeout: CONNECTION_TIMEOUT,
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
   },
@@ -388,6 +388,22 @@ export const philipsDeviceMachine = setup({
               },
               on: {
                 CONNECTED: { target: "connected", actions: "resetRetry" },
+              },
+              after: {
+                connectionTimeout: [
+                  {
+                    target: "retrying",
+                    guard: "canRetry",
+                    actions: [
+                      "incrementRetry",
+                      { type: "setError", params: { error: "Connection timed out" } },
+                    ],
+                  },
+                  {
+                    target: "#philipsDevice.error",
+                    actions: { type: "setError", params: { error: "Connection timed out" } },
+                  },
+                ],
               },
             },
             connected: {

@@ -1,9 +1,9 @@
 import { type Actor, assign, type SnapshotFrom, sendTo, setup } from "xstate";
-import type { RemoteKey, TVPlatform } from "../../../types";
+import type { TVPlatform } from "../../../types";
 import { logger } from "../../../utils/logger";
 import { isValidIp } from "../../../utils/network";
-import { calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import type { CommonDeviceEvent } from "../../commonEvents";
+import { CONNECTION_TIMEOUT, calculateRetryDelay, HEARTBEAT_INTERVAL } from "../../constants";
 import type { AndroidTvRemoteCredentials } from "../credentials";
 import { createCredentials, validateAndroidTvRemoteCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
@@ -128,6 +128,7 @@ export const androidTvRemoteDeviceMachine = setup({
     hasInvalidIp: (_, params: { ip: string }) => !isValidIp(params.ip),
   },
   delays: {
+    connectionTimeout: CONNECTION_TIMEOUT,
     retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
     heartbeatInterval: HEARTBEAT_INTERVAL,
   },
@@ -409,6 +410,22 @@ export const androidTvRemoteDeviceMachine = setup({
               },
               on: {
                 CONNECTED: { target: "connected", actions: "resetRetry" },
+              },
+              after: {
+                connectionTimeout: [
+                  {
+                    target: "retrying",
+                    guard: "canRetry",
+                    actions: [
+                      "incrementRetry",
+                      { type: "setError", params: { error: "Connection timed out" } },
+                    ],
+                  },
+                  {
+                    target: "#androidTvRemoteDevice.error",
+                    actions: { type: "setError", params: { error: "Connection timed out" } },
+                  },
+                ],
               },
             },
             connected: {
