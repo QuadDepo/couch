@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { chmod, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { TVDevice, TVPlatform } from "../types";
@@ -23,6 +23,7 @@ interface StorageSchema {
 
 async function ensureConfigDir(): Promise<void> {
   await mkdir(CONFIG_DIR, { recursive: true });
+  await chmod(CONFIG_DIR, 0o700);
 }
 
 export async function loadDevices(): Promise<TVDevice[] | null> {
@@ -70,6 +71,7 @@ export async function saveDevices(devices: TVDevice[]): Promise<void> {
     };
 
     await Bun.write(DEVICES_FILE, JSON.stringify(data, null, 2));
+    await chmod(DEVICES_FILE, 0o600);
     logger.info("Storage", `Saved ${devices.length} device(s)`);
   } catch (error) {
     logger.warn("Storage", `Failed to save devices: ${error}`);

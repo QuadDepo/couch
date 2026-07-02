@@ -107,7 +107,10 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         d.id === deviceId ? { ...d, config: { ...d.config, ...config } } : d,
       ),
     }));
-    logger.info("Store", `Updated device config`, { deviceId, config });
+    logger.info("Store", `Updated device config`, {
+      deviceId,
+      configKeys: Object.keys(config ?? {}),
+    });
 
     saveDevices(get().devices);
   },
