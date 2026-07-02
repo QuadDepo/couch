@@ -5,7 +5,6 @@ import {
   INSTRUCTION_STEPS,
   TEXT_PRIMARY,
   TEXT_SECONDARY,
-  WARNING_COLOR,
 } from "@couch/devices";
 import {
   isPairingConnecting,
@@ -17,25 +16,10 @@ import {
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
+import { HINT_BACK, HINT_CONTINUE, HINT_RETRY } from "../../../components/shared/pairing/hints.ts";
+import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
-
-const HINT_CONTINUE = { key: "Enter", label: "to continue" };
-const HINT_RETRY = { key: "Enter", label: "to retry" };
-const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
-
-function ConnectingStep() {
-  return (
-    <>
-      <text fg={TEXT_SECONDARY}>
-        Make sure your Android TV is turned on and ADB debugging is enabled.
-      </text>
-      <text fg={WARNING_COLOR} marginTop={1}>
-        Connecting via ADB...
-      </text>
-    </>
-  );
-}
 
 function WaitingForUserStep() {
   return (
@@ -115,7 +99,13 @@ export function AndroidTVPairingStep({ actorRef }: Props) {
   };
 
   const renderStep = () => {
-    if (isConnecting) return <ConnectingStep />;
+    if (isConnecting)
+      return (
+        <PairingConnectingStep
+          title="Make sure your Android TV is turned on and ADB debugging is enabled."
+          subtext="Connecting via ADB..."
+        />
+      );
     if (isWaitingForUser) return <WaitingForUserStep />;
     if (isError) return <PairingErrorStep error={error} />;
     return null;

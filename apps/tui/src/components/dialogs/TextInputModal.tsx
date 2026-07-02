@@ -56,6 +56,12 @@ function InputBuffer({
   );
 }
 
+const QUICK_ACTION_DESCRIPTORS = [
+  { action: "enter", actionId: "enter", label: "[Enter]" },
+  { action: "space", actionId: "space", label: "[Space]" },
+  { action: "backspace", actionId: "del", label: "[Bs]" },
+] as const;
+
 function QuickActions({
   focused,
   lastAction,
@@ -73,29 +79,16 @@ function QuickActions({
         </text>
       </box>
       <box flexDirection="row" gap={2}>
-        {actions.includes("enter") && (
-          <text
-            fg={lastAction === "enter" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
-            attributes={lastAction === "enter" ? TextAttributes.BOLD : undefined}
-          >
-            [Enter]
-          </text>
-        )}
-        {actions.includes("space") && (
-          <text
-            fg={lastAction === "space" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
-            attributes={lastAction === "space" ? TextAttributes.BOLD : undefined}
-          >
-            [Space]
-          </text>
-        )}
-        {actions.includes("backspace") && (
-          <text
-            fg={lastAction === "del" ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
-            attributes={lastAction === "del" ? TextAttributes.BOLD : undefined}
-          >
-            [Bs]
-          </text>
+        {QUICK_ACTION_DESCRIPTORS.filter(({ action }) => actions.includes(action)).map(
+          ({ actionId, label }) => (
+            <text
+              key={actionId}
+              fg={lastAction === actionId ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
+              attributes={lastAction === actionId ? TextAttributes.BOLD : undefined}
+            >
+              {label}
+            </text>
+          ),
         )}
       </box>
     </>

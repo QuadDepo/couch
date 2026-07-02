@@ -1,17 +1,21 @@
 import { TEXT_SECONDARY, WARNING_COLOR } from "@couch/devices";
 
 interface PairingConnectingStepProps {
-  brandName: string;
+  brandName?: string;
+  title?: string;
+  subtext?: string;
 }
 
-export function PairingConnectingStep({ brandName }: PairingConnectingStepProps) {
+export function PairingConnectingStep({ brandName, title, subtext }: PairingConnectingStepProps) {
+  const primaryLine =
+    title ?? `Make sure your ${brandName} is turned on and connected to the same network.`;
+  const secondaryLine = subtext ?? "Connecting to TV...";
+
   return (
     <>
-      <text fg={TEXT_SECONDARY}>
-        Make sure your {brandName} is turned on and connected to the same network.
-      </text>
+      <text fg={TEXT_SECONDARY}>{primaryLine}</text>
       <text fg={WARNING_COLOR} marginTop={1}>
-        Connecting to TV...
+        {secondaryLine}
       </text>
     </>
   );

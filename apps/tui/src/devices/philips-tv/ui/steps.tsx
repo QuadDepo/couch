@@ -14,13 +14,10 @@ import {
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
+import { HINT_BACK, HINT_RETRY, HINT_SUBMIT } from "../../../components/shared/pairing/hints.ts";
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
-
-const HINT_SUBMIT = { key: "Enter", label: "to submit" };
-const HINT_RETRY = { key: "Enter", label: "to retry" };
-const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
 
 function formatPinDisplay(pin: string): string {
   const filled = pin.split("").map(() => "*");

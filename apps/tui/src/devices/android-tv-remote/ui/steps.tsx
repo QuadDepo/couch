@@ -15,23 +15,14 @@ import {
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
+import {
+  HINT_BACK,
+  HINT_RETRY,
+  HINT_SUBMIT_CODE,
+} from "../../../components/shared/pairing/hints.ts";
+import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
-
-const HINT_SUBMIT = { key: "Enter", label: "to submit code" };
-const HINT_RETRY = { key: "Enter", label: "to retry" };
-const HINT_BACK = { key: "Ctrl+Bs", label: "to go back" };
-
-function ConnectingStep() {
-  return (
-    <>
-      <text fg={TEXT_SECONDARY}>Connecting to TV for pairing...</text>
-      <text fg={WARNING_COLOR} marginTop={1}>
-        Make sure the TV is turned on and on the same network.
-      </text>
-    </>
-  );
-}
 
 function CodeEntryStep({ code }: { code: string }) {
   const display = code.padEnd(6, "_").split("").join(" ");
@@ -66,14 +57,20 @@ export function AndroidTvRemotePairingStep({ actorRef }: Props) {
 
   const getHints = () => {
     if (isConnecting || isVerifying) return [HINT_BACK];
-    if (isWaitingForUser && code.length === 6) return [HINT_SUBMIT, HINT_BACK];
+    if (isWaitingForUser && code.length === 6) return [HINT_SUBMIT_CODE, HINT_BACK];
     if (isWaitingForUser) return [HINT_BACK];
     if (isError) return [HINT_RETRY, HINT_BACK];
     return [];
   };
 
   const renderStep = () => {
-    if (isConnecting) return <ConnectingStep />;
+    if (isConnecting)
+      return (
+        <PairingConnectingStep
+          title="Connecting to TV for pairing..."
+          subtext="Make sure the TV is turned on and on the same network."
+        />
+      );
     if (isWaitingForUser) return <CodeEntryStep code={code} />;
     if (isVerifying) return <VerifyingStep />;
     if (isError) return <PairingErrorStep error={error} />;

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type FocusPath =
+export type FocusPath =
   | "app/dpad"
   | "app/devices"
   | "modal/text-input"

@@ -1,13 +1,7 @@
 import { DIM_COLOR, FOCUS_COLOR, TEXT_DIM } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
+import type { FocusPath } from "../../store/uiStore";
 import { KeyHint } from "../shared/KeyHint.tsx";
-
-type FocusPath =
-  | "app/dpad"
-  | "app/devices"
-  | "modal/text-input"
-  | "modal/wizard"
-  | "modal/add-device";
 
 interface HeaderProps {
   focusPath: FocusPath;
