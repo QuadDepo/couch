@@ -11,15 +11,27 @@ const loggerMock = {
 };
 const machine = createMachine({ id: "mock", initial: "idle", states: { idle: {} } });
 
+const mockRegistration = {
+  name: "Mock",
+  label: "Mock",
+  description: "Mock platform",
+  capabilities: { supportedKeys: new Set(), textInputSupported: false, quickActions: [] },
+  createActor: () => createActor(machine),
+  wrapCredentials: () => undefined,
+};
+
 mock.module("@couch/devices", () => ({
-  androidTVDeviceMachine: machine,
   inspector: null,
   loadDevices: loadDevicesMock,
   logger: loggerMock,
-  philipsDeviceMachine: machine,
+  platformRegistry: {
+    "lg-webos": mockRegistration,
+    "android-tv": mockRegistration,
+    "android-tv-remote": mockRegistration,
+    "philips-tv": mockRegistration,
+    "samsung-tizen": mockRegistration,
+  },
   saveDevices: saveDevicesMock,
-  tizenDeviceMachine: machine,
-  webosDeviceMachine: machine,
 }));
 
 const { useDeviceStore } = await import("./deviceStore");

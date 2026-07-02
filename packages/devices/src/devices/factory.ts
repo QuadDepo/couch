@@ -1,8 +1,5 @@
-import type { AndroidTvRemoteCredentials } from "./android-tv-remote/credentials";
-import type { WebOSCredentials } from "./lg-webos/credentials";
-import type { PhilipsCredentials } from "./philips-tv/credentials";
-import type { TizenCredentials } from "./samsung-tizen/credentials";
-import type { TVDevice, TVPlatform } from "./types";
+import type { TVDevice, TVPlatform } from "../types";
+import { type ImplementedPlatform, platformRegistry } from "./registry";
 
 interface PlatformInfo {
   id: TVPlatform;
@@ -10,53 +7,23 @@ interface PlatformInfo {
   description: string;
 }
 
-export const implementedPlatforms: PlatformInfo[] = [
-  {
-    id: "lg-webos",
-    name: "LG WebOS TV",
-    description: "LG WebOS TVs (via WebSocket)",
-  },
-  {
-    id: "android-tv",
-    name: "Android TV (ADB)",
-    description: "Android TVs via ADB debugging",
-  },
-  {
-    id: "philips-tv",
-    name: "Philips TV",
-    description: "Philips TVs (via JointSpace)",
-  },
-  {
-    id: "samsung-tizen",
-    name: "Samsung Tizen TV",
-    description: "Samsung Tizen TVs (via WebSocket)",
-  },
-  {
-    id: "android-tv-remote",
-    name: "Android TV (Remote Protocol)",
-    description: "Android TVs via TLS remote protocol",
-  },
-];
+export const implementedPlatforms: PlatformInfo[] = Object.entries(platformRegistry).map(
+  ([id, reg]) => ({
+    id: id as ImplementedPlatform,
+    name: reg.name,
+    description: reg.description,
+  }),
+);
 
 export function isPlatformImplemented(platform: TVPlatform): boolean {
-  return implementedPlatforms.some((p) => p.id === platform);
+  return platform in platformRegistry;
 }
 
 export function wrapPlatformCredentials(
   platform: TVPlatform,
   credentials: unknown,
 ): TVDevice["config"] {
-  if (platform === "lg-webos") {
-    return { webos: credentials as WebOSCredentials };
-  }
-  if (platform === "philips-tv") {
-    return { philips: credentials as PhilipsCredentials };
-  }
-  if (platform === "samsung-tizen") {
-    return { tizen: credentials as TizenCredentials };
-  }
-  if (platform === "android-tv-remote") {
-    return { androidTvRemote: credentials as AndroidTvRemoteCredentials };
-  }
-  return undefined;
+  const registration = platformRegistry[platform as ImplementedPlatform];
+  if (!registration) return undefined;
+  return registration.wrapCredentials(credentials);
 }

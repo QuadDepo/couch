@@ -18,8 +18,6 @@ export {
 
 // Actor types
 export type { DeviceActor, StoredDeviceActor } from "./devices/actors";
-// Common device events
-export type { CommonDeviceEvent } from "./devices/commonEvents";
 export { capabilities as androidTVCapabilities } from "./devices/android-tv/capabilities";
 export type {
   AndroidTVDeviceMachine,
@@ -37,6 +35,8 @@ export type {
   AndroidTvRemoteDeviceMachineSnapshot,
 } from "./devices/android-tv-remote/machines/device";
 export { androidTvRemoteDeviceMachine } from "./devices/android-tv-remote/machines/device";
+// Common device events
+export type { CommonDeviceEvent } from "./devices/commonEvents";
 // Device constants
 export { calculateRetryDelay, HEARTBEAT_INTERVAL } from "./devices/constants";
 // Factory
@@ -60,6 +60,9 @@ export type {
   PhilipsDeviceMachineActor,
 } from "./devices/philips-tv/machines/device";
 export { philipsDeviceMachine } from "./devices/philips-tv/machines/device";
+// Platform registry
+export type { ImplementedPlatform, PlatformRegistration } from "./devices/registry";
+export { platformRegistry } from "./devices/registry";
 export { capabilities as tizenCapabilities } from "./devices/samsung-tizen/capabilities";
 export type {
   TizenDeviceMachine,

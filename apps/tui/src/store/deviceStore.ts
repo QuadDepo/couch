@@ -1,18 +1,14 @@
 import {
-  androidTVDeviceMachine,
-  androidTvRemoteDeviceMachine,
   type DeviceActor,
+  type ImplementedPlatform,
   inspector,
   loadDevices as loadFromStorage,
   logger,
-  philipsDeviceMachine,
+  platformRegistry,
   type StoredDeviceActor,
   saveDevices,
   type TVDevice,
-  tizenDeviceMachine,
-  webosDeviceMachine,
 } from "@couch/devices";
-import { createActor } from "xstate";
 import { create } from "zustand";
 
 interface DeviceState {
@@ -30,73 +26,11 @@ interface DeviceState {
 }
 
 const createPlatformActor = (device: TVDevice): DeviceActor => {
-  const config = device.config as
-    | { webos?: unknown; philips?: unknown; tizen?: unknown; androidTvRemote?: unknown }
-    | undefined;
-
-  switch (device.platform) {
-    case "lg-webos":
-      return createActor(webosDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "lg-webos",
-          credentials: config?.webos,
-        },
-        inspect: inspector?.inspect,
-      });
-
-    case "android-tv":
-      return createActor(androidTVDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "android-tv",
-        },
-        inspect: inspector?.inspect,
-      });
-
-    case "philips-tv":
-      return createActor(philipsDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "philips-tv",
-          credentials: config?.philips,
-        },
-        inspect: inspector?.inspect,
-      });
-
-    case "samsung-tizen":
-      return createActor(tizenDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "samsung-tizen",
-          credentials: config?.tizen,
-        },
-        inspect: inspector?.inspect,
-      });
-
-    case "android-tv-remote":
-      return createActor(androidTvRemoteDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "android-tv-remote",
-          credentials: config?.androidTvRemote,
-        },
-        inspect: inspector?.inspect,
-      });
-
-    default:
-      throw new Error(`Unsupported platform: ${device.platform}`);
+  const registration = platformRegistry[device.platform as ImplementedPlatform];
+  if (!registration) {
+    throw new Error(`Unsupported platform: ${device.platform}`);
   }
+  return registration.createActor(device, inspector?.inspect);
 };
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({

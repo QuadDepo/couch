@@ -1,17 +1,15 @@
 import {
-  androidTVCapabilities,
-  androidTvRemoteCapabilities,
   type CommandResult,
+  type CommonDeviceEvent,
   type ConnectionStatus,
   type DeviceActor,
   type DeviceCapabilities,
+  type ImplementedPlatform,
   isPlatformImplemented,
-  philipsCapabilities,
+  platformRegistry,
   type RemoteKey,
   selectConnectionStatus,
   type TVDevice,
-  tizenCapabilities,
-  webosCapabilities,
 } from "@couch/devices";
 import { useSelector } from "@xstate/react";
 import { useCallback, useMemo } from "react";
@@ -32,6 +30,9 @@ interface UseDeviceResult {
   disconnect: () => void;
 }
 
+// Typed send that avoids TS2590 from DeviceActor union expansion in actor.send()
+type SendEvent = (event: CommonDeviceEvent) => void;
+
 export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
   const selectedDevice = useSelectedDevice();
   // undefined = use selected device, explicit null/device = use what was passed
@@ -39,39 +40,29 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
 
   const actor = useDeviceStore((s) => (device ? s.deviceActors.get(device.id)?.actor : undefined));
 
-  const status = useSelector(actor, selectConnectionStatus) ?? "disconnected";
+  const status: ConnectionStatus = useSelector(actor, selectConnectionStatus) ?? "disconnected";
 
   const isImplemented = device ? isPlatformImplemented(device.platform) : false;
 
-  const capabilities = useMemo(() => {
-    switch (device?.platform) {
-      case "lg-webos":
-        return webosCapabilities;
-      case "android-tv":
-        return androidTVCapabilities;
-      case "android-tv-remote":
-        return androidTvRemoteCapabilities;
-      case "philips-tv":
-        return philipsCapabilities;
-      case "samsung-tizen":
-        return tizenCapabilities;
-      default:
-        return null;
-    }
+  const capabilities = useMemo((): DeviceCapabilities | null => {
+    if (!device?.platform) return null;
+    return platformRegistry[device.platform as ImplementedPlatform]?.capabilities ?? null;
   }, [device?.platform]);
+
+  const send = useMemo(
+    (): SendEvent | undefined => (actor ? (actor.send.bind(actor) as SendEvent) : undefined),
+    [actor],
+  );
 
   const sendKey = useCallback(
     async (key: RemoteKey): Promise<CommandResult> => {
-      if (!actor) {
+      if (!send) {
         return { success: false, error: "No device selected" };
       }
-      actor.send({
-        type: "SEND_KEY",
-        key,
-      });
+      send({ type: "SEND_KEY", key });
       return { success: true };
     },
-    [actor],
+    [send],
   );
 
   const isKeySupported = useCallback(
@@ -83,32 +74,25 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
 
   const sendText = useCallback(
     async (text: string): Promise<CommandResult> => {
-      if (!actor) {
+      if (!send) {
         return { success: false, error: "No device selected" };
       }
       if (!capabilities?.textInputSupported) {
         return { success: false, error: "Text input not supported" };
       }
-      actor.send({
-        type: "SEND_TEXT",
-        text,
-      });
+      send({ type: "SEND_TEXT", text });
       return { success: true };
     },
-    [actor, capabilities],
+    [send, capabilities],
   );
 
   const connect = useCallback(() => {
-    actor?.send({
-      type: "CONNECT",
-    });
-  }, [actor]);
+    send?.({ type: "CONNECT" });
+  }, [send]);
 
   const disconnect = useCallback(() => {
-    actor?.send({
-      type: "DISCONNECT",
-    });
-  }, [actor]);
+    send?.({ type: "DISCONNECT" });
+  }, [send]);
 
   return {
     device,

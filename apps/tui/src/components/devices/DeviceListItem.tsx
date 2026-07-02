@@ -1,6 +1,8 @@
 import {
   FOCUS_COLOR,
   getStatusIndicator,
+  type ImplementedPlatform,
+  platformRegistry,
   selectConnectionStatus,
   TEXT_DIM,
   TEXT_PRIMARY,
@@ -8,16 +10,6 @@ import {
 } from "@couch/devices";
 import { useSelector } from "@xstate/react";
 import { useDeviceStore } from "../../store/deviceStore";
-
-const platformLabels: Record<TVDevice["platform"], string> = {
-  "android-tv": "Android",
-  "android-tv-remote": "Android (Remote)",
-  "philips-tv": "Philips",
-  "lg-webos": "LG",
-  "samsung-tizen": "Samsung",
-  "titan-os": "Titan",
-  "apple-tv": "Apple",
-};
 
 interface DeviceListItemProps {
   device: TVDevice;
@@ -38,7 +30,10 @@ export function DeviceListItem({ device, isSelected, isFocused }: DeviceListItem
       <text fg={textColor}>{prefix}</text>
       <text fg={statusIndicator.color}>{statusIndicator.icon}</text>
       <text fg={textColor}> {device.name}</text>
-      <text fg={TEXT_DIM}> [{platformLabels[device.platform]}]</text>
+      <text fg={TEXT_DIM}>
+        {" "}
+        [{platformRegistry[device.platform as ImplementedPlatform]?.label ?? device.platform}]
+      </text>
     </box>
   );
 }

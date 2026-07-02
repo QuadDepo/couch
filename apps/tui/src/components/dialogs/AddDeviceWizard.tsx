@@ -1,4 +1,4 @@
-import { implementedPlatforms } from "@couch/devices";
+import { type ImplementedPlatform, implementedPlatforms } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
 import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import {
@@ -15,13 +15,6 @@ import { PhilipsPairingFlow } from "../../devices/philips-tv/ui/flow.tsx";
 import { TizenPairingFlow } from "../../devices/samsung-tizen/ui/flow.tsx";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import type { PairingFlowHandle, PairingFlowProps, PairingFlowResult } from "./wizard/types.ts";
-
-export type ImplementedPlatform =
-  | "lg-webos"
-  | "android-tv"
-  | "android-tv-remote"
-  | "philips-tv"
-  | "samsung-tizen";
 
 export type { PairingFlowResult as AddDeviceResult };
 
