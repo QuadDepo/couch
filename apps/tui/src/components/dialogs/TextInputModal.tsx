@@ -17,7 +17,6 @@ import { KeyHint } from "../shared/KeyHint.tsx";
 
 type TextInputModalProps = PromptContext<unknown>;
 
-const STATUS_CLEAR_DELAY = 2000;
 const ACTION_HIGHLIGHT_DELAY = 200;
 const SEND_DEBOUNCE_MS = 100;
 
@@ -136,31 +135,11 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
   const setFocusPath = useUIStore((s) => s.setFocusPath);
 
   const [input, setInput] = useState("");
-  const [_sendState, setSendState] = useState<{
-    type: "idle" | "sending" | "success" | "error";
-    message: string;
-  }>({
-    type: "idle",
-    message: "",
-  });
   const [internalFocus, setInternalFocus] = useState<"input" | "actions">("input");
   const [lastAction, setLastAction] = useState<string | null>(null);
 
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSendTimeRef = useRef<number>(0);
-
-  const showStatus = useCallback((msg: string, type: "idle" | "sending" | "success" | "error") => {
-    if (statusTimeoutRef.current) {
-      clearTimeout(statusTimeoutRef.current);
-    }
-    setSendState({ type, message: msg });
-    if (type !== "idle") {
-      statusTimeoutRef.current = setTimeout(() => {
-        setSendState({ type: "idle", message: "" });
-      }, STATUS_CLEAR_DELAY);
-    }
-  }, []);
 
   const sendToTV = useCallback(
     async (text: string) => {
@@ -172,19 +151,9 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
       }
       lastSendTimeRef.current = now;
 
-      showStatus("Sending...", "sending");
-      try {
-        const result = await sendText(text);
-        if (result.success) {
-          showStatus(`Sent (${result.latencyMs}ms)`, "success");
-        } else {
-          showStatus(`Error: ${result.error}`, "error");
-        }
-      } catch {
-        showStatus("Error: Failed to send", "error");
-      }
+      await sendText(text);
     },
-    [enabled, sendText, showStatus],
+    [enabled, sendText],
   );
 
   const triggerAction = useCallback(
@@ -264,9 +233,6 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
     setFocusPath("modal/text-input");
     return () => {
       setFocusPath("app/dpad");
-      if (statusTimeoutRef.current) {
-        clearTimeout(statusTimeoutRef.current);
-      }
       if (actionTimeoutRef.current) {
         clearTimeout(actionTimeoutRef.current);
       }
