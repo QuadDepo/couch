@@ -1,16 +1,6 @@
-import { type Actor, assign, type SnapshotFrom, sendTo, setup } from "xstate";
+import { type Actor, assign, type SnapshotFrom } from "xstate";
 import type { TVPlatform } from "../../../types";
-import { logger } from "../../../utils/logger";
-import { isValidIp } from "../../../utils/network";
-import type { CommonDeviceEvent } from "../../commonEvents";
-import {
-  CONNECTION_TIMEOUT,
-  calculateRetryDelay,
-  HEARTBEAT_INTERVAL,
-  MAX_SESSION_RETRIES,
-  PAIRING_CONNECT_TIMEOUT,
-  PAIRING_USER_INPUT_TIMEOUT,
-} from "../../constants";
+import { createDeviceMachine } from "../../shared/machine";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
@@ -43,466 +33,97 @@ export interface AndroidTVLoadInput extends PlatformMachineInput {
 
 export type AndroidTVMachineInput = AndroidTVSetupInput | AndroidTVLoadInput;
 
-function isLoadInput(input: AndroidTVMachineInput): input is AndroidTVLoadInput {
-  return "deviceId" in input && "deviceName" in input && "deviceIp" in input;
-}
+// ADB has no credentials; the pairing wizard adds instruction-navigation events.
+type AndroidTVPlatformEvent =
+  | { type: "CONTINUE_INSTRUCTION" }
+  | { type: "BACK_INSTRUCTION" }
+  | { type: "PAIRED" };
 
-interface AndroidTVMachineContext {
-  deviceId: string | null;
-  deviceName: string;
-  deviceIp: string;
-  retryCount: number;
-  maxRetries: number;
-  error?: string;
-  promptReceived: boolean;
+interface AndroidTVExtraContext extends Record<string, unknown> {
   instructionStep: number;
 }
 
-type AndroidTVMachineEvent =
-  | CommonDeviceEvent
-  // Platform-specific events
-  | { type: "SET_DEVICE_INFO"; name: string; ip: string }
-  | { type: "START_PAIRING" }
-  | { type: "RESET_TO_SETUP" }
-  | { type: "CONTINUE_INSTRUCTION" }
-  | { type: "BACK_INSTRUCTION" }
-  | { type: "PROMPT_RECEIVED" }
-  | { type: "PAIRED" }
-  | { type: "PAIRING_ERROR"; error: string };
-
-export const androidTVDeviceMachine = setup({
-  types: {
-    context: {} as AndroidTVMachineContext,
-    events: {} as AndroidTVMachineEvent,
-    input: {} as AndroidTVMachineInput,
-  },
-  actors: {
-    pairingConnection: pairingActor,
-    connectionManager: sessionActor,
-  },
-  actions: {
-    setDeviceInfo: assign({
-      deviceName: (_, params: { name: string; ip: string }) => params.name,
-      deviceIp: (_, params: { name: string; ip: string }) => params.ip,
-      error: undefined,
-    }),
-    generateDeviceId: assign({
-      deviceId: () => crypto.randomUUID(),
-    }),
-    setValidationError: assign({
-      error: (_, params: { error: string }) => params.error,
-    }),
-    incrementRetry: assign({
-      retryCount: ({ context }) => context.retryCount + 1,
-    }),
-    resetRetry: assign({
-      retryCount: 0,
-      error: undefined,
-    }),
-    setError: assign({
-      error: (_, params: { error: string }) => params.error,
-    }),
-    clearError: assign({
-      error: undefined,
-    }),
-    setPromptReceived: assign({
-      promptReceived: true,
-    }),
-    resetDeviceInfo: assign({
-      deviceId: null,
-      deviceName: "",
-      deviceIp: "",
-      error: undefined,
-      promptReceived: false,
-      instructionStep: 0,
-    }),
+export const androidTVDeviceMachine = createDeviceMachine<
+  AndroidTVMachineInput,
+  Record<never, never>,
+  AndroidTVPlatformEvent,
+  AndroidTVExtraContext,
+  typeof pairingActor,
+  typeof sessionActor
+>({
+  id: "androidTVDevice",
+  logCategory: "ADB",
+  credentials: null,
+  extraContext: () => ({ instructionStep: 0 }),
+  extraContextOnReset: { instructionStep: 0 },
+  extraActions: {
     nextInstructionStep: assign({
-      instructionStep: ({ context }) => context.instructionStep + 1,
+      instructionStep: ({ context }: { context: AndroidTVExtraContext }) =>
+        context.instructionStep + 1,
     }),
     prevInstructionStep: assign({
-      instructionStep: ({ context }) => context.instructionStep - 1,
+      instructionStep: ({ context }: { context: AndroidTVExtraContext }) =>
+        context.instructionStep - 1,
     }),
     resetInstructionStep: assign({
       instructionStep: 0,
     }),
-    log: ({ context }, params: { message: string }) => {
-      logger.info("ADB", params.message, { ip: context.deviceIp });
-    },
   },
-  guards: {
-    isSetupMode: ({ context }) => context.deviceId === null,
-    canRetry: ({ context }) => context.retryCount < context.maxRetries,
-    hasValidDeviceInfo: (_, params: { name: string; ip: string }) =>
-      params.name.trim().length > 0 && isValidIp(params.ip),
-    missingDeviceName: (_, params: { name: string }) => params.name.trim().length === 0,
-    hasInvalidIp: (_, params: { ip: string }) => !isValidIp(params.ip),
-    hasMoreInstructionSteps: ({ context }) =>
+  extraGuards: {
+    hasMoreInstructionSteps: ({ context }: { context: AndroidTVExtraContext }) =>
       context.instructionStep < INSTRUCTION_STEPS.length - 1,
-    canGoBackInInstructions: ({ context }) => context.instructionStep > 0,
+    canGoBackInInstructions: ({ context }: { context: AndroidTVExtraContext }) =>
+      context.instructionStep > 0,
   },
-  delays: {
-    connectionTimeout: CONNECTION_TIMEOUT,
-    retryDelay: ({ context }) => calculateRetryDelay(context.retryCount),
-    heartbeatInterval: HEARTBEAT_INTERVAL,
-    pairingConnectTimeout: PAIRING_CONNECT_TIMEOUT,
-    pairingUserInputTimeout: PAIRING_USER_INPUT_TIMEOUT,
-  },
-}).createMachine({
-  id: "androidTVDevice",
-  initial: "initializing",
-  context: ({ input }) => {
-    if (!isLoadInput(input)) {
-      return {
-        deviceId: null,
-        deviceName: "",
-        deviceIp: "",
-        retryCount: 0,
-        maxRetries: MAX_SESSION_RETRIES,
-        promptReceived: false,
-        instructionStep: 0,
-      };
-    }
-
-    return {
-      deviceId: input.deviceId,
-      deviceName: input.deviceName,
-      deviceIp: input.deviceIp,
-      retryCount: 0,
-      maxRetries: MAX_SESSION_RETRIES,
-      promptReceived: false,
-      instructionStep: 0,
-    };
-  },
-  states: {
-    initializing: {
-      always: [{ guard: "isSetupMode", target: "setup" }, { target: "disconnected" }],
-    },
-    setup: {
-      on: {
-        SET_DEVICE_INFO: [
-          {
-            guard: {
-              type: "hasValidDeviceInfo",
-              params: ({
-                event,
-              }: {
-                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
-              }) => ({
-                name: event.name,
-                ip: event.ip,
-              }),
+  pairing: {
+    logic: pairingActor,
+    input: (context) => ({ ip: context.deviceIp }),
+    promptTarget: "waitingForUser",
+    entryTarget: "instructions",
+    startActions: ["resetInstructionStep"],
+    extraStates: () => ({
+      instructions: {
+        on: {
+          CONTINUE_INSTRUCTION: [
+            {
+              guard: "hasMoreInstructionSteps",
+              actions: "nextInstructionStep",
             },
-            target: "pairing.instructions",
-            actions: [
-              {
-                type: "setDeviceInfo",
-                params: ({
-                  event,
-                }: {
-                  event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
-                }) => ({
-                  name: event.name,
-                  ip: event.ip,
-                }),
-              },
-              "generateDeviceId",
-              {
+            {
+              target: "active",
+              actions: {
                 type: "log",
-                params: ({ context }) => ({
+                params: ({ context }: { context: { deviceName: string } }) => ({
                   message: `Starting pairing for ${context.deviceName}`,
                 }),
               },
-            ],
-          },
-          {
-            guard: {
-              type: "missingDeviceName",
-              params: ({
-                event,
-              }: {
-                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
-              }) => ({
-                name: event.name,
-              }),
             },
-            actions: {
-              type: "setValidationError",
-              params: { error: "Device name is required" },
+          ],
+          BACK_INSTRUCTION: [
+            {
+              guard: "canGoBackInInstructions",
+              actions: "prevInstructionStep",
             },
-          },
-          {
-            guard: {
-              type: "hasInvalidIp",
-              params: ({
-                event,
-              }: {
-                event: { type: "SET_DEVICE_INFO"; name: string; ip: string };
-              }) => ({
-                ip: event.ip,
-              }),
+            {
+              target: "#androidTVDevice.setup",
+              actions: "resetDeviceInfo",
             },
-            actions: {
-              type: "setValidationError",
-              params: { error: "Invalid IP address" },
-            },
-          },
-        ],
-        CANCEL: { target: "cancelled" },
-      },
-    },
-    pairing: {
-      initial: "idle",
-      on: {
-        RESET_TO_SETUP: {
-          target: "#androidTVDevice.setup",
-          actions: "resetDeviceInfo",
+          ],
         },
       },
-      states: {
-        idle: {
-          on: {
-            START_PAIRING: {
-              target: "instructions",
-              actions: "resetInstructionStep",
-            },
-          },
-        },
-        instructions: {
-          on: {
-            CONTINUE_INSTRUCTION: [
-              {
-                guard: "hasMoreInstructionSteps",
-                actions: "nextInstructionStep",
-              },
-              {
-                target: "active",
-                actions: {
-                  type: "log",
-                  params: ({ context }) => ({
-                    message: `Starting pairing for ${context.deviceName}`,
-                  }),
-                },
-              },
-            ],
-            BACK_INSTRUCTION: [
-              {
-                guard: "canGoBackInInstructions",
-                actions: "prevInstructionStep",
-              },
-              {
-                target: "#androidTVDevice.setup",
-                actions: "resetDeviceInfo",
-              },
-            ],
-          },
-        },
-        active: {
-          initial: "connecting",
-          invoke: {
-            src: "pairingConnection",
-            input: ({ context }) => ({
-              ip: context.deviceIp,
-            }),
-          },
-          on: {
-            PAIRED: {
-              target: "#androidTVDevice.disconnected",
-              actions: {
-                type: "log",
-                params: ({ context }) => ({
-                  message: `Pairing successful for ${context.deviceName}`,
-                }),
-              },
-            },
-            PAIRING_ERROR: {
-              target: ".error",
-              actions: { type: "setError", params: ({ event }) => ({ error: event.error }) },
-            },
-          },
-          states: {
-            connecting: {
-              on: {
-                PROMPT_RECEIVED: {
-                  target: "waitingForUser",
-                  actions: "setPromptReceived",
-                },
-              },
-              after: {
-                pairingConnectTimeout: {
-                  target: "#androidTVDevice.error",
-                  actions: {
-                    type: "setError",
-                    params: {
-                      error: "Pairing timed out — make sure the TV is on and accepting connections",
-                    },
-                  },
-                },
-              },
-            },
-            waitingForUser: {
-              after: {
-                pairingUserInputTimeout: {
-                  target: "#androidTVDevice.error",
-                  actions: {
-                    type: "setError",
-                    params: {
-                      error: "Pairing timed out — make sure the TV is on and accepting connections",
-                    },
-                  },
-                },
-              },
-            },
-            error: {
-              on: {
-                START_PAIRING: { target: "connecting", actions: "clearError" },
-              },
-            },
-          },
-        },
+    }),
+    states: ({ userInputTimeout }) => ({
+      waitingForUser: {
+        after: { pairingUserInputTimeout: userInputTimeout },
       },
-    },
-    disconnected: {
-      entry: {
-        type: "log",
-        params: ({ context }) => ({ message: `Disconnected from ${context.deviceName}` }),
-      },
-      on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
-        FORGET: { target: "pairing.idle" },
-      },
-    },
-    session: {
-      type: "parallel",
-      invoke: {
-        id: "connectionManager",
-        src: "connectionManager",
-        input: ({ context }) => ({
-          ip: context.deviceIp,
-          deviceName: context.deviceName,
-        }),
-      },
-      on: {
-        DISCONNECT: { target: "disconnected", actions: "resetRetry" },
-        CONNECTION_LOST: [
-          {
-            target: ".connection.retrying",
-            guard: "canRetry",
-            actions: [
-              "incrementRetry",
-              { type: "setError", params: ({ event }) => ({ error: event.error ?? "Unknown" }) },
-            ],
-          },
-          {
-            target: "error",
-            actions: { type: "setError", params: { error: "Max retries exceeded" } },
-          },
-        ],
-        HEARTBEAT_FAILED: [
-          {
-            target: ".connection.retrying",
-            guard: "canRetry",
-            actions: [
-              "incrementRetry",
-              { type: "setError", params: ({ event }) => ({ error: event.error }) },
-            ],
-          },
-          {
-            target: "error",
-            actions: { type: "setError", params: { error: "Max retries exceeded" } },
-          },
-        ],
-        FORGET: { target: "pairing.idle", actions: "resetRetry" },
-      },
-      states: {
-        connection: {
-          initial: "connecting",
-          states: {
-            connecting: {
-              entry: {
-                type: "log",
-                params: ({ context }) => ({ message: `Connecting to ${context.deviceName}` }),
-              },
-              on: {
-                CONNECTED: { target: "connected", actions: "resetRetry" },
-              },
-              after: {
-                connectionTimeout: [
-                  {
-                    target: "retrying",
-                    guard: "canRetry",
-                    actions: [
-                      "incrementRetry",
-                      { type: "setError", params: { error: "Connection timed out" } },
-                    ],
-                  },
-                  {
-                    target: "#androidTVDevice.error",
-                    actions: { type: "setError", params: { error: "Connection timed out" } },
-                  },
-                ],
-              },
-            },
-            connected: {
-              entry: {
-                type: "log",
-                params: ({ context }) => ({ message: `Connected to ${context.deviceName}` }),
-              },
-              on: {
-                SEND_KEY: {
-                  actions: sendTo("connectionManager", ({ event }) => event),
-                },
-                SEND_TEXT: {
-                  actions: sendTo("connectionManager", ({ event }) => event),
-                },
-              },
-            },
-            retrying: {
-              entry: {
-                type: "log",
-                params: ({ context }) => ({
-                  message: `Retrying connection (${context.retryCount}/${context.maxRetries})`,
-                }),
-              },
-              after: {
-                retryDelay: { target: "#androidTVDevice.session", reenter: true },
-              },
-            },
-          },
-        },
-        heartbeat: {
-          initial: "waiting",
-          states: {
-            waiting: {
-              on: {
-                CONNECTED: { target: "idle" },
-              },
-            },
-            idle: {
-              after: {
-                heartbeatInterval: { target: "checking" },
-              },
-            },
-            checking: {
-              entry: sendTo("connectionManager", { type: "CHECK_HEARTBEAT" }),
-              on: {
-                HEARTBEAT_OK: { target: "idle" },
-                HEARTBEAT_FAILED: { target: "waiting" },
-              },
-            },
-          },
-        },
-      },
-    },
-    error: {
-      on: {
-        CONNECT: { target: "session", actions: "resetRetry" },
-        DISCONNECT: { target: "disconnected", actions: "resetRetry" },
-        FORGET: { target: "pairing.idle", actions: "resetRetry" },
-      },
-    },
-    cancelled: {
-      type: "final",
-    },
+    }),
+  },
+  session: {
+    logic: sessionActor,
+    input: (context) => ({
+      ip: context.deviceIp,
+      deviceName: context.deviceName,
+    }),
   },
 });
 
