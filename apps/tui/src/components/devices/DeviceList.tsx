@@ -1,9 +1,9 @@
 import { TEXT_DIM, TEXT_MUTED } from "@couch/devices";
 import { useKeyboard } from "@opentui/react";
-import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
 import { useDevice } from "../../hooks/useDevice";
 import { useDeviceStore } from "../../store/deviceStore";
+import { useDialog, useDialogState } from "../../vendor/dialog/react";
 import { type AddDeviceResult, AddDeviceWizard } from "../dialogs/AddDeviceWizard";
 import { RemoveDeviceDialog } from "../dialogs/RemoveDeviceDialog";
 import { HintGroup } from "../shared/HintGroup.tsx";

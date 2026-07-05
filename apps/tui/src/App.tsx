@@ -1,10 +1,10 @@
-import { DialogProvider } from "@opentui-ui/dialog/react";
 import { DPad } from "./components/controls/DPad.tsx";
 import { DeviceList } from "./components/devices/DeviceList.tsx";
 import { Header } from "./components/layout/Header.tsx";
 import { StatusBar } from "./components/layout/StatusBar.tsx";
 import { useAppKeyboard } from "./hooks/useAppKeyboard.ts";
 import { useUIStore } from "./store/uiStore";
+import { DialogProvider } from "./vendor/dialog/react";
 
 function AppContent() {
   const focusPath = useUIStore((s) => s.focusPath);

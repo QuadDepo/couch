@@ -9,10 +9,10 @@ import {
 } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
-import type { PromptContext } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDevice } from "../../hooks/useDevice.ts";
 import { useUIStore } from "../../store/uiStore";
+import type { PromptContext } from "../../vendor/dialog/react";
 import { KeyHint } from "../shared/KeyHint.tsx";
 
 type TextInputModalProps = PromptContext<unknown>;

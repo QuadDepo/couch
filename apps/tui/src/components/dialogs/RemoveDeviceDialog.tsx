@@ -1,6 +1,6 @@
 import { TEXT_PRIMARY, TEXT_SECONDARY, type TVDevice, WARNING_COLOR } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
-import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type PromptContext, useDialogKeyboard } from "../../vendor/dialog/react";
 import { HintGroup } from "../shared/HintGroup.tsx";
 
 interface RemoveDeviceDialogProps {

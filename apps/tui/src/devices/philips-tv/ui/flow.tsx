@@ -13,7 +13,6 @@ import {
   selectDeviceName,
   selectError,
 } from "@couch/devices/philips-tv/selectors";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useActorRef, useSelector } from "@xstate/react";
 import { useState } from "react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
@@ -23,6 +22,7 @@ import {
   DeviceInfoFields,
   useDeviceInfoFields,
 } from "../../../components/shared/DeviceInfoFields.tsx";
+import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { PhilipsPairingStep } from "./steps.tsx";
 
 export function PhilipsPairingFlow({

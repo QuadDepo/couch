@@ -11,9 +11,8 @@
   },
   "dependencies": {
     "@couch/devices": "workspace:*",
-    "@opentui-ui/dialog": "^0.1.2",
-    "@opentui/core": "^0.1.72",
-    "@opentui/react": "^0.1.72",
+    "@opentui/core": "0.4.3",
+    "@opentui/react": "0.4.3",
     "@xstate/react": "^6.1.0",
     "react": "^19.2.7",
     "xstate": "^5.32.4",

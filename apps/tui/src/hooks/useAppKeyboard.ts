@@ -1,6 +1,6 @@
 import { useKeyboard } from "@opentui/react";
-import { useDialogState } from "@opentui-ui/dialog/react";
 import { useUIStore } from "../store/uiStore";
+import { useDialogState } from "../vendor/dialog/react";
 
 export function useAppKeyboard(): void {
   const focusPath = useUIStore((s) => s.focusPath);

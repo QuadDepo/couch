@@ -13,7 +13,6 @@ import {
   selectDeviceName,
   selectError,
 } from "@couch/devices/android-tv/selectors";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useActorRef, useSelector } from "@xstate/react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
 import type { PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
@@ -22,6 +21,7 @@ import {
   DeviceInfoFields,
   useDeviceInfoFields,
 } from "../../../components/shared/DeviceInfoFields.tsx";
+import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { AndroidTVInstructionsStep, AndroidTVPairingStep } from "./steps.tsx";
 
 export function AndroidTVPairingFlow({

@@ -1,5 +1,5 @@
 import type { DeviceActor, TVDevice } from "@couch/devices";
-import type { DialogId } from "@opentui-ui/dialog/react";
+import type { DialogId } from "../../../vendor/dialog/react";
 
 export interface PairingFlowResult {
   device: TVDevice;

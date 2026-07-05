@@ -14,7 +14,6 @@ import {
   selectError,
   selectPairingCode,
 } from "@couch/devices/android-tv-remote/selectors";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useActorRef, useSelector } from "@xstate/react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
 import type { PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
@@ -23,6 +22,7 @@ import {
   DeviceInfoFields,
   useDeviceInfoFields,
 } from "../../../components/shared/DeviceInfoFields.tsx";
+import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { AndroidTvRemotePairingStep } from "./steps.tsx";
 
 const HEX_CHARS = /^[0-9a-fA-F]$/;

@@ -1,12 +1,12 @@
 import { type ImplementedPlatform, implementedPlatforms } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
-import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { type ReactNode, useCallback, useState } from "react";
 import { AndroidTVPairingFlow } from "../../devices/android-tv/ui/flow.tsx";
 import { AndroidTvRemotePairingFlow } from "../../devices/android-tv-remote/ui/flow.tsx";
 import { WebOSPairingFlow } from "../../devices/lg-webos/ui/flow.tsx";
 import { PhilipsPairingFlow } from "../../devices/philips-tv/ui/flow.tsx";
 import { TizenPairingFlow } from "../../devices/samsung-tizen/ui/flow.tsx";
+import { type PromptContext, useDialogKeyboard } from "../../vendor/dialog/react";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
 import type { PairingFlowProps, PairingFlowResult } from "./wizard/types.ts";
 
