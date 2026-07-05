@@ -42,7 +42,7 @@
   "dependencies": {
     "@statelyai/inspect": "^0.7.2",
     "node-forge": "^1.4.0",
-    "protobufjs": "^7.6.5",
+    "protobufjs": "^8.6.6",
     "valibot": "^1.4.2",
     "xstate": "^5.32.4"
   },
