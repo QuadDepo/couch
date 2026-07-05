@@ -13,159 +13,137 @@ import {
   selectDeviceName,
   selectError,
 } from "@couch/devices/philips-tv/selectors";
+import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useActorRef, useSelector } from "@xstate/react";
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { useState } from "react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
-import type {
-  PairingFlowHandle,
-  PairingFlowProps,
-} from "../../../components/dialogs/wizard/types.ts";
+import type { PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
 import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
 import {
   DeviceInfoFields,
-  type DeviceInfoFieldsRef,
+  useDeviceInfoFields,
 } from "../../../components/shared/DeviceInfoFields.tsx";
 import { PhilipsPairingStep } from "./steps.tsx";
 
-export const PhilipsPairingFlow = forwardRef<PairingFlowHandle, PairingFlowProps>(
-  function PhilipsPairingFlow({ onComplete }, ref) {
-    const actorRef = useActorRef(philipsDeviceMachine, {
-      input: { platform: "philips-tv" as const },
-      inspect: inspector?.inspect,
-    });
+export function PhilipsPairingFlow({
+  dialogId,
+  onComplete,
+  onCancel,
+  onBackToPlatformSelection,
+}: PairingFlowProps) {
+  const actorRef = useActorRef(philipsDeviceMachine, {
+    input: { platform: "philips-tv" as const },
+    inspect: inspector?.inspect,
+  });
 
-    const deviceInfoRef = useRef<DeviceInfoFieldsRef>(null);
+  const deviceInfo = useDeviceInfoFields();
 
-    // PIN input state (Philips-specific)
-    const [pinInput, setPinInput] = useState("");
+  // PIN input state (Philips-specific)
+  const [pinInput, setPinInput] = useState("");
 
-    // Flow state selectors
-    const isSetupState = useSelector(actorRef, isSetup);
-    const isPairingState = useSelector(actorRef, isPairing);
-    const isCompleteState = useSelector(actorRef, isComplete);
-    const isErrorState = useSelector(actorRef, isPairingError);
-    const isWaitingForPinState = useSelector(actorRef, isPairingWaitingForPin);
+  const isSetupState = useSelector(actorRef, isSetup);
+  const isPairingState = useSelector(actorRef, isPairing);
+  const isCompleteState = useSelector(actorRef, isComplete);
+  const isErrorState = useSelector(actorRef, isPairingError);
+  const isWaitingForPinState = useSelector(actorRef, isPairingWaitingForPin);
 
-    // Context selectors
-    const deviceName = useSelector(actorRef, selectDeviceName);
-    const error = useSelector(actorRef, selectError);
+  const deviceName = useSelector(actorRef, selectDeviceName);
+  const error = useSelector(actorRef, selectError);
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        canGoBack: () => isSetupState || isPairingState,
+  useDialogKeyboard((event) => {
+    if (event.name === "escape") {
+      actorRef.stop();
+      onCancel();
+      return;
+    }
 
-        canContinue: () => {
-          if (isSetupState) return deviceInfoRef.current?.isValid ?? false;
-          if (isWaitingForPinState) return pinInput.length === 4;
-          if (isErrorState) return true;
-          if (isCompleteState) return true;
-          return false;
-        },
+    if (event.name === "backspace" && event.ctrl) {
+      if (isPairingState) {
+        actorRef.send({ type: "RESET_TO_SETUP" });
+        setPinInput("");
+        deviceInfo.reset();
+      } else if (isSetupState) {
+        onBackToPlatformSelection();
+      }
+      return;
+    }
 
-        handleBack: () => {
-          if (isPairingState) {
-            actorRef.send({ type: "RESET_TO_SETUP" });
-            setPinInput("");
-            deviceInfoRef.current?.reset();
-            return false; // Stay in flow (went back to setup)
-          }
-          return true; // Exit to platform selection
-        },
-
-        handleContinue: () => {
-          const info = deviceInfoRef.current;
-          if (isSetupState && info?.isValid) {
-            actorRef.send({ type: "SET_DEVICE_INFO", name: info.name, ip: info.ip });
-            return;
-          }
-          if (isWaitingForPinState && pinInput.length === 4) {
-            actorRef.send({ type: "SUBMIT_PIN", pin: pinInput });
-            return;
-          }
-          if (isErrorState) {
-            setPinInput("");
-            actorRef.send({ type: "START_PAIRING" });
-            return;
-          }
-          if (isCompleteState) {
-            const snapshot = actorRef.getSnapshot();
-            const { deviceId, deviceName, deviceIp, credentials } = snapshot.context;
-            if (!deviceId) return;
-
-            const device: TVDevice = {
-              id: deviceId,
-              name: deviceName,
-              ip: deviceIp,
-              platform: "philips-tv",
-              config: wrapPlatformCredentials("philips-tv", credentials),
-            };
-            onComplete({ device, actor: actorRef });
-          }
-        },
-
-        handleChar: (char) => {
+    switch (event.name) {
+      case "return":
+        if (isSetupState && deviceInfo.isValid) {
+          actorRef.send({ type: "SET_DEVICE_INFO", name: deviceInfo.name, ip: deviceInfo.ip });
+        } else if (isWaitingForPinState && pinInput.length === 4) {
+          actorRef.send({ type: "SUBMIT_PIN", pin: pinInput });
+        } else if (isErrorState) {
+          setPinInput("");
+          actorRef.send({ type: "START_PAIRING" });
+        } else if (isCompleteState) {
+          const {
+            deviceId,
+            deviceName: name,
+            deviceIp,
+            credentials,
+          } = actorRef.getSnapshot().context;
+          if (!deviceId) return;
+          const device: TVDevice = {
+            id: deviceId,
+            name,
+            ip: deviceIp,
+            platform: "philips-tv",
+            config: wrapPlatformCredentials("philips-tv", credentials),
+          };
+          onComplete({ device, actor: actorRef });
+        }
+        break;
+      case "backspace":
+        if (isSetupState) {
+          deviceInfo.handleBackspace();
+        } else if (isWaitingForPinState) {
+          setPinInput((p) => p.slice(0, -1));
+        }
+        break;
+      case "tab":
+        if (isSetupState) deviceInfo.handleTab();
+        break;
+      default:
+        if (event.sequence?.length === 1) {
           if (isSetupState) {
-            deviceInfoRef.current?.handleChar(char);
-          } else if (isWaitingForPinState && pinInput.length < 4 && /^\d$/.test(char)) {
-            setPinInput((p) => p + char);
+            deviceInfo.handleChar(event.sequence);
+          } else if (isWaitingForPinState && pinInput.length < 4 && /^\d$/.test(event.sequence)) {
+            setPinInput((p) => p + event.sequence);
           }
-        },
+        }
+    }
+  }, dialogId);
 
-        handleBackspace: () => {
-          if (isSetupState) {
-            deviceInfoRef.current?.handleBackspace();
-          } else if (isWaitingForPinState) {
-            setPinInput((p) => p.slice(0, -1));
-          }
-        },
-
-        handleTab: () => {
-          if (isSetupState) {
-            deviceInfoRef.current?.handleTab();
-          }
-        },
-
-        cleanup: () => {
-          actorRef.stop();
-        },
-      }),
-      [
-        isSetupState,
-        isPairingState,
-        isCompleteState,
-        isErrorState,
-        isWaitingForPinState,
-        pinInput,
-        actorRef,
-        onComplete,
-      ],
+  if (isSetupState) {
+    return (
+      <WizardShell stepLabel="Device Info" progress="1/3">
+        <DeviceInfoFields
+          name={deviceInfo.name}
+          ip={deviceInfo.ip}
+          activeField={deviceInfo.activeField}
+          error={error}
+        />
+      </WizardShell>
     );
+  }
 
-    if (isSetupState) {
-      return (
-        <WizardShell stepLabel="Device Info" progress="1/3">
-          <DeviceInfoFields ref={deviceInfoRef} error={error} />
-        </WizardShell>
-      );
-    }
+  if (isPairingState) {
+    return (
+      <WizardShell stepLabel="Pairing" progress="2/3">
+        <PhilipsPairingStep actorRef={actorRef} pinInput={pinInput} />
+      </WizardShell>
+    );
+  }
 
-    if (isPairingState) {
-      return (
-        <WizardShell stepLabel="Pairing" progress="2/3">
-          <PhilipsPairingStep actorRef={actorRef} pinInput={pinInput} />
-        </WizardShell>
-      );
-    }
+  if (isCompleteState) {
+    return (
+      <WizardShell stepLabel="Complete" progress="3/3">
+        <CompletionStep deviceName={deviceName || deviceInfo.name || "Device"} />
+      </WizardShell>
+    );
+  }
 
-    if (isCompleteState) {
-      return (
-        <WizardShell stepLabel="Complete" progress="3/3">
-          <CompletionStep deviceName={deviceName || deviceInfoRef.current?.name || "Device"} />
-        </WizardShell>
-      );
-    }
-
-    return null;
-  },
-);
+  return null;
+}

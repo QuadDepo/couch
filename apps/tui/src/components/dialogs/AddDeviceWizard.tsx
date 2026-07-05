@@ -1,26 +1,18 @@
 import { type ImplementedPlatform, implementedPlatforms } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
 import { type PromptContext, useDialogKeyboard } from "@opentui-ui/dialog/react";
-import {
-  type ForwardRefExoticComponent,
-  type RefAttributes,
-  useCallback,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { AndroidTVPairingFlow } from "../../devices/android-tv/ui/flow.tsx";
 import { AndroidTvRemotePairingFlow } from "../../devices/android-tv-remote/ui/flow.tsx";
 import { WebOSPairingFlow } from "../../devices/lg-webos/ui/flow.tsx";
 import { PhilipsPairingFlow } from "../../devices/philips-tv/ui/flow.tsx";
 import { TizenPairingFlow } from "../../devices/samsung-tizen/ui/flow.tsx";
 import { PlatformSelectionStep } from "./wizard/PlatformSelectionStep.tsx";
-import type { PairingFlowHandle, PairingFlowProps, PairingFlowResult } from "./wizard/types.ts";
+import type { PairingFlowProps, PairingFlowResult } from "./wizard/types.ts";
 
 export type { PairingFlowResult as AddDeviceResult };
 
-type PairingFlowComponent = ForwardRefExoticComponent<
-  PairingFlowProps & RefAttributes<PairingFlowHandle>
->;
+type PairingFlowComponent = (props: PairingFlowProps) => ReactNode;
 
 const PLATFORM_FLOWS: Record<ImplementedPlatform, PairingFlowComponent> = {
   "lg-webos": WebOSPairingFlow,
@@ -35,8 +27,6 @@ export function AddDeviceWizard({
   dismiss,
   dialogId,
 }: PromptContext<PairingFlowResult | null>) {
-  const flowRef = useRef<PairingFlowHandle>(null);
-
   const [platform, setPlatform] = useState<ImplementedPlatform | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -47,71 +37,32 @@ export function AddDeviceWizard({
     [resolve],
   );
 
-  const handleCancel = useCallback(() => {
-    flowRef.current?.cleanup();
-    dismiss();
-  }, [dismiss]);
-
   const handleBackToPlatformSelection = useCallback(() => {
     setPlatform(null);
   }, []);
 
   useDialogKeyboard((event) => {
-    // Platform selection phase
-    if (!platform) {
-      switch (event.name) {
-        case "up":
-          setSelectedIndex((i) => Math.max(0, i - 1));
-          break;
-        case "down":
-          setSelectedIndex((i) => Math.min(implementedPlatforms.length - 1, i + 1));
-          break;
-        case "return": {
-          const selectedPlatform = implementedPlatforms[selectedIndex];
-          if (selectedPlatform) {
-            setPlatform(selectedPlatform.id as ImplementedPlatform);
-          }
-          break;
-        }
-        case "escape":
-          handleCancel();
-          break;
-      }
-      return;
-    }
-
-    // Platform flow phase - delegate to flow via ref
-    if (event.name === "escape") {
-      handleCancel();
-      return;
-    }
-
-    if (event.name === "backspace" && event.ctrl) {
-      if (flowRef.current?.canGoBack()) {
-        const shouldExitToSelection = flowRef.current.handleBack();
-        if (shouldExitToSelection) {
-          handleBackToPlatformSelection();
-        }
-      }
-      return;
-    }
+    // Platform-selection phase only. Once a platform is chosen the active flow
+    // owns keyboard handling (char/backspace/tab/enter, escape, and back).
+    if (platform) return;
 
     switch (event.name) {
-      case "return":
-        if (flowRef.current?.canContinue()) {
-          flowRef.current.handleContinue();
+      case "up":
+        setSelectedIndex((i) => Math.max(0, i - 1));
+        break;
+      case "down":
+        setSelectedIndex((i) => Math.min(implementedPlatforms.length - 1, i + 1));
+        break;
+      case "return": {
+        const selectedPlatform = implementedPlatforms[selectedIndex];
+        if (selectedPlatform) {
+          setPlatform(selectedPlatform.id as ImplementedPlatform);
         }
         break;
-      case "backspace":
-        flowRef.current?.handleBackspace();
+      }
+      case "escape":
+        dismiss();
         break;
-      case "tab":
-        flowRef.current?.handleTab();
-        break;
-      default:
-        if (event.sequence?.length === 1) {
-          flowRef.current?.handleChar(event.sequence);
-        }
     }
   }, dialogId);
 
@@ -136,5 +87,12 @@ export function AddDeviceWizard({
 
   // Platform-specific flow phase
   const FlowComponent = PLATFORM_FLOWS[platform];
-  return <FlowComponent ref={flowRef} onComplete={handleComplete} />;
+  return (
+    <FlowComponent
+      dialogId={dialogId}
+      onComplete={handleComplete}
+      onCancel={dismiss}
+      onBackToPlatformSelection={handleBackToPlatformSelection}
+    />
+  );
 }
