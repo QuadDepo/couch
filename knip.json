@@ -1,9 +1,7 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
-    ".": {
-      "ignoreBinaries": ["tsc"]
-    },
+    ".": {},
     "packages/devices": {
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreMembers": [
