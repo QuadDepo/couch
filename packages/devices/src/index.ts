@@ -17,7 +17,7 @@ export {
 } from "./constants/colors";
 
 // Actor types
-export type { DeviceActor, StoredDeviceActor } from "./devices/actors";
+export type { DeviceActor, DeviceSnapshot, StoredDeviceActor } from "./devices/actors";
 export { capabilities as androidTVCapabilities } from "./devices/android-tv/capabilities";
 export type {
   AndroidTVDeviceMachine,
@@ -69,7 +69,6 @@ export type {
   TizenDeviceMachineActor,
 } from "./devices/samsung-tizen/machines/device";
 export { tizenDeviceMachine } from "./devices/samsung-tizen/machines/device";
-export type { DeviceSnapshot } from "./devices/selectors";
 // Selectors
 export { selectConnectionStatus } from "./devices/selectors";
 export type {

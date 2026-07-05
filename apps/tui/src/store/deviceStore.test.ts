@@ -37,7 +37,8 @@ mock.module("@couch/devices", () => ({
 const { useDeviceStore } = await import("./deviceStore");
 
 function createMockActor() {
-  // Cast needed because the store expects a DeviceActor union type
+  // The bare mock machine lacks the device context fields DeviceActor requires,
+  // so call sites cast; the store only calls start/stop on it
   return createActor(machine) as unknown as ReturnType<typeof createActor>;
 }
 

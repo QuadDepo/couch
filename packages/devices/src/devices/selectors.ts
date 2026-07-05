@@ -1,16 +1,5 @@
 import type { ConnectionStatus } from "../types";
-import type { AndroidTVDeviceMachineSnapshot } from "./android-tv/selectors";
-import type { AndroidTvRemoteDeviceMachineSnapshot } from "./android-tv-remote/selectors";
-import type { WebOSSnapshot } from "./lg-webos/selectors";
-import type { PhilipsSnapshot } from "./philips-tv/selectors";
-import type { TizenSnapshot } from "./samsung-tizen/selectors";
-
-export type DeviceSnapshot =
-  | WebOSSnapshot
-  | AndroidTVDeviceMachineSnapshot
-  | AndroidTvRemoteDeviceMachineSnapshot
-  | PhilipsSnapshot
-  | TizenSnapshot;
+import type { DeviceSnapshot } from "./actors";
 
 // TODO: split priority logic into a pure function for testability
 export const selectConnectionStatus = (snapshot: DeviceSnapshot | undefined): ConnectionStatus => {

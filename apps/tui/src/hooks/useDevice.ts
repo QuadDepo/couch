@@ -30,9 +30,6 @@ interface UseDeviceResult {
   disconnect: () => void;
 }
 
-// Typed send that avoids TS2590 from DeviceActor union expansion in actor.send()
-type SendEvent = (event: CommonDeviceEvent) => void;
-
 export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
   const selectedDevice = useSelectedDevice();
   // undefined = use selected device, explicit null/device = use what was passed
@@ -49,8 +46,9 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
     return platformRegistry[device.platform as ImplementedPlatform]?.capabilities ?? null;
   }, [device?.platform]);
 
+  // Stable identity: recreating send per render caused a re-render regression
   const send = useMemo(
-    (): SendEvent | undefined => (actor ? (actor.send.bind(actor) as SendEvent) : undefined),
+    () => (actor ? (event: CommonDeviceEvent) => actor.send(event) : undefined),
     [actor],
   );
 
