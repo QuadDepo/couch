@@ -151,7 +151,7 @@ export function createAndroidTvRemoteConnection(
         reject(new Error("Connection timeout"));
       }, timeout);
 
-      socket = tls.connect(
+      const conn = tls.connect(
         {
           host: ip,
           port: REMOTE_PORT,
@@ -168,8 +168,9 @@ export function createAndroidTvRemoteConnection(
           resolve();
         },
       );
+      socket = conn;
 
-      socket.on("data", (data: Buffer) => {
+      conn.on("data", (data: Buffer) => {
         logger.debug("AndroidTVRemote", `Received ${data.length} bytes from TV`);
         frameReader.append(new Uint8Array(data));
         for (let message = frameReader.read(); message; message = frameReader.read()) {
@@ -177,7 +178,7 @@ export function createAndroidTvRemoteConnection(
         }
       });
 
-      socket.on("error", (error) => {
+      conn.on("error", (error: Error) => {
         clearTimeout(timeoutId);
         logger.error("AndroidTVRemote", `Connection error: ${error.message}`);
         emit("error", error);
@@ -186,11 +187,11 @@ export function createAndroidTvRemoteConnection(
         }
       });
 
-      socket.on("end", () => {
+      conn.on("end", () => {
         logger.debug("AndroidTVRemote", "Socket end event - TV closed connection");
       });
 
-      socket.on("close", (hadError) => {
+      conn.on("close", (hadError: boolean) => {
         const wasConnected = connected && configReceived;
         connected = false;
         configReceived = false;

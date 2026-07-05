@@ -208,7 +208,7 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
       // Start timeout for initial connection
       startPairingTimeout(reject, "connection");
 
-      socket = tls.connect(
+      const conn = tls.connect(
         {
           host: ip,
           port: PAIRING_PORT,
@@ -219,7 +219,7 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
         () => {
           logger.info("AndroidTVRemote", "TLS connection established");
 
-          const peerCert = socket?.getPeerCertificate();
+          const peerCert = conn.getPeerCertificate();
           state.serverCertPem = peerCert?.raw
             ? `-----BEGIN CERTIFICATE-----\n${Buffer.from(peerCert.raw).toString("base64")}\n-----END CERTIFICATE-----`
             : null;
@@ -234,8 +234,9 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
           resolve();
         },
       );
+      socket = conn;
 
-      socket.on("data", (data: Buffer) => {
+      conn.on("data", (data: Buffer) => {
         const bytes = new Uint8Array(data);
         logger.debug("AndroidTVRemote", `Received raw data: ${data.length} bytes: ${toHex(bytes)}`);
         frameReader.append(bytes);
@@ -244,7 +245,7 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
         }
       });
 
-      socket.on("error", (error) => {
+      conn.on("error", (error: Error) => {
         clearPairingTimeout();
         logger.error("AndroidTVRemote", `Pairing connection error: ${error.message}`);
         phase = "error";
@@ -252,7 +253,7 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
         reject(error);
       });
 
-      socket.on("close", () => {
+      conn.on("close", () => {
         clearPairingTimeout();
         logger.info("AndroidTVRemote", `Pairing connection closed, phase=${phase}`);
         if (phase !== "complete") {

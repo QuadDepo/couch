@@ -1,6 +1,6 @@
 import type { ConnectionStatus, RemoteKey, TVDevice, TVPlatform } from "../types";
 
-export type { TVDevice, TVPlatform, ConnectionStatus, RemoteKey };
+export type { ConnectionStatus, RemoteKey, TVDevice, TVPlatform };
 
 export type KeyMap = Partial<Record<RemoteKey, string | number>>;
 
