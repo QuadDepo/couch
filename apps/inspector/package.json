@@ -1,0 +1,11 @@
+{
+  "name": "@couch/inspector",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "main": "src/server.ts",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "build": "bun build src/server.ts --outdir dist --target bun --format esm && cp src/bridge.html dist/bridge.html"
+  }
+}

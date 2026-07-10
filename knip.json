@@ -23,7 +23,7 @@
         "ADJUST_VOLUME_LEVEL"
       ]
     },
-    "packages/inspector": {
+    "apps/inspector": {
       "project": ["src/**/*.{ts,tsx}"]
     },
     "apps/tui": {
