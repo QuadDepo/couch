@@ -1,24 +1,25 @@
 import { fromCallback } from "xstate";
+import {
+  canonicalLockResourceId,
+  createDeviceLock,
+  DEFAULT_DEVICE_LOCK_DIRECTORY,
+  type DeviceLock,
+  type DeviceLockHandle,
+} from "../../../../runtime/deviceLock";
+import type { DeviceDriver } from "../../../../runtime/types";
 import type { RemoteKey } from "../../../../types";
 import { logger } from "../../../../utils/logger";
-import type { RemoteInputSocket } from "../../connection";
+import { awaitSessionHandoff, publishSessionHandoff } from "../../../shared/sessionHandoff";
 import { createWebOSConnection } from "../../connection";
 import type { WebOSCredentials } from "../../credentials";
-import { getInputSocketCommand, isInputSocketKey, keymap } from "../../keymap";
-import {
-  URI_DELETE_CHARACTERS,
-  URI_INSERT_TEXT,
-  URI_SEND_ENTER_KEY,
-  URI_SET_MUTE,
-} from "../../protocol";
-
-// Delay to allow on-screen keyboard to close before sending ENTER key
-const OSK_CLOSE_DELAY_MS = 100;
+import { createLgWebosDriver, type LgWebosDriverConfig } from "../../driver";
+import { keymap } from "../../keymap";
 
 export interface SessionInput {
   ip: string;
   credentials: WebOSCredentials;
   deviceName: string;
+  deviceId: string;
   useSsl?: boolean;
 }
 
@@ -28,19 +29,52 @@ export type SessionEvent =
   | { type: "HEARTBEAT_OK" }
   | { type: "HEARTBEAT_FAILED"; error: string }
   | { type: "MUTE_STATE_CHANGED"; mute: boolean }
-  // Received from parent
   | { type: "SEND_KEY"; key: RemoteKey }
   | { type: "SEND_TEXT"; text: string }
   | { type: "CHECK_HEARTBEAT" };
 
-export const sessionActor = fromCallback<SessionEvent, SessionInput>(
-  ({ input, sendBack, receive }) => {
-    const useSsl = input.useSsl ?? false;
+export interface LgWebosSessionDependencies {
+  createDriver?: (
+    config: LgWebosDriverConfig,
+    dependencies: {
+      connection: ReturnType<typeof createWebOSConnection>;
+      onMuteStateChanged: (mute: boolean) => void;
+    },
+  ) => DeviceDriver;
+  createLock?: (directory: string) => DeviceLock;
+  createConnection?: (config: {
+    ip: string;
+    mac: string;
+    clientKey?: string;
+    timeout: number;
+    reconnect: number;
+    useSsl: boolean;
+  }) => ReturnType<typeof createWebOSConnection>;
+  lockDirectory?: string;
+}
+
+const defaultLockDirectory = process.env.COUCH_DEVICE_LOCK_DIR ?? DEFAULT_DEVICE_LOCK_DIRECTORY;
+
+export function createLgWebosSessionActor(dependencies: LgWebosSessionDependencies = {}) {
+  const makeLock = dependencies.createLock ?? ((directory) => createDeviceLock(directory));
+  const makeConnection = dependencies.createConnection ?? createWebOSConnection;
+  const makeDriver =
+    dependencies.createDriver ??
+    ((config, driverDependencies) => createLgWebosDriver(config, driverDependencies));
+  const lockDirectory = dependencies.lockDirectory ?? defaultLockDirectory;
+
+  return fromCallback<SessionEvent, SessionInput>(({ input, sendBack, receive }) => {
+    const useSsl = input.useSsl ?? input.credentials.useSsl ?? false;
     logger.info("WebOS", `Starting session connection to ${input.deviceName} (SSL: ${useSsl})`, {
       ip: input.ip,
     });
 
-    const connection = createWebOSConnection({
+    const resourceId = canonicalLockResourceId({
+      id: input.deviceId,
+      platform: "lg-webos",
+      ip: input.ip,
+    });
+    const connection = makeConnection({
       ip: input.ip,
       mac: input.credentials.mac ?? "",
       clientKey: input.credentials.clientKey,
@@ -48,197 +82,134 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
       reconnect: 0,
       useSsl,
     });
+    const driver = makeDriver(
+      { ip: input.ip, credentials: input.credentials, useSsl },
+      { connection, onMuteStateChanged: (mute) => sendBack({ type: "MUTE_STATE_CHANGED", mute }) },
+    );
+    const lock = makeLock(lockDirectory);
+    const sessionController = new AbortController();
+    const operationControllers = new Set<AbortController>();
+    const operations = new Set<Promise<void>>();
+    let lockHandle: DeviceLockHandle | undefined;
+    let connected = false;
+    let closed = false;
 
-    let inputSocket: RemoteInputSocket | null = null;
-    let muteState = false;
-    let isConnected = false;
-
-    // Connection established
-    connection.on("connect", () => {
-      isConnected = true;
-      logger.info("WebOS", `Connected to ${input.deviceName}`);
-      sendBack({ type: "CONNECTED" });
-
-      // Set up input socket and subscribe to mute state
-      // Note: Failures here are non-critical. Input socket will be lazily loaded
-      // on first use, and mute subscription is just for status display
-      connection
-        .getInputSocket()
-        .then((socket) => {
-          inputSocket = socket;
-          logger.debug("WebOS", "Input socket ready");
-        })
-        .catch((err) => {
-          logger.warn(
-            "WebOS",
-            `Failed to get input socket on connect (will retry on first use): ${err}`,
-          );
-        });
-
-      connection
-        .subscribe("ssap://audio/getStatus", {}, (data) => {
-          if (data.mute !== undefined) {
-            muteState = data.mute;
-            sendBack({ type: "MUTE_STATE_CHANGED", mute: data.mute });
-          }
-        })
-        .catch((err) => {
-          logger.warn("WebOS", `Failed to subscribe to mute status: ${err}`);
-        });
-    });
-
-    // Connection closed
-    connection.on("close", () => {
-      if (isConnected) {
-        isConnected = false;
-        logger.info("WebOS", `Connection closed to ${input.deviceName}`);
-        sendBack({ type: "CONNECTION_LOST", error: "Connection closed" });
-      }
-    });
-
-    // Connection error
-    connection.on("error", (error) => {
-      logger.error("WebOS", `Connection error: ${error}`);
+    const reportFailure = (error: unknown) => {
+      if (closed) return;
+      connected = false;
       sendBack({ type: "CONNECTION_LOST", error: String(error) });
+    };
+
+    connection.on("close", () => {
+      if (connected) reportFailure("Connection closed");
+    });
+    connection.on("error", (error) => {
+      reportFailure(error);
     });
 
-    // Helper to send enter key via IME then input socket
-    const sendEnterKey = async () => {
-      // First send the IME enter key to close the OSK, then send ENTER via input socket
-      // to actually trigger the search/submit action
-      try {
-        await connection.request(URI_SEND_ENTER_KEY, {});
-        // Small delay to let the OSK close, then send the actual ENTER key
-        await new Promise((resolve) => setTimeout(resolve, OSK_CLOSE_DELAY_MS));
-        if (!inputSocket) {
-          try {
-            inputSocket = await connection.getInputSocket();
-          } catch (err) {
-            logger.warn("WebOS", `Could not get input socket for ENTER: ${err}`);
-            return;
-          }
-        }
-        inputSocket.send("button", { name: "ENTER" });
-        logger.debug("WebOS", "Sent ENTER via input socket after IME sendEnterKey");
-      } catch (error) {
-        logger.error("WebOS", `Enter key send failed: ${error}`);
-        sendBack({ type: "CONNECTION_LOST", error: `Enter key command failed: ${error}` });
-      }
-    };
-
-    // Helper to delete characters
-    const deleteCharacters = async (count: number) => {
-      try {
-        await connection.request(URI_DELETE_CHARACTERS, { count });
-        logger.debug("WebOS", `Deleted ${count} character(s)`);
-      } catch (error) {
-        logger.error("WebOS", `Delete characters failed: ${error}`);
-        sendBack({
-          type: "CONNECTION_LOST",
-          error: `Delete characters command failed: ${error}`,
+    const track = (operation: Parameters<DeviceDriver["execute"]>[0]) => {
+      const controller = new AbortController();
+      operationControllers.add(controller);
+      const task = Promise.resolve()
+        .then(() => driver.execute(operation, { signal: controller.signal }))
+        .then(() => undefined)
+        .catch((error) => {
+          if (!closed) reportFailure(error);
+        })
+        .finally(() => {
+          operationControllers.delete(controller);
+          operations.delete(task);
         });
+      operations.add(task);
+      return task;
+    };
+
+    const runConnection = async () => {
+      try {
+        await awaitSessionHandoff(resourceId);
+        if (closed) return;
+        lockHandle = await lock.acquire(resourceId, { signal: sessionController.signal });
+        if (closed) {
+          await Promise.resolve(driver.close()).catch(() => undefined);
+          await lockHandle.release().catch(() => undefined);
+          lockHandle = undefined;
+          return;
+        }
+        await driver.open({ signal: sessionController.signal });
+        if (closed) {
+          await Promise.resolve(driver.close()).catch(() => undefined);
+          await lockHandle?.release().catch(() => undefined);
+          lockHandle = undefined;
+          return;
+        }
+        connected = true;
+        logger.info("WebOS", `Connected to ${input.deviceName}`);
+        sendBack({ type: "CONNECTED" });
+      } catch (error) {
+        if (!closed) {
+          logger.error("WebOS", `Connection failed: ${error}`);
+          reportFailure(error);
+        }
       }
     };
 
-    // Handle commands from the parent machine
     receive((event) => {
       if (event.type === "CHECK_HEARTBEAT") {
-        if (isConnected && connection.isConnected()) {
-          sendBack({ type: "HEARTBEAT_OK" });
-        } else {
-          logger.warn("WebOS", "Heartbeat failed - connection lost");
-          sendBack({ type: "HEARTBEAT_FAILED", error: "Connection lost" });
-        }
+        void Promise.resolve(connected && driver.isReady())
+          .then((ready) =>
+            sendBack(
+              ready
+                ? { type: "HEARTBEAT_OK" }
+                : { type: "HEARTBEAT_FAILED", error: "Connection lost" },
+            ),
+          )
+          .catch((error) => sendBack({ type: "HEARTBEAT_FAILED", error: String(error) }));
         return;
       }
 
       if (event.type === "SEND_KEY") {
-        const key = event.key;
-        const keyCode = keymap[key];
-
-        if (!keyCode) {
-          logger.warn("WebOS", `Unsupported key: ${key}`);
+        if (!keymap[event.key]) {
+          logger.warn("WebOS", `Unsupported key: ${event.key}`);
           return;
         }
-
-        if (!connection.isConnected()) {
+        if (!connected) {
           logger.warn("WebOS", "Cannot send key: not connected");
           return;
         }
-
-        (async () => {
-          try {
-            if (isInputSocketKey(String(keyCode))) {
-              if (!inputSocket) {
-                try {
-                  inputSocket = await connection.getInputSocket();
-                } catch (err) {
-                  logger.error("WebOS", `Failed to get input socket: ${err}`);
-                  sendBack({ type: "CONNECTION_LOST", error: `Input socket unavailable: ${err}` });
-                  return;
-                }
-              }
-              const command = getInputSocketCommand(keyCode);
-              inputSocket.send("button", { name: command });
-              logger.debug("WebOS", `Sent key via input socket: ${key}`);
-            } else if (String(keyCode) === URI_SET_MUTE) {
-              await connection.request(String(keyCode), { mute: !muteState });
-              muteState = !muteState;
-              logger.debug("WebOS", `Toggled mute: ${muteState}`);
-            } else {
-              await connection.request(String(keyCode), {});
-              logger.debug("WebOS", `Sent key via request: ${key}`);
-            }
-          } catch (error) {
-            logger.error("WebOS", `Key send failed: ${error}`);
-            sendBack({ type: "CONNECTION_LOST", error: `Command failed: ${error}` });
-          }
-        })();
+        void track({ kind: "control.press", key: event.key });
+        return;
       }
 
       if (event.type === "SEND_TEXT") {
-        const text = event.text;
-
-        if (!connection.isConnected()) {
+        if (!connected) {
           logger.warn("WebOS", "Cannot send text: not connected");
           return;
         }
-
-        // Handle special control characters with dedicated IME commands
-        if (text === "\n") {
-          // Enter/Return - trigger search/go action
-          sendEnterKey();
-          return;
-        }
-
-        if (text === "\b") {
-          // Backspace - delete one character
-          deleteCharacters(1);
-          return;
-        }
-
-        // Regular text - use insertText API
-        connection.request(URI_INSERT_TEXT, { text, replace: 0 }).catch((error) => {
-          logger.error("WebOS", `Text send failed: ${error}`);
-          sendBack({ type: "CONNECTION_LOST", error: `Text command failed: ${error}` });
-        });
+        void track({ kind: "control.text", text: event.text });
       }
     });
 
-    // Start the connection
-    connection.connect().catch((err) => {
-      logger.error("WebOS", `Connection failed: ${err}`);
-      sendBack({ type: "CONNECTION_LOST", error: String(err) });
-    });
+    const lifecycle = runConnection();
 
-    // Cleanup
     return () => {
-      logger.info("WebOS", `Closing session connection to ${input.deviceName}`);
-      connection.disconnect();
-      if (inputSocket) {
-        inputSocket.close();
-        inputSocket = null;
-      }
+      if (closed) return;
+      closed = true;
+      connected = false;
+      sessionController.abort(new Error("Session closed"));
+      for (const controller of operationControllers) controller.abort(new Error("Session closed"));
+
+      const cleanup = (async () => {
+        await Promise.resolve(driver.close()).catch((error) => {
+          logger.debug("WebOS", `Error during disconnect (may already be closed): ${error}`);
+        });
+        await Promise.allSettled([...operations]);
+        await lifecycle.catch(() => undefined);
+        await lockHandle?.release().catch(() => undefined);
+        lockHandle = undefined;
+      })();
+      publishSessionHandoff(resourceId, cleanup);
     };
-  },
-);
+  });
+}
+
+export const sessionActor = createLgWebosSessionActor();

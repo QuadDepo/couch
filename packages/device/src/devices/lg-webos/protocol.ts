@@ -7,6 +7,7 @@ export const WEBSOCKET_SSL_PORT = 3001;
 
 export const URI_TURN_OFF = "ssap://system/turnOff";
 export const URI_SET_MUTE = "ssap://audio/setMute";
+export const URI_GET_AUDIO_STATUS = "ssap://audio/getStatus";
 export const URI_VOLUME_UP = "ssap://audio/volumeUp";
 export const URI_VOLUME_DOWN = "ssap://audio/volumeDown";
 export const URI_CHANNEL_UP = "ssap://tv/channelUp";

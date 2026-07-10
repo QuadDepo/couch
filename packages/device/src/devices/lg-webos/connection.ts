@@ -14,17 +14,22 @@ const DEFAULT_RECONNECT_MS = 5000;
 const LOG_TRUNCATE_LENGTH = 200;
 
 export interface WebOSConnection {
-  connect(): Promise<void>;
+  connect(options?: WebOSRequestOptions): Promise<void>;
   disconnect(): void;
-  request<T>(uri: string, payload?: object): Promise<T>;
+  request<T>(uri: string, payload?: object, options?: WebOSRequestOptions): Promise<T>;
   // biome-ignore lint/suspicious/noExplicitAny: WebOS subscription payloads have dynamic shapes that vary by URI
   subscribe(uri: string, payload: object, callback: (data: any) => void): Promise<void>;
-  getInputSocket(): Promise<RemoteInputSocket>;
+  getInputSocket(options?: WebOSRequestOptions): Promise<RemoteInputSocket>;
   // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
   on(event: ConnectionEvent, callback: (...args: any[]) => void): void;
   isConnected(): boolean;
   isPaired(): boolean;
   getClientKey(): string | undefined;
+}
+
+export interface WebOSRequestOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export type ConnectionEvent = "connect" | "close" | "error" | "prompt" | "message";
@@ -52,6 +57,7 @@ interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeoutId: ReturnType<typeof setTimeout>;
+  abort?: () => void;
 }
 
 interface ConnectionConfig {
@@ -112,7 +118,12 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     return `${scheme}://${ip}:${port}`;
   }
 
-  async function connect(): Promise<void> {
+  async function connect(options: WebOSRequestOptions = {}): Promise<void> {
+    if (options.signal?.aborted) {
+      throw options.signal.reason instanceof Error
+        ? options.signal.reason
+        : new Error("Operation cancelled");
+    }
     if (connected && paired) {
       logger.debug("WebOS", "Already connected and paired");
       return;
@@ -124,6 +135,36 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     emit("message", `Connecting to ${ip}...`);
 
     return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      let suppressReconnect = false;
+      const connectTimeout = setTimeout(() => {
+        suppressReconnect = true;
+        ws?.close();
+        options.signal?.removeEventListener("abort", abort);
+        if (!settled) {
+          settled = true;
+          reject(new Error("Connection timeout"));
+        }
+      }, options.timeoutMs ?? timeout);
+      const abort = () => {
+        suppressReconnect = true;
+        ws?.close();
+        clearTimeout(connectTimeout);
+        options.signal?.removeEventListener("abort", abort);
+        if (!settled) {
+          settled = true;
+          reject(
+            options.signal?.reason instanceof Error
+              ? options.signal.reason
+              : new Error("Operation cancelled"),
+          );
+        }
+      };
+      const cleanup = () => {
+        clearTimeout(connectTimeout);
+        options.signal?.removeEventListener("abort", abort);
+      };
+      options.signal?.addEventListener("abort", abort, { once: true });
       try {
         ws = new WebSocket(url, {
           tls: {
@@ -131,24 +172,26 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           },
         });
 
-        let resolved = false;
-
         ws.addEventListener("open", async () => {
           logger.info("WebOS", "WebSocket connection opened, starting registration");
           connected = true;
           try {
-            await register();
+            await register(options);
           } catch (err) {
             logger.error("WebOS", `Registration failed: ${err}`);
-            if (!resolved) {
-              resolved = true;
+            if (!settled) {
+              settled = true;
+              cleanup();
+              suppressReconnect = true;
+              ws?.close();
               reject(err);
             }
             return;
           }
 
-          if (!resolved) {
-            resolved = true;
+          if (!settled) {
+            settled = true;
+            cleanup();
             resolve();
           }
         });
@@ -163,6 +206,12 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           connected = false;
           paired = false;
 
+          if (!settled) {
+            settled = true;
+            cleanup();
+            reject(new Error(`Connection closed: code=${event.code}`));
+          }
+
           pendingRequests.forEach((req) => {
             clearTimeout(req.timeoutId);
             req.reject(new Error("Connection closed"));
@@ -171,7 +220,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
           emit("close", event);
 
-          if (autoReconnect > 0) {
+          if (!suppressReconnect && autoReconnect > 0) {
             setTimeout(() => {
               if (!connected && autoReconnect > 0) {
                 logger.info("WebOS", "Attempting auto-reconnect");
@@ -186,10 +235,19 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
         ws.addEventListener("error", (error) => {
           logger.error("WebOS", `WebSocket error: ${error}`);
           emit("error", error);
+          if (!settled) {
+            settled = true;
+            cleanup();
+            reject(error instanceof Error ? error : new Error("WebSocket connection failed"));
+          }
         });
       } catch (error) {
         logger.error("WebOS", `Failed to create WebSocket: ${error}`);
-        reject(error);
+        cleanup();
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
       }
     });
   }
@@ -317,7 +375,7 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     }
   }
 
-  async function register(): Promise<void> {
+  async function register(options: WebOSRequestOptions = {}): Promise<void> {
     const cid = getCid();
     const manifest = { ...PAIRING_MANIFEST };
     // biome-ignore lint/suspicious/noExplicitAny: PAIRING_MANIFEST is a const with RSA signature; client-key must be added dynamically
@@ -334,29 +392,56 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     return new Promise<void>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         pendingRequests.delete(cid);
+        options.signal?.removeEventListener("abort", abort);
         logger.error("WebOS", `Registration timeout after ${timeout}ms`);
         reject(new Error("Registration timeout"));
-      }, timeout);
+      }, options.timeoutMs ?? timeout);
+
+      const abort = () => {
+        pendingRequests.delete(cid);
+        clearTimeout(timeoutId);
+        reject(
+          options.signal?.reason instanceof Error
+            ? options.signal.reason
+            : new Error("Operation cancelled"),
+        );
+      };
+      if (options.signal?.aborted) {
+        abort();
+        return;
+      }
+      options.signal?.addEventListener("abort", abort, { once: true });
 
       pendingRequests.set(cid, {
         resolve: () => {
           clearTimeout(timeoutId);
+          options.signal?.removeEventListener("abort", abort);
           logger.info("WebOS", "Registration completed successfully");
           resolve();
         },
         reject: (error) => {
           clearTimeout(timeoutId);
+          options.signal?.removeEventListener("abort", abort);
           logger.error("WebOS", `Registration rejected: ${error}`);
           reject(error);
         },
         timeoutId,
+        abort,
       });
 
-      sendMessage(message);
+      try {
+        sendMessage(message);
+      } catch (error) {
+        rejectPendingRequest(cid, error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 
-  async function request<T>(uri: string, payload: object = {}): Promise<T> {
+  async function request<T>(
+    uri: string,
+    payload: object = {},
+    options: WebOSRequestOptions = {},
+  ): Promise<T> {
     if (!connected) {
       throw new Error("Not connected");
     }
@@ -372,22 +457,45 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     return new Promise<T>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         pendingRequests.delete(cid);
+        options.signal?.removeEventListener("abort", abort);
         reject(new Error("Request timeout"));
-      }, timeout);
+      }, options.timeoutMs ?? timeout);
+
+      const abort = () => {
+        pendingRequests.delete(cid);
+        clearTimeout(timeoutId);
+        reject(
+          options.signal?.reason instanceof Error
+            ? options.signal.reason
+            : new Error("Operation cancelled"),
+        );
+      };
+      if (options.signal?.aborted) {
+        abort();
+        return;
+      }
+      options.signal?.addEventListener("abort", abort, { once: true });
 
       pendingRequests.set(cid, {
         resolve: (value) => {
           clearTimeout(timeoutId);
+          options.signal?.removeEventListener("abort", abort);
           resolve(value as T);
         },
         reject: (error) => {
           clearTimeout(timeoutId);
+          options.signal?.removeEventListener("abort", abort);
           reject(error);
         },
         timeoutId,
+        abort,
       });
 
-      sendMessage(message);
+      try {
+        sendMessage(message);
+      } catch (error) {
+        rejectPendingRequest(cid, error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 
@@ -410,7 +518,12 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     };
 
     subscriptions.set(cid, callback);
-    sendMessage(message);
+    try {
+      sendMessage(message);
+    } catch (error) {
+      subscriptions.delete(cid);
+      throw error;
+    }
   }
 
   function sendMessage(message: WebOSRequestMessage): void {
@@ -428,12 +541,12 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
     ws.send(payload);
   }
 
-  async function getInputSocket(): Promise<RemoteInputSocket> {
+  async function getInputSocket(options?: WebOSRequestOptions): Promise<RemoteInputSocket> {
     if (inputSocket) {
       return inputSocket;
     }
 
-    const data = await request<{ socketPath: string }>(URI_POINTER_INPUT);
+    const data = await request<{ socketPath: string }>(URI_POINTER_INPUT, {}, options);
 
     if (!data.socketPath) {
       throw new Error("No socket path in response");
@@ -453,20 +566,48 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
           rejectUnauthorized: false,
         },
       });
-
-      socketWs.addEventListener("open", () => {
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        fail(new Error("Input socket timeout"));
+      }, options?.timeoutMs ?? timeout);
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        options?.signal?.removeEventListener("abort", abort);
+        socketWs.removeEventListener("open", onOpen);
+        socketWs.removeEventListener("error", onError);
+      };
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        try {
+          socketWs.close();
+        } catch {
+          // The socket may have failed before it became closable.
+        }
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+      const abort = () =>
+        fail(
+          options?.signal?.reason instanceof Error
+            ? options.signal.reason
+            : new Error("Operation cancelled"),
+        );
+      const onOpen = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
         logger.info("WebOS", "Input socket connected");
 
         const remoteSocket: RemoteInputSocket = {
           send(type: string, payload: object = {}) {
-            // Input socket uses key:value format, not JSON
+            if (socketWs.readyState !== WebSocket.OPEN) {
+              throw new Error("Input socket is not connected");
+            }
             const message = `${Object.entries(payload)
               .map(([k, v]) => `${k}:${v}`)
               .join("\n")}\ntype:${type}\n\n`;
-
-            if (socketWs.readyState === WebSocket.OPEN) {
-              socketWs.send(message);
-            }
+            socketWs.send(message);
           },
           close() {
             socketWs.close();
@@ -476,12 +617,15 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
         inputSocket = remoteSocket;
         resolve(remoteSocket);
-      });
-
-      socketWs.addEventListener("error", (error) => {
+      };
+      const onError = (error: unknown) => {
         logger.error("WebOS", `Input socket error: ${error}`);
-        reject(error);
-      });
+        fail(error);
+      };
+      socketWs.addEventListener("open", onOpen);
+      socketWs.addEventListener("error", onError);
+      if (options?.signal?.aborted) abort();
+      else options?.signal?.addEventListener("abort", abort, { once: true });
     });
   }
 

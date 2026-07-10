@@ -79,6 +79,7 @@ export const webosDeviceMachine = createDeviceMachine<
   session: {
     logic: sessionActor,
     input: (context) => ({
+      deviceId: context.deviceId ?? context.deviceIp,
       ip: context.deviceIp,
       credentials: context.credentials as WebOSCredentials,
       deviceName: context.deviceName,
