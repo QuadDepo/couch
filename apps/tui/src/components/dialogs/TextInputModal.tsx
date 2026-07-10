@@ -135,7 +135,7 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
   const lastSendTimeRef = useRef<number>(0);
 
   const sendToTV = useCallback(
-    async (text: string) => {
+    (text: string) => {
       if (!enabled) return;
 
       const now = Date.now();
@@ -144,7 +144,7 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
       }
       lastSendTimeRef.current = now;
 
-      await sendText(text);
+      sendText(text);
     },
     [enabled, sendText],
   );

@@ -25,9 +25,3 @@ export interface DeviceCapabilities {
   textInputSupported: boolean;
   textQuickActions: TextQuickAction[];
 }
-
-export interface CommandResult {
-  success: boolean;
-  error?: string;
-  latencyMs?: number;
-}

@@ -1,5 +1,4 @@
 import {
-  type CommandResult,
   type CommonDeviceEvent,
   type ConnectionStatus,
   type DeviceActor,
@@ -22,9 +21,9 @@ interface UseDeviceResult {
   capabilities: DeviceCapabilities | null;
   isImplemented: boolean;
 
-  sendKey: (key: RemoteKey) => Promise<CommandResult>;
+  sendKey: (key: RemoteKey) => void;
   isKeySupported: (key: RemoteKey) => boolean;
-  sendText: (text: string) => Promise<CommandResult>;
+  sendText: (text: string) => void;
 
   connect: () => void;
   disconnect: () => void;
@@ -53,12 +52,8 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
   );
 
   const sendKey = useCallback(
-    async (key: RemoteKey): Promise<CommandResult> => {
-      if (!send) {
-        return { success: false, error: "No device selected" };
-      }
-      send({ type: "SEND_KEY", key });
-      return { success: true };
+    (key: RemoteKey): void => {
+      send?.({ type: "SEND_KEY", key });
     },
     [send],
   );
@@ -71,15 +66,9 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
   );
 
   const sendText = useCallback(
-    async (text: string): Promise<CommandResult> => {
-      if (!send) {
-        return { success: false, error: "No device selected" };
-      }
-      if (!capabilities?.textInputSupported) {
-        return { success: false, error: "Text input not supported" };
-      }
+    (text: string): void => {
+      if (!send || !capabilities?.textInputSupported) return;
       send({ type: "SEND_TEXT", text });
-      return { success: true };
     },
     [send, capabilities],
   );

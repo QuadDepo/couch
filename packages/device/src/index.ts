@@ -58,7 +58,6 @@ export { tizenDeviceMachine } from "./devices/samsung-tizen/machines/device";
 // Selectors
 export { selectConnectionStatus } from "./devices/selectors";
 export type {
-  CommandResult,
   DeviceCapabilities,
   DeviceFeature,
   KeyMap,

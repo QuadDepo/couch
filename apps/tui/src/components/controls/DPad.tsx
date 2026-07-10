@@ -63,13 +63,10 @@ export function DPad({ focused = false }: DPadProps) {
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCommand = useCallback(
-    async (key: RemoteKey) => {
+    (key: RemoteKey) => {
       if (!enabled) return;
       setLastKey(key);
-      const result = await sendKey(key);
-      if (!result.success) {
-        console.error(`Failed to send ${key}: ${result.error}`);
-      }
+      sendKey(key);
       if (resetTimeoutRef.current) {
         clearTimeout(resetTimeoutRef.current);
       }
