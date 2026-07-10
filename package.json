@@ -10,7 +10,7 @@
     "tui:dev": "bun run --watch apps/tui/src/index.tsx",
     "tui:build": "bun run --filter @couch/tui build",
     "inspect": "bun run --filter @couch/inspector dev",
-    "build": "bun run tui:build",
+    "build": "bun run --filter @couch/device build && bun run --filter @couch/inspector build && bun run --filter @couch/tui build",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
