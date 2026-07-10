@@ -11,7 +11,6 @@ const supportedFeatures: DeviceFeature[] = [
   "playback",
   "input_select",
   "text_input",
-  "wake_on_lan",
 ];
 
 const supportedKeys = Object.keys(keymap) as RemoteKey[];
@@ -19,7 +18,7 @@ const supportedKeys = Object.keys(keymap) as RemoteKey[];
 export const capabilities: DeviceCapabilities = {
   supportedFeatures: new Set(supportedFeatures),
   supportedKeys: new Set(supportedKeys),
-  supportsWakeOnLan: true,
+  supportsWakeOnLan: false,
   textInputSupported: true,
   textQuickActions: ["enter"],
 };

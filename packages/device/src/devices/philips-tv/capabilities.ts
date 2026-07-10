@@ -10,7 +10,6 @@ const supportedFeatures: DeviceFeature[] = [
   "navigation",
   "playback",
   "input_select",
-  "app_launcher",
 ];
 
 const supportedKeys = Object.keys(keymap) as RemoteKey[];

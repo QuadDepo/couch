@@ -63,6 +63,28 @@ export type {
   KeyMap,
   TextQuickAction,
 } from "./devices/types";
+// Runtime
+export { createDeviceRuntime, RuntimeError } from "./runtime/deviceRuntime";
+export type {
+  ArtifactReference,
+  Confirmation,
+  DeviceDescriptor,
+  DeviceHarness,
+  DeviceOperation,
+  DeviceRuntime,
+  DeviceRuntimeOptions,
+  DiagnosticEvent,
+  DiagnosticSink,
+  DriverId,
+  OperationCapability,
+  OperationError,
+  OperationKind,
+  OperationRecord,
+  OperationStatus,
+  ProductPlatform,
+  Readiness,
+  Support,
+} from "./runtime/types";
 // SDK availability check
 export { checkSDKAvailability, type SDKAvailability } from "./sdk-check";
 export type {
