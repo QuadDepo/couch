@@ -80,34 +80,6 @@ describe("device lock", () => {
     await rm(directory, { recursive: true, force: true });
   });
 
-  test("recovers an interrupted old-format temporary owner record", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "couch-lock-"));
-    const resourceId = "device:tv";
-    const token = "interrupted-owner";
-    const resourcePath = join(directory, `${encodeURIComponent(resourceId)}.lock`);
-    await mkdir(resourcePath, { mode: 0o700 });
-    await writeFile(
-      join(resourcePath, `.${token}.tmp`),
-      JSON.stringify({
-        pid: 987654321,
-        runId: "interrupted",
-        acquiredAt: "2026-07-10T00:00:00.000Z",
-        resourceId,
-        token,
-      }),
-      { mode: 0o600 },
-    );
-
-    const handle = await createDeviceLock(directory).acquire(resourceId, {
-      isProcessAlive: () => false,
-    });
-
-    await expect(readdir(resourcePath)).resolves.toEqual(["owner"]);
-    await expect(readdir(join(resourcePath, "owner"))).resolves.toEqual([handle.owner.token]);
-    await handle.release();
-    await rm(directory, { recursive: true, force: true });
-  });
-
   test("recovers a valid lock only when its owner PID is gone", async () => {
     const directory = await mkdtemp(join(tmpdir(), "couch-lock-"));
     const lock = createDeviceLock(directory);

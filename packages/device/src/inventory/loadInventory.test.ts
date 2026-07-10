@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TVDevice } from "../types";
-import { InventoryError, loadDevicesFromFile, saveDevicesToFile } from "./storage";
+import { InventoryError, loadDevicesFromFile, saveDevicesToFile } from "./loadInventory";
 
 const tempDirectories: string[] = [];
 
@@ -49,6 +49,17 @@ describe("device inventory storage", () => {
     const path = await makeStoragePath();
 
     expect(await loadDevicesFromFile(path)).toBeNull();
+  });
+
+  test("validates credentials without rewriting stored config", async () => {
+    const path = await makeStoragePath();
+    const stored = {
+      ...device,
+      config: { webos: { clientKey: "client-key", custom: "preserved" } },
+    };
+    await Bun.write(path, JSON.stringify({ version: 1, devices: [stored] }));
+
+    expect(await loadDevicesFromFile(path)).toEqual([{ ...stored, status: "disconnected" }]);
   });
 
   test("throws InventoryError for malformed inventory data", async () => {

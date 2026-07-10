@@ -1,16 +1,12 @@
-import type { DeviceDriver, DeviceOperation, DriverReceipt } from "../../runtime/types";
+import type { DeviceDriver, DriverReceipt } from "../../drivers/types";
+import type { DeviceOperation } from "../../operations/types";
 import type { RemoteKey } from "../../types";
-import type { RemoteInputSocket, WebOSConnection, WebOSRequestOptions } from "./connection";
 import { createWebOSConnection } from "./connection";
+import type { RemoteInputSocket, WebOSConnection, WebOSRequestOptions } from "./connectionTypes";
 import type { WebOSCredentials } from "./credentials";
 import { getInputSocketCommand, isInputSocketKey, keymap } from "./keymap";
-import {
-  URI_DELETE_CHARACTERS,
-  URI_GET_AUDIO_STATUS,
-  URI_INSERT_TEXT,
-  URI_SEND_ENTER_KEY,
-  URI_SET_MUTE,
-} from "./protocol";
+import { createMuteState } from "./muteState";
+import { URI_DELETE_CHARACTERS, URI_INSERT_TEXT, URI_SEND_ENTER_KEY } from "./protocol";
 
 export interface LgWebosDriverConfig {
   ip: string;
@@ -73,43 +69,13 @@ export function createLgWebosDriver(
   let openAttempted = false;
   let generation = 0;
   let inputSocket: RemoteInputSocket | null = null;
-  let muteState: boolean | undefined;
-  let muteSubscriptionStarted = false;
   let closePromise: Promise<void> | undefined;
-  let muteTransition = Promise.resolve();
-
-  const enqueueMuteTransition = <T>(transition: () => Promise<T>): Promise<T> => {
-    const queuedTransition = muteTransition.then(transition, transition);
-    muteTransition = queuedTransition.then(
-      () => undefined,
-      () => undefined,
-    );
-    return queuedTransition;
-  };
-
-  const updateMuteState = (data: unknown) => {
-    if (!data || typeof data !== "object") return;
-    const mute = (data as { mute?: unknown }).mute;
-    if (typeof mute !== "boolean") return;
-    muteState = mute;
-    dependencies.onMuteStateChanged?.(mute);
-  };
-
-  const subscribeToMute = async () => {
-    if (muteSubscriptionStarted) return;
-    muteSubscriptionStarted = true;
-    try {
-      await connection.subscribe(URI_GET_AUDIO_STATUS, {}, updateMuteState);
-    } catch {
-      muteSubscriptionStarted = false;
-    }
-  };
+  const muteState = createMuteState(connection, dependencies.onMuteStateChanged);
 
   connection.on("close", () => {
     ready = false;
     inputSocket = null;
-    muteSubscriptionStarted = false;
-    muteState = undefined;
+    muteState.reset();
   });
   connection.on("error", () => {
     ready = false;
@@ -135,7 +101,7 @@ export function createLgWebosDriver(
           return;
         }
         ready = true;
-        await subscribeToMute();
+        await muteState.subscribe();
       } catch (error) {
         connection.disconnect();
         openAttempted = false;
@@ -159,22 +125,7 @@ export function createLgWebosDriver(
             return { confirmation: "transport-write" };
           }
           const uri = String(keyCode);
-          if (uri === URI_SET_MUTE) {
-            return enqueueMuteTransition(async () => {
-              if (muteState === undefined) {
-                const status = await connection.request<{ mute?: unknown }>(
-                  URI_GET_AUDIO_STATUS,
-                  {},
-                  commandOptions,
-                );
-                updateMuteState(status);
-              }
-              const nextMute = !(muteState ?? false);
-              await connection.request(uri, { mute: nextMute }, commandOptions);
-              updateMuteState({ mute: nextMute });
-              return { confirmation: "protocol-response" };
-            });
-          }
+          if (operation.key === "MUTE") return muteState.toggle(commandOptions);
           await connection.request(uri, {}, commandOptions);
           return { confirmation: "protocol-response" };
         }
@@ -210,8 +161,7 @@ export function createLgWebosDriver(
       ready = false;
       openAttempted = false;
       inputSocket = null;
-      muteSubscriptionStarted = false;
-      muteState = undefined;
+      muteState.reset();
       closePromise = Promise.resolve(connection.disconnect()).catch((error) => {
         closePromise = undefined;
         throw error;

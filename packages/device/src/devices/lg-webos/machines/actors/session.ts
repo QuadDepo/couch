@@ -1,57 +1,17 @@
 import { fromCallback } from "xstate";
+import { deviceLockResourceId } from "../../../../drivers/lockResourceId";
+import type { DeviceDriver } from "../../../../drivers/types";
 import {
-  canonicalLockResourceId,
   createDeviceLock,
   DEFAULT_DEVICE_LOCK_DIRECTORY,
-  type DeviceLock,
   type DeviceLockHandle,
-} from "../../../../runtime/deviceLock";
-import type { DeviceDriver } from "../../../../runtime/types";
-import type { RemoteKey } from "../../../../types";
+} from "../../../../locks/deviceLock";
 import { logger } from "../../../../utils/logger";
 import { awaitSessionHandoff, publishSessionHandoff } from "../../../shared/sessionHandoff";
 import { createWebOSConnection } from "../../connection";
-import type { WebOSCredentials } from "../../credentials";
-import { createLgWebosDriver, type LgWebosDriverConfig } from "../../driver";
+import { createLgWebosDriver } from "../../driver";
 import { keymap } from "../../keymap";
-
-export interface SessionInput {
-  ip: string;
-  credentials: WebOSCredentials;
-  deviceName: string;
-  deviceId: string;
-  useSsl?: boolean;
-}
-
-export type SessionEvent =
-  | { type: "CONNECTED" }
-  | { type: "CONNECTION_LOST"; error?: string }
-  | { type: "HEARTBEAT_OK" }
-  | { type: "HEARTBEAT_FAILED"; error: string }
-  | { type: "MUTE_STATE_CHANGED"; mute: boolean }
-  | { type: "SEND_KEY"; key: RemoteKey }
-  | { type: "SEND_TEXT"; text: string }
-  | { type: "CHECK_HEARTBEAT" };
-
-export interface LgWebosSessionDependencies {
-  createDriver?: (
-    config: LgWebosDriverConfig,
-    dependencies: {
-      connection: ReturnType<typeof createWebOSConnection>;
-      onMuteStateChanged: (mute: boolean) => void;
-    },
-  ) => DeviceDriver;
-  createLock?: (directory: string) => DeviceLock;
-  createConnection?: (config: {
-    ip: string;
-    mac: string;
-    clientKey?: string;
-    timeout: number;
-    reconnect: number;
-    useSsl: boolean;
-  }) => ReturnType<typeof createWebOSConnection>;
-  lockDirectory?: string;
-}
+import type { LgWebosSessionDependencies, SessionEvent, SessionInput } from "./sessionActorTypes";
 
 const defaultLockDirectory = process.env.COUCH_DEVICE_LOCK_DIR ?? DEFAULT_DEVICE_LOCK_DIRECTORY;
 
@@ -69,7 +29,7 @@ export function createLgWebosSessionActor(dependencies: LgWebosSessionDependenci
       ip: input.ip,
     });
 
-    const resourceId = canonicalLockResourceId({
+    const resourceId = deviceLockResourceId({
       id: input.deviceId,
       platform: "lg-webos",
       ip: input.ip,

@@ -1,12 +1,12 @@
 import { fromCallback } from "xstate";
+import { deviceLockResourceId } from "../../../../drivers/lockResourceId";
+import type { DeviceDriver } from "../../../../drivers/types";
 import {
-  canonicalLockResourceId,
   createDeviceLock,
   DEFAULT_DEVICE_LOCK_DIRECTORY,
   type DeviceLock,
   type DeviceLockHandle,
-} from "../../../../runtime/deviceLock";
-import type { DeviceDriver } from "../../../../runtime/types";
+} from "../../../../locks/deviceLock";
 import type { RemoteKey } from "../../../../types";
 import { logger } from "../../../../utils/logger";
 import { awaitSessionHandoff, publishSessionHandoff } from "../../../shared/sessionHandoff";
@@ -44,7 +44,7 @@ export function createAndroidTvSessionActor(dependencies: AndroidTvSessionDepend
   return fromCallback<SessionEvent, SessionInput>(({ input, sendBack, receive }) => {
     logger.info("ADB", `Starting session connection to ${input.deviceName}`, { ip: input.ip });
 
-    const resourceId = canonicalLockResourceId({
+    const resourceId = deviceLockResourceId({
       id: input.deviceId,
       platform: "android-tv",
       ip: input.ip,

@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createActor } from "xstate";
-import type { DeviceDriver } from "../../../../runtime/types";
+import type { DeviceDriver } from "../../../../drivers/types";
 import { awaitSessionHandoff } from "../../../shared/sessionHandoff";
-import type { WebOSConnection } from "../../connection";
-import { createLgWebosSessionActor, type SessionInput } from "./session";
+import type { WebOSConnection } from "../../connectionTypes";
+import { createLgWebosSessionActor } from "./session";
+import type { SessionInput } from "./sessionActorTypes";
 
 const input: SessionInput = {
   deviceId: "living-room-webos",

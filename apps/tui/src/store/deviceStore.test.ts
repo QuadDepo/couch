@@ -5,6 +5,7 @@ import { createActor, createMachine } from "xstate";
 const loadDevicesMock = mock(() => Promise.resolve(null));
 const saveDevicesMock = mock(() => Promise.resolve());
 const loggerMock = {
+  debug: mock(() => {}),
   error: mock(() => {}),
   info: mock(() => {}),
   warn: mock(() => {}),

@@ -63,18 +63,28 @@ export type {
   KeyMap,
   TextQuickAction,
 } from "./devices/types";
-// Runtime
-export { createDeviceRuntime, RuntimeError } from "./runtime/deviceRuntime";
+export type { DiagnosticEvent, DiagnosticSink } from "./diagnostics/events";
+// Device inventory and sessions
+export { createDeviceInventory } from "./inventory/deviceInventory";
+export type {
+  InventoryErrorCode,
+  StorageSchema,
+} from "./inventory/inventorySchema";
+export { InventoryError, loadDevices, saveDevices } from "./inventory/loadInventory";
+export type {
+  DeviceDescriptor,
+  DeviceInventory,
+  DeviceInventoryOptions,
+  InventoryLoader,
+  OpenSessionOptions,
+  PersistedDevice,
+  QueryOptions,
+} from "./inventory/types";
+export { DeviceInventoryError } from "./inventory/types";
 export type {
   ArtifactReference,
   Confirmation,
-  DeviceDescriptor,
-  DeviceHarness,
   DeviceOperation,
-  DeviceRuntime,
-  DeviceRuntimeOptions,
-  DiagnosticEvent,
-  DiagnosticSink,
   DriverId,
   OperationCapability,
   OperationError,
@@ -84,21 +94,18 @@ export type {
   ProductPlatform,
   Readiness,
   Support,
-} from "./runtime/types";
+} from "./operations/types";
 // SDK availability check
 export { checkSDKAvailability, type SDKAvailability } from "./sdk-check";
+export type { DeviceSession, ExecuteOptions } from "./sessions/deviceSession";
+export { DeviceSessionError } from "./sessions/deviceSession";
 export type {
   ConnectionStatus,
   RemoteKey,
   TVDevice,
   TVPlatform,
 } from "./types/index";
+export { isRemoteKey, REMOTE_KEYS } from "./types/index";
 // Utils
 export { logger } from "./utils/logger";
 export { isValidIp } from "./utils/network";
-export type {
-  InventoryErrorCode,
-  PersistedDevice,
-  StorageSchema,
-} from "./utils/storage";
-export { InventoryError, loadDevices, saveDevices } from "./utils/storage";

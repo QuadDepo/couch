@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createActor } from "xstate";
-import type { DeviceDriver } from "../../../../runtime/types";
+import type { DeviceDriver } from "../../../../drivers/types";
 import { awaitSessionHandoff } from "../../../shared/sessionHandoff";
 import { createAndroidTvSessionActor, type SessionInput } from "./session";
 

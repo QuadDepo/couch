@@ -1,4 +1,5 @@
-import type { DeviceDriver, DeviceOperation, DriverReceipt } from "../../runtime/types";
+import type { DeviceDriver, DriverReceipt } from "../../drivers/types";
+import type { DeviceOperation } from "../../operations/types";
 import type { RemoteKey } from "../../types";
 import {
   type ADBCommandOptions,
