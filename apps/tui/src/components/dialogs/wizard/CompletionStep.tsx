@@ -1,5 +1,5 @@
-import { ACTIVE_COLOR, TEXT_SECONDARY } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
+import { ACTIVE_COLOR, TEXT_SECONDARY } from "../../../constants/colors.ts";
 import { HintGroup } from "../../shared/HintGroup.tsx";
 
 interface Props {

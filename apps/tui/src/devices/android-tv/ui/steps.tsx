@@ -1,18 +1,11 @@
-import {
-  type AndroidTVDeviceMachine,
-  DIM_COLOR,
-  FOCUS_COLOR,
-  INSTRUCTION_STEPS,
-  TEXT_PRIMARY,
-  TEXT_SECONDARY,
-} from "@couch/devices";
+import { type AndroidTVDeviceMachine, INSTRUCTION_STEPS } from "@couch/device";
 import {
   isPairingConnecting,
   isPairingError,
   isPairingWaitingForUser,
   selectInstructionStep,
   selectPairingError,
-} from "@couch/devices/android-tv/selectors";
+} from "@couch/device/android-tv/selectors";
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
@@ -20,6 +13,7 @@ import { HINT_BACK, HINT_CONTINUE, HINT_RETRY } from "../../../components/shared
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
+import { DIM_COLOR, FOCUS_COLOR, TEXT_PRIMARY, TEXT_SECONDARY } from "../../../constants/colors.ts";
 
 function WaitingForUserStep() {
   return (

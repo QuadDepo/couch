@@ -1,9 +1,4 @@
-import {
-  inspector,
-  philipsDeviceMachine,
-  type TVDevice,
-  wrapPlatformCredentials,
-} from "@couch/devices";
+import { philipsDeviceMachine, type TVDevice, wrapPlatformCredentials } from "@couch/device";
 import {
   isComplete,
   isPairing,
@@ -12,7 +7,7 @@ import {
   isSetup,
   selectDeviceName,
   selectError,
-} from "@couch/devices/philips-tv/selectors";
+} from "@couch/device/philips-tv/selectors";
 import { useActorRef, useSelector } from "@xstate/react";
 import { useState } from "react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
@@ -22,6 +17,7 @@ import {
   DeviceInfoFields,
   useDeviceInfoFields,
 } from "../../../components/shared/DeviceInfoFields.tsx";
+import { inspector } from "../../../utils/inspector.ts";
 import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { PhilipsPairingStep } from "./steps.tsx";
 

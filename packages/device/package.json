@@ -1,7 +1,8 @@
 {
-  "name": "@couch/devices",
+  "name": "@couch/device",
   "version": "0.0.1",
   "type": "module",
+  "private": true,
   "scripts": {
     "build": "bun run build:js && bun run build:types",
     "build:js": "bun build src/index.ts src/devices/android-tv/selectors.ts src/devices/android-tv-remote/selectors.ts src/devices/lg-webos/selectors.ts src/devices/philips-tv/selectors.ts src/devices/samsung-tizen/selectors.ts --outdir dist --root src --target bun --format esm",
@@ -40,7 +41,6 @@
     }
   },
   "dependencies": {
-    "@statelyai/inspect": "^0.7.2",
     "node-forge": "^1.4.0",
     "protobufjs": "^8.6.6",
     "valibot": "^1.4.2",

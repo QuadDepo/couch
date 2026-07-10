@@ -1,11 +1,6 @@
-import {
-  DIM_COLOR,
-  getStatusIndicator,
-  TEXT_DIM,
-  TEXT_PRIMARY,
-  WARNING_COLOR,
-} from "@couch/devices";
+import { DIM_COLOR, TEXT_DIM, TEXT_PRIMARY, WARNING_COLOR } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
+import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 import { KeyHint } from "../shared/KeyHint.tsx";
 
 interface StatusBarProps {

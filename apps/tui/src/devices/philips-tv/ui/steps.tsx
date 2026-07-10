@@ -1,16 +1,11 @@
-import {
-  FOCUS_COLOR,
-  type PhilipsDeviceMachine,
-  TEXT_SECONDARY,
-  WARNING_COLOR,
-} from "@couch/devices";
+import type { PhilipsDeviceMachine } from "@couch/device";
 import {
   isPairingConfirming,
   isPairingConnecting,
   isPairingError,
   isPairingWaitingForPin,
   selectPairingError,
-} from "@couch/devices/philips-tv/selectors";
+} from "@couch/device/philips-tv/selectors";
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
@@ -18,6 +13,7 @@ import { HINT_BACK, HINT_RETRY, HINT_SUBMIT } from "../../../components/shared/p
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
+import { FOCUS_COLOR, TEXT_SECONDARY, WARNING_COLOR } from "../../../constants/colors.ts";
 
 function formatPinDisplay(pin: string): string {
   const filled = pin.split("").map(() => "*");

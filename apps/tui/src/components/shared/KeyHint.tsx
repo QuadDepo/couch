@@ -1,5 +1,5 @@
-import { ACTIVE_COLOR, HIGHLIGHT_COLOR, TEXT_DIM, TEXT_MUTED } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
+import { ACTIVE_COLOR, HIGHLIGHT_COLOR, TEXT_DIM, TEXT_MUTED } from "../../constants/colors.ts";
 
 export type HintVariant = "bracket" | "plain";
 

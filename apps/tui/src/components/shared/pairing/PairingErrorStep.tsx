@@ -1,4 +1,4 @@
-import { ERROR_COLOR, TEXT_SECONDARY } from "@couch/devices";
+import { ERROR_COLOR, TEXT_SECONDARY } from "../../../constants/colors.ts";
 
 interface PairingErrorStepProps {
   error?: string;

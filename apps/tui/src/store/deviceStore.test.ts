@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { TVDevice } from "@couch/devices";
+import type { TVDevice } from "@couch/device";
 import { createActor, createMachine } from "xstate";
 
 const loadDevicesMock = mock(() => Promise.resolve(null));
@@ -20,8 +20,7 @@ const mockRegistration = {
   wrapCredentials: () => undefined,
 };
 
-mock.module("@couch/devices", () => ({
-  inspector: null,
+mock.module("@couch/device", () => ({
   loadDevices: loadDevicesMock,
   logger: loggerMock,
   platformRegistry: {

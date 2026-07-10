@@ -10,7 +10,7 @@ import {
   type RemoteKey,
   selectConnectionStatus,
   type TVDevice,
-} from "@couch/devices";
+} from "@couch/device";
 import { useSelector } from "@xstate/react";
 import { useCallback, useMemo } from "react";
 import { useDeviceStore, useSelectedDevice } from "../store/deviceStore";

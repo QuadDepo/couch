@@ -5,6 +5,6 @@
     "jsx": "react-jsx",
     "jsxImportSource": "@opentui/react"
   },
-  "references": [{ "path": "../../packages/devices" }],
+  "references": [{ "path": "../../packages/device" }],
   "include": ["src/**/*"]
 }

@@ -10,9 +10,10 @@
     "build": "bun build src/index.tsx --outdir dist --target bun --format esm --external '@opentui/core-*'"
   },
   "dependencies": {
-    "@couch/devices": "workspace:*",
+    "@couch/device": "workspace:*",
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",
+    "@statelyai/inspect": "^0.7.2",
     "@xstate/react": "^6.1.0",
     "react": "^19.2.7",
     "xstate": "^5.32.4",

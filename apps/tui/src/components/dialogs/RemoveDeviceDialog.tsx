@@ -1,5 +1,6 @@
-import { TEXT_PRIMARY, TEXT_SECONDARY, type TVDevice, WARNING_COLOR } from "@couch/devices";
+import type { TVDevice } from "@couch/device";
 import { TextAttributes } from "@opentui/core";
+import { TEXT_PRIMARY, TEXT_SECONDARY, WARNING_COLOR } from "../../constants/colors.ts";
 import { type PromptContext, useDialogKeyboard } from "../../vendor/dialog/react";
 import { HintGroup } from "../shared/HintGroup.tsx";
 

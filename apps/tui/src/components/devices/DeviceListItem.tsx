@@ -1,15 +1,13 @@
 import {
-  FOCUS_COLOR,
-  getStatusIndicator,
   type ImplementedPlatform,
   platformRegistry,
   selectConnectionStatus,
-  TEXT_DIM,
-  TEXT_PRIMARY,
   type TVDevice,
-} from "@couch/devices";
+} from "@couch/device";
 import { useSelector } from "@xstate/react";
+import { FOCUS_COLOR, TEXT_DIM, TEXT_PRIMARY } from "../../constants/colors.ts";
 import { useDeviceStore } from "../../store/deviceStore";
+import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 
 interface DeviceListItemProps {
   device: TVDevice;

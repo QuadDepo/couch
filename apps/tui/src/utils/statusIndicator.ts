@@ -1,3 +1,4 @@
+import type { ConnectionStatus } from "@couch/device";
 import {
   ACTIVE_COLOR,
   ERROR_COLOR,
@@ -5,7 +6,6 @@ import {
   TEXT_DIM,
   WARNING_COLOR,
 } from "../constants/colors.ts";
-import type { ConnectionStatus } from "../types/index.ts";
 
 export type StatusIndicator = {
   icon: string;

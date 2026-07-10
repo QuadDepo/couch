@@ -21,20 +21,20 @@
       "name": "@couch/tui",
       "version": "0.0.1",
       "dependencies": {
-        "@couch/devices": "workspace:*",
+        "@couch/device": "workspace:*",
         "@opentui/core": "0.4.3",
         "@opentui/react": "0.4.3",
+        "@statelyai/inspect": "^0.7.2",
         "@xstate/react": "^6.1.0",
         "react": "^19.2.7",
         "xstate": "^5.32.4",
         "zustand": "^5.0.14",
       },
     },
-    "packages/devices": {
-      "name": "@couch/devices",
+    "packages/device": {
+      "name": "@couch/device",
       "version": "0.0.1",
       "dependencies": {
-        "@statelyai/inspect": "^0.7.2",
         "node-forge": "^1.4.0",
         "protobufjs": "^8.6.6",
         "valibot": "^1.4.2",
@@ -64,7 +64,7 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.2", "", { "os": "win32", "cpu": "x64" }, "sha512-4InchVpdVmdkkkgjQqKpgvyu+VPnoF/7RPSw5YATgEVpt2j72wcCAeV5TwaE9ZGJUZWZn7v2CwSAj6CrMJEx8A=="],
 
-    "@couch/devices": ["@couch/devices@workspace:packages/devices"],
+    "@couch/device": ["@couch/device@workspace:packages/device"],
 
     "@couch/inspector": ["@couch/inspector@workspace:apps/inspector"],
 

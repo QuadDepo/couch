@@ -1,6 +1,6 @@
-import { DIM_COLOR, FOCUS_COLOR, TEXT_MUTED } from "@couch/devices";
 import type { BoxProps } from "@opentui/react";
 import type { ReactNode } from "react";
+import { DIM_COLOR, FOCUS_COLOR, TEXT_MUTED } from "../../constants/colors.ts";
 
 interface PanelProps extends Omit<BoxProps, "borderStyle" | "borderColor" | "flexDirection"> {
   title?: string;

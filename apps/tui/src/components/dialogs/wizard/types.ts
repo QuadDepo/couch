@@ -1,4 +1,4 @@
-import type { DeviceActor, TVDevice } from "@couch/devices";
+import type { DeviceActor, TVDevice } from "@couch/device";
 import type { DialogId } from "../../../vendor/dialog/react";
 
 export interface PairingFlowResult {

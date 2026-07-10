@@ -1,3 +1,6 @@
+import { TextAttributes } from "@opentui/core";
+import { useKeyboard } from "@opentui/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ACTIVE_COLOR,
   DIM_COLOR,
@@ -6,10 +9,7 @@ import {
   TEXT_DIM,
   TEXT_PRIMARY,
   TEXT_SECONDARY,
-} from "@couch/devices";
-import { TextAttributes } from "@opentui/core";
-import { useKeyboard } from "@opentui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+} from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
 import { useUIStore } from "../../store/uiStore";
 import type { PromptContext } from "../../vendor/dialog/react";

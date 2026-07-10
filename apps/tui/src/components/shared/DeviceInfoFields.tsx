@@ -1,5 +1,5 @@
-import { ERROR_COLOR, TEXT_SECONDARY } from "@couch/devices";
 import { useCallback, useState } from "react";
+import { ERROR_COLOR, TEXT_SECONDARY } from "../../constants/colors.ts";
 import { HintGroup } from "./HintGroup.tsx";
 import { TextInput } from "./TextInput.tsx";
 

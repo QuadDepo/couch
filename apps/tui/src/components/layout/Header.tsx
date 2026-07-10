@@ -1,5 +1,5 @@
-import { DIM_COLOR, FOCUS_COLOR, TEXT_DIM } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
+import { DIM_COLOR, FOCUS_COLOR, TEXT_DIM } from "../../constants/colors.ts";
 import type { FocusPath } from "../../store/uiStore";
 import { KeyHint } from "../shared/KeyHint.tsx";
 

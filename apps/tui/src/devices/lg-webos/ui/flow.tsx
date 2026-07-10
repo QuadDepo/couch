@@ -1,9 +1,4 @@
-import {
-  inspector,
-  type TVDevice,
-  webosDeviceMachine,
-  wrapPlatformCredentials,
-} from "@couch/devices";
+import { type TVDevice, webosDeviceMachine, wrapPlatformCredentials } from "@couch/device";
 import {
   isComplete,
   isPairing,
@@ -11,7 +6,7 @@ import {
   isSetup,
   selectDeviceName,
   selectError,
-} from "@couch/devices/lg-webos/selectors";
+} from "@couch/device/lg-webos/selectors";
 import { useActorRef, useSelector } from "@xstate/react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
 import type { PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
@@ -20,6 +15,7 @@ import {
   DeviceInfoFields,
   useDeviceInfoFields,
 } from "../../../components/shared/DeviceInfoFields.tsx";
+import { inspector } from "../../../utils/inspector.ts";
 import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { WebOSPairingStep } from "./steps.tsx";
 

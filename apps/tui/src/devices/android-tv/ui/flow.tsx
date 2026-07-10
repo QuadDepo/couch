@@ -1,9 +1,4 @@
-import {
-  androidTVDeviceMachine,
-  inspector,
-  type TVDevice,
-  wrapPlatformCredentials,
-} from "@couch/devices";
+import { androidTVDeviceMachine, type TVDevice, wrapPlatformCredentials } from "@couch/device";
 import {
   isComplete,
   isPairing,
@@ -12,7 +7,7 @@ import {
   isSetup,
   selectDeviceName,
   selectError,
-} from "@couch/devices/android-tv/selectors";
+} from "@couch/device/android-tv/selectors";
 import { useActorRef, useSelector } from "@xstate/react";
 import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
 import type { PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
@@ -21,6 +16,7 @@ import {
   DeviceInfoFields,
   useDeviceInfoFields,
 } from "../../../components/shared/DeviceInfoFields.tsx";
+import { inspector } from "../../../utils/inspector.ts";
 import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { AndroidTVInstructionsStep, AndroidTVPairingStep } from "./steps.tsx";
 

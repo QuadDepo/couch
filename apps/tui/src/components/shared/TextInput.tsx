@@ -1,5 +1,5 @@
-import { DIM_COLOR, FOCUS_COLOR, TEXT_PRIMARY, TEXT_SECONDARY } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
+import { DIM_COLOR, FOCUS_COLOR, TEXT_PRIMARY, TEXT_SECONDARY } from "../../constants/colors.ts";
 
 interface TextInputProps {
   value: string;

@@ -1,9 +1,4 @@
-import {
-  type AndroidTvRemoteDeviceMachine,
-  FOCUS_COLOR,
-  TEXT_SECONDARY,
-  WARNING_COLOR,
-} from "@couch/devices";
+import type { AndroidTvRemoteDeviceMachine } from "@couch/device";
 import {
   isPairingConnecting,
   isPairingError,
@@ -11,7 +6,7 @@ import {
   isPairingWaitingForUser,
   selectPairingCode,
   selectPairingError,
-} from "@couch/devices/android-tv-remote/selectors";
+} from "@couch/device/android-tv-remote/selectors";
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
@@ -23,6 +18,7 @@ import {
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
+import { FOCUS_COLOR, TEXT_SECONDARY, WARNING_COLOR } from "../../../constants/colors.ts";
 
 function CodeEntryStep({ code }: { code: string }) {
   const display = code.padEnd(6, "_").split("").join(" ");

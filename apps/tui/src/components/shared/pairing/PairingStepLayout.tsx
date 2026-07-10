@@ -1,6 +1,6 @@
-import { TEXT_PRIMARY } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
 import type { ReactNode } from "react";
+import { TEXT_PRIMARY } from "../../../constants/colors.ts";
 import { HintGroup } from "../HintGroup.tsx";
 
 interface Hint {

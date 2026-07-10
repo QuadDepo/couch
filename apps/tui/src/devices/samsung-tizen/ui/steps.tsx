@@ -1,11 +1,11 @@
-import { FOCUS_COLOR, TEXT_SECONDARY, type TizenDeviceMachine } from "@couch/devices";
+import type { TizenDeviceMachine } from "@couch/device";
 import {
   isInitiating,
   isPairingConnecting,
   isPairingError,
   isPairingWaitingForUser,
   selectPairingError,
-} from "@couch/devices/samsung-tizen/selectors";
+} from "@couch/device/samsung-tizen/selectors";
 import { TextAttributes } from "@opentui/core";
 import { useSelector } from "@xstate/react";
 import type { ActorRefFrom } from "xstate";
@@ -13,6 +13,7 @@ import { HINT_BACK, HINT_RETRY } from "../../../components/shared/pairing/hints.
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
+import { FOCUS_COLOR, TEXT_SECONDARY } from "../../../constants/colors.ts";
 
 function WaitingStep() {
   return (

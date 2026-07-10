@@ -1,6 +1,6 @@
-import { DIM_COLOR } from "@couch/devices";
 import { TextAttributes } from "@opentui/core";
 import type { ReactNode } from "react";
+import { DIM_COLOR } from "../../../constants/colors.ts";
 
 interface Props {
   stepLabel: string;

@@ -1,4 +1,4 @@
-import { type ImplementedPlatform, implementedPlatforms } from "@couch/devices";
+import { type ImplementedPlatform, implementedPlatforms } from "@couch/device";
 import { TextAttributes } from "@opentui/core";
 import { type ReactNode, useCallback, useState } from "react";
 import { AndroidTVPairingFlow } from "../../devices/android-tv/ui/flow.tsx";

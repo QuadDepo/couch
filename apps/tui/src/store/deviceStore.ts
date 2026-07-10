@@ -1,15 +1,15 @@
 import {
   type DeviceActor,
   type ImplementedPlatform,
-  inspector,
   loadDevices as loadFromStorage,
   logger,
   platformRegistry,
   type StoredDeviceActor,
   saveDevices,
   type TVDevice,
-} from "@couch/devices";
+} from "@couch/device";
 import { create } from "zustand";
+import { inspector } from "../utils/inspector.ts";
 
 interface DeviceState {
   devices: TVDevice[];

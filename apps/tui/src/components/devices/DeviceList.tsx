@@ -1,6 +1,6 @@
-import { TEXT_DIM, TEXT_MUTED } from "@couch/devices";
 import { useKeyboard } from "@opentui/react";
 import { useCallback } from "react";
+import { TEXT_DIM, TEXT_MUTED } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice";
 import { useDeviceStore } from "../../store/deviceStore";
 import { useDialog, useDialogState } from "../../vendor/dialog/react";

@@ -1,4 +1,4 @@
-import { TEXT_SECONDARY, WARNING_COLOR } from "@couch/devices";
+import { TEXT_SECONDARY, WARNING_COLOR } from "../../../constants/colors.ts";
 
 interface PairingConnectingStepProps {
   brandName?: string;

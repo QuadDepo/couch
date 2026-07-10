@@ -1,4 +1,5 @@
-import { TEXT_DIM } from "@couch/devices";
+import { TEXT_DIM } from "../../constants/colors.ts";
+
 import { type HintVariant, KeyHint } from "./KeyHint.tsx";
 
 interface HintItem {

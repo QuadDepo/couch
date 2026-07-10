@@ -1,4 +1,5 @@
-import { FOCUS_COLOR, implementedPlatforms, TEXT_DIM, TEXT_PRIMARY } from "@couch/devices";
+import { implementedPlatforms } from "@couch/device";
+import { FOCUS_COLOR, TEXT_DIM, TEXT_PRIMARY } from "../../../constants/colors.ts";
 import { HintGroup } from "../../shared/HintGroup.tsx";
 
 interface PlatformSelectionStepProps {

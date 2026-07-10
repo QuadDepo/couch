@@ -1,7 +1,8 @@
-import { ACTIVE_COLOR, DIM_COLOR, type RemoteKey, TEXT_PRIMARY } from "@couch/devices";
+import type { RemoteKey } from "@couch/device";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { ACTIVE_COLOR, DIM_COLOR, TEXT_PRIMARY } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
 import { useDialog, useDialogState } from "../../vendor/dialog/react";
 import { TextInputModal } from "../dialogs/TextInputModal.tsx";

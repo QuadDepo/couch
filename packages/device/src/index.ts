@@ -2,20 +2,6 @@
 
 // App constants
 export { APP_NAME } from "./constants/app";
-// Colors
-export {
-  ACTIVE_COLOR,
-  DIM_COLOR,
-  ERROR_COLOR,
-  FOCUS_COLOR,
-  HIGHLIGHT_COLOR,
-  TEXT_DIM,
-  TEXT_MUTED,
-  TEXT_PRIMARY,
-  TEXT_SECONDARY,
-  WARNING_COLOR,
-} from "./constants/colors";
-
 // Actor types
 export type { DeviceActor, DeviceSnapshot, StoredDeviceActor } from "./devices/actors";
 export { capabilities as androidTVCapabilities } from "./devices/android-tv/capabilities";
@@ -86,9 +72,7 @@ export type {
   TVDevice,
   TVPlatform,
 } from "./types/index";
-export { inspector } from "./utils/inspector";
 // Utils
 export { logger } from "./utils/logger";
 export { isValidIp } from "./utils/network";
-export { getStatusIndicator, type StatusIndicator } from "./utils/statusIndicator";
 export { loadDevices, saveDevices } from "./utils/storage";

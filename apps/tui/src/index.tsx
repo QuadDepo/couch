@@ -1,4 +1,4 @@
-import { logger } from "@couch/devices";
+import { logger } from "@couch/device";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { App } from "./App.tsx";
