@@ -23,6 +23,9 @@
         "ADJUST_VOLUME_LEVEL"
       ]
     },
+    "apps/cli": {
+      "project": ["src/**/*.{ts,tsx}"]
+    },
     "apps/inspector": {
       "project": ["src/**/*.{ts,tsx}"]
     },

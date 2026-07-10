@@ -1,0 +1,17 @@
+{
+  "name": "@couch/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "couch": "src/index.ts"
+  },
+  "scripts": {
+    "couch": "bun run src/index.ts",
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm"
+  },
+  "dependencies": {
+    "@couch/device": "workspace:*"
+  }
+}

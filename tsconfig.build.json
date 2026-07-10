@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/device" },
+    { "path": "./apps/cli" },
     { "path": "./apps/inspector" },
     { "path": "./apps/tui" }
   ]
