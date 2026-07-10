@@ -33,6 +33,19 @@ const createPlatformActor = (device: TVDevice): DeviceActor => {
   return registration.createActor(device, inspector?.inspect);
 };
 
+function logPersistenceFailure(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error("Store", `Failed to persist devices: ${message}`);
+}
+
+function persistDevices(devices: TVDevice[]): void {
+  try {
+    void saveDevices(devices).catch(logPersistenceFailure);
+  } catch (error) {
+    logPersistenceFailure(error);
+  }
+}
+
 export const useDeviceStore = create<DeviceState>((set, get) => ({
   devices: [],
   selectedDeviceId: null,
@@ -68,7 +81,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     }));
 
     if (get().isLoaded) {
-      saveDevices(get().devices);
+      persistDevices(get().devices);
     }
 
     if (existingActor) {
@@ -94,7 +107,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       };
     });
 
-    saveDevices(get().devices);
+    persistDevices(get().devices);
   },
 
   selectDevice: (deviceId) => {
@@ -112,7 +125,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       configKeys: Object.keys(config ?? {}),
     });
 
-    saveDevices(get().devices);
+    persistDevices(get().devices);
   },
 
   getSelectedDevice: () => {

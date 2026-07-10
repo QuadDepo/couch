@@ -126,4 +126,14 @@ describe("deviceStore", () => {
   test("should return null from getSelectedDevice when no device selected", () => {
     expect(useDeviceStore.getState().getSelectedDevice()).toBeNull();
   });
+
+  test("should surface persistence failures through the UI logger", async () => {
+    saveDevicesMock.mockRejectedValueOnce(new Error("disk full"));
+    useDeviceStore.setState({ isLoaded: true });
+
+    useDeviceStore.getState().addDevice(makeDevice(), createMockActor() as never);
+    await Promise.resolve();
+
+    expect(loggerMock.error).toHaveBeenCalledWith("Store", "Failed to persist devices: disk full");
+  });
 });

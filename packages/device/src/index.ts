@@ -75,4 +75,9 @@ export type {
 // Utils
 export { logger } from "./utils/logger";
 export { isValidIp } from "./utils/network";
-export { loadDevices, saveDevices } from "./utils/storage";
+export type {
+  InventoryErrorCode,
+  PersistedDevice,
+  StorageSchema,
+} from "./utils/storage";
+export { InventoryError, loadDevices, saveDevices } from "./utils/storage";
