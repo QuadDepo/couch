@@ -121,6 +121,7 @@ export const androidTVDeviceMachine = createDeviceMachine<
   session: {
     logic: sessionActor,
     input: (context) => ({
+      deviceId: context.deviceId ?? context.deviceIp,
       ip: context.deviceIp,
       deviceName: context.deviceName,
     }),
