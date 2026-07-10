@@ -37,8 +37,14 @@ class RuntimeError extends Error {
 }
 
 function publicDescriptor(device: RuntimeTarget): DeviceDescriptor {
-  const { source: _source, ...descriptor } = device;
-  return descriptor;
+  return {
+    id: device.id,
+    name: device.name,
+    platform: device.platform,
+    ip: device.ip,
+    ...(device.mac ? { mac: device.mac } : {}),
+    ...(device.driverId ? { driverId: device.driverId } : {}),
+  };
 }
 
 function normalizeInventoryItem(item: DeviceDescriptor | RuntimeTarget["source"]): RuntimeTarget {
@@ -174,11 +180,30 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (!signal?.aborted) return;
-  throw signal.reason instanceof Error
+function abortError(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
     ? signal.reason
     : new DOMException("The operation was aborted", "AbortError");
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw abortError(signal);
+}
+
+async function awaitWithAbort<T>(task: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return task;
+
+  let onAbort!: () => void;
+  const aborted = new Promise<T>((_, reject) => {
+    onAbort = () => reject(abortError(signal));
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+  try {
+    return await Promise.race([task, aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
 }
 
 interface PendingOperation {
@@ -506,14 +531,25 @@ export function createDeviceRuntime(options: DeviceRuntimeOptions = {}): DeviceR
   }
 
   return {
-    async getDevice(id) {
-      const target = (await inventory()).find((item) => item.id === id);
+    async listDevices(queryOptions = {}) {
+      throwIfAborted(queryOptions.signal);
+      return (await awaitWithAbort(inventory(), queryOptions.signal)).map(publicDescriptor);
+    },
+
+    async getDevice(id, queryOptions = {}) {
+      throwIfAborted(queryOptions.signal);
+      const target = (await awaitWithAbort(inventory(), queryOptions.signal)).find(
+        (item) => item.id === id,
+      );
       if (!target) throw new RuntimeError("device-not-found", `Device ${id} was not found`);
       return publicDescriptor(target);
     },
 
     async getCapabilities(id, queryOptions = {}) {
-      const target = (await inventory()).find((item) => item.id === id);
+      throwIfAborted(queryOptions.signal);
+      const target = (await awaitWithAbort(inventory(), queryOptions.signal)).find(
+        (item) => item.id === id,
+      );
       if (!target) throw new RuntimeError("device-not-found", `Device ${id} was not found`);
       const registration = registry.getRegistration(publicDescriptor(target));
       if (!registration)
@@ -522,11 +558,17 @@ export function createDeviceRuntime(options: DeviceRuntimeOptions = {}): DeviceR
           `No driver is registered for ${target.platform}`,
         );
       throwIfAborted(queryOptions.signal);
-      return asCapabilities(registration, target, queryOptions);
+      return awaitWithAbort(
+        asCapabilities(registration, target, queryOptions),
+        queryOptions.signal,
+      );
     },
 
     async openDevice(id, openOptions) {
-      const target = (await inventory()).find((item) => item.id === id);
+      throwIfAborted(openOptions.signal);
+      const target = (await awaitWithAbort(inventory(), openOptions.signal)).find(
+        (item) => item.id === id,
+      );
       if (!target) throw new RuntimeError("device-not-found", `Device ${id} was not found`);
       const registration = registry.getRegistration(publicDescriptor(target));
       if (!registration)
@@ -534,9 +576,12 @@ export function createDeviceRuntime(options: DeviceRuntimeOptions = {}): DeviceR
           "driver-not-found",
           `No driver is registered for ${target.platform}`,
         );
-      const capabilities = await asCapabilities(registration, target, {
-        signal: openOptions.signal,
-      });
+      throwIfAborted(openOptions.signal);
+      const capabilities = await awaitWithAbort(
+        asCapabilities(registration, target, { signal: openOptions.signal }),
+        openOptions.signal,
+      );
+      throwIfAborted(openOptions.signal);
       for (const kind of openOptions.require) {
         const capability = capabilities.get(kind);
         if (capability?.readiness !== "ready" || capability.support === "unsupported") {

@@ -1,7 +1,10 @@
 import type {
+  DeviceDescriptor,
   DeviceHarness,
   DeviceRuntime,
   DeviceRuntimeOptions,
+  OperationCapability,
+  OperationKind,
   OperationRecord,
   RemoteKey,
 } from "@couch/device";
@@ -38,9 +41,10 @@ const REMOTE_KEYS = [
 
 const REMOTE_KEY_SET: ReadonlySet<string> = new Set(REMOTE_KEYS);
 
-const HELP = `Usage: couch remote press <device-id> <KEY> [options]
-
-Send a remote key to an inventory device.
+const HELP = `Usage:
+  couch device list [--json]
+  couch device doctor <target> [--json]
+  couch remote press <target> <KEY> [--times N] [--json]
 
 Options:
   --times N  Send the key N times (default: 1)
@@ -48,12 +52,72 @@ Options:
   -h, --help Show this help
 `;
 
-interface ParsedPress {
-  deviceId: string;
-  key: RemoteKey;
-  times: number;
+interface ParsedList {
+  command: "device.list";
   json: boolean;
 }
+
+interface ParsedDoctor {
+  command: "device.doctor";
+  targetId: string;
+  json: boolean;
+}
+
+interface ParsedPress {
+  command: "remote.press";
+  targetId: string;
+  key: RemoteKey;
+  requestedTimes: number;
+  json: boolean;
+}
+
+type ParsedCommand = ParsedList | ParsedDoctor | ParsedPress;
+type CommandExitCode = 0 | 2 | 130 | 143;
+type CommandError = { code: string; message: string };
+
+interface ResultBase {
+  resultVersion: 1;
+  status: string;
+  exitCode: CommandExitCode;
+  error?: CommandError;
+  cleanupError?: CommandError;
+}
+
+type PublicDeviceSummary = Pick<
+  DeviceDescriptor,
+  "id" | "name" | "platform" | "ip" | "mac" | "driverId"
+>;
+
+interface DeviceListResult extends ResultBase {
+  command: "device.list";
+  status: "succeeded" | "failed" | "cancelled";
+  devices: readonly PublicDeviceSummary[];
+}
+
+interface DoctorCapability extends OperationCapability {
+  kind: OperationKind;
+  remediation: string;
+}
+
+interface DeviceDoctorResult extends ResultBase {
+  command: "device.doctor";
+  targetId: string;
+  status: "ready" | "unverified" | "not-ready" | "failed" | "cancelled";
+  readinessScope: "live" | "configuration-only" | "unknown";
+  target?: PublicDeviceSummary;
+  capabilities: readonly DoctorCapability[];
+}
+
+interface PressResult extends ResultBase {
+  command: "remote.press";
+  targetId: string;
+  key: RemoteKey;
+  requestedTimes: number;
+  status: "succeeded" | "failed" | "cancelled";
+  operations: readonly OperationRecord[];
+}
+
+type CliResult = DeviceListResult | DeviceDoctorResult | PressResult;
 
 interface CliSignalTarget {
   on(signal: "SIGINT" | "SIGTERM", listener: () => void): unknown;
@@ -68,24 +132,24 @@ interface CliDependencies {
   signalTarget?: CliSignalTarget;
 }
 
-interface PressResult {
-  resultVersion: 1;
-  command: "remote.press";
-  targetId: string;
-  key: RemoteKey;
-  requestedTimes: number;
-  status: "succeeded" | "failed" | "cancelled";
-  exitCode: 0 | 2 | 130 | 143;
-  operations: OperationRecord[];
-  error?: { code: string; message: string };
-  cleanupError?: { code: string; message: string };
-}
-
 class UsageError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "UsageError";
   }
+}
+
+function parseJsonOption(args: readonly string[]): boolean {
+  let json = false;
+  for (const argument of args) {
+    if (argument === "--json") {
+      if (json) throw new UsageError("--json may only be specified once");
+      json = true;
+      continue;
+    }
+    throw new UsageError(`unknown option: ${argument}`);
+  }
+  return json;
 }
 
 function parseTimes(value: string): number {
@@ -97,38 +161,59 @@ function parseTimes(value: string): number {
   return times;
 }
 
-function parsePress(args: readonly string[]): ParsedPress {
-  if (args.length < 4 || args[0] !== "remote" || args[1] !== "press") {
-    throw new UsageError("expected: couch remote press <device-id> <KEY>");
+function parseCommand(args: readonly string[]): ParsedCommand {
+  if (args[0] === "device" && args[1] === "list") {
+    return { command: "device.list", json: parseJsonOption(args.slice(2)) };
+  }
+  if (args[0] === "device" && args[1] === "doctor") {
+    const targetId = args[2];
+    if (!targetId || targetId.startsWith("-")) {
+      throw new UsageError("expected: couch device doctor <target>");
+    }
+    return {
+      command: "device.doctor",
+      targetId,
+      json: parseJsonOption(args.slice(3)),
+    };
+  }
+  if (args[0] !== "remote" || args[1] !== "press") {
+    throw new UsageError("expected device list, device doctor, or remote press");
   }
 
-  const deviceId = args[2];
+  const targetId = args[2];
   const keyValue = args[3];
-  if (!deviceId || !keyValue || deviceId.startsWith("-") || keyValue.startsWith("-")) {
-    throw new UsageError("device-id and KEY are required");
+  if (!targetId || !keyValue || targetId.startsWith("-") || keyValue.startsWith("-")) {
+    throw new UsageError("expected: couch remote press <target> <KEY>");
   }
   if (!REMOTE_KEY_SET.has(keyValue)) {
     throw new UsageError(`unknown remote key: ${keyValue}`);
   }
 
-  let times = 1;
+  let requestedTimes = 1;
   let json = false;
   for (let index = 4; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === "--json") {
+      if (json) throw new UsageError("--json may only be specified once");
       json = true;
       continue;
     }
     if (argument === "--times") {
       const value = args[++index];
       if (value === undefined) throw new UsageError("--times expects a positive integer");
-      times = parseTimes(value);
+      requestedTimes = parseTimes(value);
       continue;
     }
     throw new UsageError(`unknown option: ${argument}`);
   }
 
-  return { deviceId, key: keyValue as RemoteKey, times, json };
+  return {
+    command: "remote.press",
+    targetId,
+    key: keyValue as RemoteKey,
+    requestedTimes,
+    json,
+  };
 }
 
 function removeSignalListener(
@@ -136,14 +221,11 @@ function removeSignalListener(
   signal: "SIGINT" | "SIGTERM",
   listener: () => void,
 ): void {
-  if (target.removeListener) {
-    target.removeListener(signal, listener);
-  } else {
-    target.off?.(signal, listener);
-  }
+  if (target.removeListener) target.removeListener(signal, listener);
+  else target.off?.(signal, listener);
 }
 
-function errorDetails(error: unknown): { code: string; message: string } {
+function errorDetails(error: unknown): CommandError {
   if (
     error instanceof Error &&
     "code" in error &&
@@ -155,13 +237,140 @@ function errorDetails(error: unknown): { code: string; message: string } {
   return { code: "runtime-failed", message: String(error) };
 }
 
-function resultStatus(records: readonly OperationRecord[]): PressResult["status"] {
-  const last = records.at(-1);
-  if (!last || last.status === "succeeded") return "succeeded";
-  return last.status;
+function publicDeviceSummary(device: DeviceDescriptor): PublicDeviceSummary {
+  return {
+    id: device.id,
+    name: device.name,
+    platform: device.platform,
+    ip: device.ip,
+    ...(device.mac ? { mac: device.mac } : {}),
+    ...(device.driverId ? { driverId: device.driverId } : {}),
+  };
 }
 
-function humanResult(result: PressResult): string {
+function abortable<T>(task: PromiseLike<T>, signal: AbortSignal): Promise<T> {
+  const settled = Promise.resolve(task);
+  if (signal.aborted) {
+    void settled.catch(() => undefined);
+    return Promise.reject(signal.reason);
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    settled.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function signalMessage(signal: "SIGINT" | "SIGTERM"): string {
+  return signal === "SIGINT" ? "Interrupted" : "Terminated";
+}
+
+function remediationFor(targetId: string, capability: OperationCapability): string {
+  if (capability.support === "unsupported") {
+    return "Choose a target and driver that support this operation.";
+  }
+  if (capability.readiness === "missing-tool") {
+    return "Install the required device tool and ensure it is available on PATH, then rerun doctor.";
+  }
+  if (capability.readiness === "unauthorized") {
+    return "Authorize this host on the device, then rerun doctor.";
+  }
+  if (capability.readiness === "offline") {
+    return "Power on the device, confirm network reachability, then rerun doctor.";
+  }
+  if (capability.readiness === "misconfigured") {
+    return "Update the device configuration or pairing credentials, then rerun doctor.";
+  }
+  if (capability.constraints?.readinessCheck === "paired-configuration-only") {
+    return `Live connectivity was not checked; run \`couch remote press ${targetId} LEFT\` to verify control.`;
+  }
+  if (capability.support === "experimental") {
+    return "Explicitly allow this experimental operation for the target before use.";
+  }
+  return "None.";
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function doctorCapabilities(
+  targetId: string,
+  capabilities: ReadonlyMap<OperationKind, OperationCapability>,
+): readonly DoctorCapability[] {
+  return [...capabilities]
+    .sort(([left], [right]) => compareText(left, right))
+    .map(([kind, capability]) => ({
+      kind,
+      ...capability,
+      remediation: remediationFor(targetId, capability),
+    }));
+}
+
+function readinessScope(
+  capabilities: readonly DoctorCapability[],
+): DeviceDoctorResult["readinessScope"] {
+  if (
+    capabilities.some(
+      (capability) => capability.constraints?.readinessCheck === "paired-configuration-only",
+    )
+  ) {
+    return "configuration-only";
+  }
+  if (
+    capabilities.length > 0 &&
+    capabilities.every((capability) => capability.constraints?.readinessCheck === "live-adb-probe")
+  ) {
+    return "live";
+  }
+  return "unknown";
+}
+
+function humanList(result: DeviceListResult): string {
+  if (result.status !== "succeeded") return `device.list: ${result.status}\n`;
+  if (result.devices.length === 0) return "No devices found.\n";
+  const rows = result.devices.map((device) =>
+    [device.id, device.name, device.platform, device.driverId ?? "-", device.ip].join("\t"),
+  );
+  return `${["ID\tNAME\tPLATFORM\tDRIVER\tADDRESS", ...rows].join("\n")}\n`;
+}
+
+function constraintText(constraints: DoctorCapability["constraints"]): string | undefined {
+  if (!constraints) return undefined;
+  return Object.entries(constraints)
+    .sort(([left], [right]) => compareText(left, right))
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(", ");
+}
+
+function humanDoctor(result: DeviceDoctorResult): string {
+  const lines = [`device.doctor ${result.targetId}: ${result.status}`];
+  if (result.target) {
+    lines.push(
+      `target\t${result.target.name}\t${result.target.platform}\t${result.target.driverId ?? "-"}\t${result.target.ip}`,
+    );
+  }
+  if (result.capabilities.length === 0) lines.push("No executable capabilities reported.");
+  for (const capability of result.capabilities) {
+    lines.push(`${capability.kind}\t${capability.support}\t${capability.readiness}`);
+    if (capability.reason) lines.push(`  reason\t${capability.reason}`);
+    const constraints = constraintText(capability.constraints);
+    if (constraints) lines.push(`  constraints\t${constraints}`);
+    lines.push(`  remediation\t${capability.remediation}`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function humanPress(result: PressResult): string {
   const operations = result.operations.map((operation) => {
     const confirmation = operation.confirmation ? ` (${operation.confirmation})` : "";
     return `${operation.ordinal}/${result.requestedTimes} ${result.key} ${operation.status}${confirmation}`;
@@ -170,25 +379,109 @@ function humanResult(result: PressResult): string {
   return `${[...operations, summary].join("\n")}\n`;
 }
 
-function writeResult(result: PressResult, json: boolean, stdout: (text: string) => void): void {
-  stdout(json ? `${JSON.stringify(result)}\n` : humanResult(result));
+function humanResult(result: CliResult): string {
+  switch (result.command) {
+    case "device.list":
+      return humanList(result);
+    case "device.doctor":
+      return humanDoctor(result);
+    case "remote.press":
+      return humanPress(result);
+  }
 }
 
-function writeFailure(
-  result: PressResult,
+function writeResult(
+  result: CliResult,
   json: boolean,
   stdout: (text: string) => void,
   stderr: (text: string) => void,
 ): void {
-  writeResult(result, json, stdout);
+  stdout(json ? `${JSON.stringify(result)}\n` : humanResult(result));
   if (result.error) stderr(`${result.error.code}: ${result.error.message}\n`);
-  if (result.cleanupError) {
-    stderr(`${result.cleanupError.code}: ${result.cleanupError.message}\n`);
+  if (result.cleanupError) stderr(`${result.cleanupError.code}: ${result.cleanupError.message}\n`);
+}
+
+function failureResult(
+  command: ParsedCommand,
+  error: CommandError,
+  cleanupError?: CommandError,
+  target?: PublicDeviceSummary,
+): CliResult {
+  const common = {
+    resultVersion: 1 as const,
+    status: "failed" as const,
+    exitCode: FAILURE_EXIT as 2,
+    error,
+    ...(cleanupError ? { cleanupError } : {}),
+  };
+  switch (command.command) {
+    case "device.list":
+      return { ...common, command: "device.list", devices: [] };
+    case "device.doctor":
+      return {
+        ...common,
+        command: "device.doctor",
+        targetId: command.targetId,
+        ...(target ? { target } : {}),
+        readinessScope: "unknown",
+        capabilities: [],
+      };
+    case "remote.press":
+      return {
+        ...common,
+        command: "remote.press",
+        targetId: command.targetId,
+        key: command.key,
+        requestedTimes: command.requestedTimes,
+        operations: [],
+      };
   }
 }
 
-function signalMessage(signal: "SIGINT" | "SIGTERM"): string {
-  return signal === "SIGINT" ? "Interrupted" : "Terminated";
+function cancelledResult(
+  command: ParsedCommand,
+  exitCode: 130 | 143,
+  prior: CliResult | undefined,
+  cleanupError?: CommandError,
+  target?: PublicDeviceSummary,
+): CliResult {
+  const error = {
+    code: "cancelled",
+    message: signalMessage(exitCode === INTERRUPTED_EXIT ? "SIGINT" : "SIGTERM"),
+  };
+  const common = {
+    resultVersion: 1 as const,
+    status: "cancelled" as const,
+    exitCode,
+    error,
+    ...(cleanupError ? { cleanupError } : {}),
+  };
+  switch (command.command) {
+    case "device.list":
+      return {
+        ...common,
+        command: "device.list",
+        devices: prior?.command === "device.list" ? prior.devices : [],
+      };
+    case "device.doctor":
+      return {
+        ...common,
+        command: "device.doctor",
+        targetId: command.targetId,
+        ...(target ? { target } : {}),
+        readinessScope: prior?.command === "device.doctor" ? prior.readinessScope : "unknown",
+        capabilities: prior?.command === "device.doctor" ? prior.capabilities : [],
+      };
+    case "remote.press":
+      return {
+        ...common,
+        command: "remote.press",
+        targetId: command.targetId,
+        key: command.key,
+        requestedTimes: command.requestedTimes,
+        operations: prior?.command === "remote.press" ? prior.operations : [],
+      };
+  }
 }
 
 export async function runCli(
@@ -198,18 +491,14 @@ export async function runCli(
   const stdout = dependencies.stdout ?? ((text: string) => process.stdout.write(text));
   const stderr = dependencies.stderr ?? ((text: string) => process.stderr.write(text));
 
-  if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
-    stdout(HELP);
-    return 0;
-  }
-  if (args[0] === "remote" && args[1] === "press" && args.includes("--help")) {
+  if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     stdout(HELP);
     return 0;
   }
 
-  let parsed: ParsedPress;
+  let parsed: ParsedCommand;
   try {
-    parsed = parsePress(args);
+    parsed = parseCommand(args);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     stderr(`usage: ${message}\n\n${HELP}`);
@@ -224,12 +513,13 @@ export async function runCli(
     });
   const signalTarget = dependencies.signalTarget ?? process;
   const abortController = new AbortController();
-  let signalExit: typeof INTERRUPTED_EXIT | typeof TERMINATED_EXIT | undefined;
+  let signalExit: 130 | 143 | undefined;
   let harness: DeviceHarness | undefined;
-  let result: PressResult | undefined;
-  let caughtError: { code: string; message: string } | undefined;
-  let closeError: { code: string; message: string } | undefined;
   let closePromise: Promise<void> | undefined;
+  let closeError: CommandError | undefined;
+  let caughtError: CommandError | undefined;
+  let result: CliResult | undefined;
+  let doctorTarget: PublicDeviceSummary | undefined;
 
   const closeHarness = (): Promise<void> => {
     if (!harness) return Promise.resolve();
@@ -238,55 +528,126 @@ export async function runCli(
       .then(() => undefined);
     return closePromise;
   };
-
-  const onInterrupt = () => {
-    signalExit = INTERRUPTED_EXIT;
-    abortController.abort(new DOMException(signalMessage("SIGINT"), "AbortError"));
+  const cancel = (signal: "SIGINT" | "SIGTERM") => {
+    signalExit ??= signal === "SIGINT" ? INTERRUPTED_EXIT : TERMINATED_EXIT;
+    abortController.abort(new DOMException(signalMessage(signal), "AbortError"));
     void closeHarness().catch(() => undefined);
   };
-  const onTerminate = () => {
-    signalExit = TERMINATED_EXIT;
-    abortController.abort(new DOMException(signalMessage("SIGTERM"), "AbortError"));
-    void closeHarness().catch(() => undefined);
-  };
+  const onInterrupt = () => cancel("SIGINT");
+  const onTerminate = () => cancel("SIGTERM");
 
   signalTarget.on("SIGINT", onInterrupt);
   signalTarget.on("SIGTERM", onTerminate);
   try {
     try {
       const runtime = await createRuntime({
-        diagnosticSink: (event) => {
-          stderr(`${event.level}: ${event.message}\n`);
-        },
+        diagnosticSink: (event) => stderr(`${event.level}: ${event.message}\n`),
       });
-      harness = await runtime.openDevice(parsed.deviceId, {
-        require: ["control.press"],
-        signal: abortController.signal,
-      });
-      const operations: OperationRecord[] = [];
-      for (let ordinal = 0; ordinal < parsed.times; ordinal += 1) {
-        const operation = await harness.execute(
-          { kind: "control.press", key: parsed.key },
-          { signal: abortController.signal },
-        );
-        operations.push(operation);
-        if (operation.status !== "succeeded") break;
+      switch (parsed.command) {
+        case "device.list": {
+          const descriptors = await abortable(
+            runtime.listDevices({ signal: abortController.signal }),
+            abortController.signal,
+          );
+          const devices = descriptors
+            .map(publicDeviceSummary)
+            .sort((left, right) => compareText(left.id, right.id));
+          result = {
+            resultVersion: 1,
+            command: "device.list",
+            status: "succeeded",
+            exitCode: 0,
+            devices,
+          };
+          break;
+        }
+        case "device.doctor": {
+          doctorTarget = publicDeviceSummary(
+            await abortable(
+              runtime.getDevice(parsed.targetId, { signal: abortController.signal }),
+              abortController.signal,
+            ),
+          );
+          const capabilities = doctorCapabilities(
+            parsed.targetId,
+            await abortable(
+              runtime.getCapabilities(parsed.targetId, { signal: abortController.signal }),
+              abortController.signal,
+            ),
+          );
+          const ready =
+            capabilities.length > 0 &&
+            capabilities.every(
+              (capability) => capability.readiness === "ready" && capability.support === "stable",
+            );
+          const scope = readinessScope(capabilities);
+          const status = !ready
+            ? "not-ready"
+            : scope === "configuration-only"
+              ? "unverified"
+              : "ready";
+          const doctorError =
+            capabilities.length === 0
+              ? {
+                  code: "no-capabilities",
+                  message: "No executable capabilities were reported for this target",
+                }
+              : status === "unverified"
+                ? {
+                    code: "live-readiness-unverified",
+                    message: `Live connectivity was not checked for ${parsed.targetId}`,
+                  }
+                : status === "not-ready"
+                  ? {
+                      code: "target-not-ready",
+                      message: `One or more capabilities are not ready for ${parsed.targetId}`,
+                    }
+                  : undefined;
+          result = {
+            resultVersion: 1,
+            command: "device.doctor",
+            targetId: parsed.targetId,
+            target: doctorTarget,
+            status,
+            exitCode: status === "ready" ? 0 : FAILURE_EXIT,
+            readinessScope: scope,
+            capabilities,
+            ...(doctorError ? { error: doctorError } : {}),
+          };
+          break;
+        }
+        case "remote.press": {
+          harness = await runtime.openDevice(parsed.targetId, {
+            require: ["control.press"],
+            signal: abortController.signal,
+          });
+          const operations: OperationRecord[] = [];
+          for (let ordinal = 0; ordinal < parsed.requestedTimes; ordinal += 1) {
+            const operation = await harness.execute(
+              { kind: "control.press", key: parsed.key },
+              { signal: abortController.signal },
+            );
+            operations.push(operation);
+            if (operation.status !== "succeeded") break;
+          }
+          const operationError = operations.at(-1)?.error;
+          const operationStatus = operations.at(-1)?.status ?? "failed";
+          result = {
+            resultVersion: 1,
+            command: "remote.press",
+            targetId: parsed.targetId,
+            key: parsed.key,
+            requestedTimes: parsed.requestedTimes,
+            status: operationStatus,
+            exitCode: operationStatus === "succeeded" ? 0 : FAILURE_EXIT,
+            operations,
+            ...(operationError
+              ? { error: { code: operationError.code, message: operationError.message } }
+              : {}),
+          };
+          break;
+        }
       }
-      const status = resultStatus(operations);
-      const operationError = operations.at(-1)?.error;
-      result = {
-        resultVersion: 1,
-        command: "remote.press",
-        targetId: parsed.deviceId,
-        key: parsed.key,
-        requestedTimes: parsed.times,
-        status,
-        exitCode: status === "succeeded" ? 0 : FAILURE_EXIT,
-        operations,
-        ...(operationError
-          ? { error: { code: operationError.code, message: operationError.message } }
-          : {}),
-      };
     } catch (error) {
       caughtError = errorDetails(error);
     }
@@ -302,69 +663,25 @@ export async function runCli(
   }
 
   if (signalExit !== undefined) {
-    const interrupted: PressResult = {
-      resultVersion: 1,
-      command: "remote.press",
-      targetId: parsed.deviceId,
-      key: parsed.key,
-      requestedTimes: parsed.times,
-      status: "cancelled",
-      exitCode: signalExit,
-      error: {
-        code: "cancelled",
-        message: signalMessage(signalExit === INTERRUPTED_EXIT ? "SIGINT" : "SIGTERM"),
-      },
-      operations: result?.operations ?? [],
-      ...(closeError ? { cleanupError: closeError } : {}),
-    };
-    writeFailure(interrupted, parsed.json, stdout, stderr);
-    return signalExit;
-  }
-
-  if (caughtError) {
-    const failed: PressResult = {
-      resultVersion: 1,
-      command: "remote.press",
-      targetId: parsed.deviceId,
-      key: parsed.key,
-      requestedTimes: parsed.times,
-      status: "failed",
-      exitCode: FAILURE_EXIT,
-      error: caughtError,
-      operations: result?.operations ?? [],
-      ...(closeError ? { cleanupError: closeError } : {}),
-    };
-    writeFailure(failed, parsed.json, stdout, stderr);
-    return FAILURE_EXIT;
-  }
-
-  if (!result) {
-    const failed: PressResult = {
-      resultVersion: 1,
-      command: "remote.press",
-      targetId: parsed.deviceId,
-      key: parsed.key,
-      requestedTimes: parsed.times,
-      status: "failed",
-      exitCode: FAILURE_EXIT,
-      operations: [],
-      error: closeError ?? { code: "runtime-failed", message: "Runtime produced no result" },
-    };
-    writeFailure(failed, parsed.json, stdout, stderr);
-    return FAILURE_EXIT;
-  }
-  if (closeError) {
+    result = cancelledResult(parsed, signalExit, result, closeError, doctorTarget);
+  } else if (caughtError) {
+    result = failureResult(parsed, caughtError, closeError, doctorTarget);
+  } else if (!result) {
+    result = failureResult(
+      parsed,
+      closeError ?? { code: "runtime-failed", message: "Runtime produced no result" },
+      undefined,
+      doctorTarget,
+    );
+  } else if (closeError) {
     result = {
       ...result,
       status: "failed",
       exitCode: FAILURE_EXIT,
       error: closeError,
-    };
+    } as CliResult;
   }
-  writeResult(result, parsed.json, stdout);
-  if (result.status !== "succeeded") {
-    if (result.error) stderr(`${result.error.code}: ${result.error.message}\n`);
-    return FAILURE_EXIT;
-  }
-  return 0;
+
+  writeResult(result, parsed.json, stdout, stderr);
+  return result.exitCode;
 }

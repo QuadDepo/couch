@@ -17,9 +17,9 @@ function capabilities(
 }
 
 const androidCapabilities = capabilities([
-  ["control.press", stable()],
-  ["control.text", stable()],
-  ["device.wake", stable()],
+  ["control.press", { ...stable(), constraints: { readinessCheck: "live-adb-probe" } }],
+  ["control.text", { ...stable(), constraints: { readinessCheck: "live-adb-probe" } }],
+  ["device.wake", { ...stable(), constraints: { readinessCheck: "live-adb-probe" } }],
 ]);
 
 async function androidCapabilitiesFor(
@@ -42,8 +42,8 @@ async function androidCapabilitiesFor(
 }
 
 const webosCapabilities = capabilities([
-  ["control.press", stable()],
-  ["control.text", stable()],
+  ["control.press", { ...stable(), constraints: { readinessCheck: "paired-configuration-only" } }],
+  ["control.text", { ...stable(), constraints: { readinessCheck: "paired-configuration-only" } }],
 ]);
 
 function webosCapabilitiesFor(
@@ -51,7 +51,17 @@ function webosCapabilitiesFor(
 ): ReadonlyMap<OperationKind, OperationCapability> {
   const config = targetConfig(target);
   const credentials = config?.webos as { clientKey?: unknown } | undefined;
-  if (credentials?.clientKey) return webosCapabilities;
+  if (credentials?.clientKey) {
+    return new Map(
+      [...webosCapabilities].map(([kind, capability]) => [
+        kind,
+        {
+          ...capability,
+          reason: "Paired client key configured; live connectivity was not checked",
+        },
+      ]),
+    );
+  }
   return new Map(
     [...webosCapabilities].map(([kind, capability]) => [
       kind,

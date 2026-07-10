@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TVDevice } from "../types";
@@ -52,6 +52,227 @@ function fakeDriver(
 }
 
 describe("DeviceRuntime", () => {
+  test("lists credential-safe descriptors without exposing inventory source data", async () => {
+    const inventoryDevices: TVDevice[] = [
+      {
+        id: "living-room",
+        name: "Living Room",
+        platform: "lg-webos",
+        ip: "192.168.1.50",
+        config: { webos: { clientKey: "secret-client-key" } },
+      },
+      {
+        id: "bedroom",
+        name: "Bedroom",
+        platform: "android-tv",
+        ip: "192.168.1.51",
+      },
+    ];
+    const runtime = createDeviceRuntime({ inventoryLoader: () => inventoryDevices });
+
+    const descriptors = await runtime.listDevices();
+
+    expect(descriptors).toEqual([
+      {
+        id: "living-room",
+        name: "Living Room",
+        platform: "webos",
+        ip: "192.168.1.50",
+        driverId: "lg-ssap",
+      },
+      {
+        id: "bedroom",
+        name: "Bedroom",
+        platform: "android-tv",
+        ip: "192.168.1.51",
+        driverId: "adb",
+      },
+    ]);
+    expect(descriptors[0]).not.toHaveProperty("source");
+    expect(descriptors[0]).not.toHaveProperty("config");
+    expect(JSON.stringify(descriptors)).not.toContain("secret-client-key");
+  });
+
+  test("allowlists descriptors so nested metadata secrets are not exposed", async () => {
+    const inventoryDevice: DeviceDescriptor = {
+      id: "living-room",
+      name: "Living Room",
+      platform: "lg-webos",
+      ip: "192.168.1.50",
+      driverId: "lg-ssap",
+      metadata: {
+        label: "safe",
+        auth: {
+          clientKey: "nested-client-key",
+          privateKey: "nested-private-key",
+          token: "nested-token",
+          certificates: ["nested-certificate"],
+        },
+      },
+    };
+    const runtime = createDeviceRuntime({ inventoryLoader: () => [inventoryDevice] });
+
+    const [listed, lookedUp] = [
+      await runtime.listDevices(),
+      await runtime.getDevice(inventoryDevice.id),
+    ];
+
+    expect(listed[0]).toEqual({
+      id: "living-room",
+      name: "Living Room",
+      platform: "webos",
+      ip: "192.168.1.50",
+      driverId: "lg-ssap",
+    });
+    expect(lookedUp).toEqual(listed[0]);
+    expect(JSON.stringify(listed)).not.toMatch(/clientKey|privateKey|token|certificates|nested-/);
+  });
+
+  test.each([
+    "listDevices",
+    "getDevice",
+  ] as const)("%s rejects promptly when inventory loading does not settle", async (method) => {
+    const runtime = createDeviceRuntime({
+      inventoryLoader: () => new Promise<readonly TVDevice[]>(() => undefined),
+    });
+    const controller = new AbortController();
+    const pending =
+      method === "listDevices"
+        ? runtime.listDevices({ signal: controller.signal })
+        : runtime.getDevice("living-room", { signal: controller.signal });
+
+    controller.abort(new Error("inventory cancelled"));
+
+    await expect(pending).rejects.toThrow("inventory cancelled");
+  });
+
+  test("rejects an already-aborted open before capability probing or driver creation", async () => {
+    const driver = fakeDriver();
+    let probes = 0;
+    let creations = 0;
+    const directory = await mkdtemp(join(tmpdir(), "couch-pre-abort-"));
+    const lockDirectory = join(directory, "locks");
+    const controller = new AbortController();
+    controller.abort(new Error("open cancelled"));
+    const runtime = createDeviceRuntime({
+      inventoryLoader: () => [device],
+      lockDirectory,
+      registry: {
+        getRegistration: () => ({
+          ...registration(driver),
+          createDriver: () => {
+            creations += 1;
+            return driver;
+          },
+          getCapabilities: () => {
+            probes += 1;
+            return new Map([["control.press", { support: "stable", readiness: "ready" } as const]]);
+          },
+        }),
+      },
+    });
+
+    try {
+      await expect(
+        runtime.openDevice("living-room", {
+          require: ["control.press"],
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow("open cancelled");
+      expect(probes).toBe(0);
+      expect(creations).toBe(0);
+      await expect(stat(lockDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(directory, { recursive: true });
+    }
+  });
+
+  test("cancels a non-cooperative capability probe without an unhandled late rejection", async () => {
+    let resolveProbeStarted!: () => void;
+    let rejectProbe!: (error: Error) => void;
+    const probeStarted = new Promise<void>((resolve) => {
+      resolveProbeStarted = resolve;
+    });
+    const probe = new Promise<
+      ReadonlyMap<OperationKind, { support: "stable"; readiness: "ready" }>
+    >((_, reject) => {
+      rejectProbe = reject;
+    });
+    const runtime = createDeviceRuntime({
+      inventoryLoader: () => [device],
+      registry: {
+        getRegistration: () => ({
+          ...registration(fakeDriver()),
+          getCapabilities: () => {
+            resolveProbeStarted();
+            return probe;
+          },
+        }),
+      },
+    });
+    const controller = new AbortController();
+    const pending = runtime.getCapabilities("living-room", { signal: controller.signal });
+    await probeStarted;
+
+    controller.abort(new Error("probe cancelled"));
+
+    await expect(pending).rejects.toThrow("probe cancelled");
+    rejectProbe(new Error("late probe failure"));
+    await Promise.resolve();
+  });
+
+  test("cancels a non-cooperative open probe before creating a driver or lock", async () => {
+    let resolveProbeStarted!: () => void;
+    let rejectProbe!: (error: Error) => void;
+    const probeStarted = new Promise<void>((resolve) => {
+      resolveProbeStarted = resolve;
+    });
+    const probe = new Promise<
+      ReadonlyMap<OperationKind, { support: "stable"; readiness: "ready" }>
+    >((_, reject) => {
+      rejectProbe = reject;
+    });
+    const driver = fakeDriver();
+    let creations = 0;
+    const directory = await mkdtemp(join(tmpdir(), "couch-probe-abort-"));
+    const lockDirectory = join(directory, "locks");
+    const runtime = createDeviceRuntime({
+      inventoryLoader: () => [device],
+      lockDirectory,
+      registry: {
+        getRegistration: () => ({
+          ...registration(driver),
+          createDriver: () => {
+            creations += 1;
+            return driver;
+          },
+          getCapabilities: () => {
+            resolveProbeStarted();
+            return probe;
+          },
+        }),
+      },
+    });
+    const controller = new AbortController();
+    const pending = runtime.openDevice("living-room", {
+      require: ["control.press"],
+      signal: controller.signal,
+    });
+    await probeStarted;
+
+    controller.abort(new Error("open probe cancelled"));
+
+    try {
+      await expect(pending).rejects.toThrow("open probe cancelled");
+      expect(creations).toBe(0);
+      await expect(stat(lockDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+      rejectProbe(new Error("late open probe failure"));
+      await Promise.resolve();
+    } finally {
+      await rm(directory, { recursive: true });
+    }
+  });
+
   test("separates product identity from driver identity without exposing credentials", async () => {
     const inventoryDevice: TVDevice<"lg-webos"> = {
       id: "living-room",
@@ -139,10 +360,33 @@ describe("DeviceRuntime", () => {
     const capabilities = await runtime.getCapabilities("living-room");
 
     expect(capabilities.get("control.press")?.readiness).toBe(expected);
+    expect(capabilities.get("control.press")?.constraints).toEqual({
+      readinessCheck: "live-adb-probe",
+    });
     index = 0;
     await expect(
       runtime.openDevice("living-room", { require: ["control.press"] }),
     ).rejects.toMatchObject({ code: "unsupported-operation" });
+  });
+
+  test("marks paired webOS readiness as client-key-only", async () => {
+    const inventoryDevice: TVDevice<"lg-webos"> = {
+      id: "living-room",
+      name: "Living Room",
+      platform: "lg-webos",
+      ip: "192.168.1.50",
+      config: { webos: { clientKey: "client-key" } },
+    };
+    const runtime = createDeviceRuntime({ inventoryLoader: () => [inventoryDevice] });
+
+    const capabilities = await runtime.getCapabilities("living-room");
+
+    expect(capabilities.get("control.press")).toMatchObject({
+      support: "stable",
+      readiness: "ready",
+      reason: "Paired client key configured; live connectivity was not checked",
+      constraints: { readinessCheck: "paired-configuration-only" },
+    });
   });
 
   test("preflights required operations and records awaited driver receipts in FIFO order", async () => {

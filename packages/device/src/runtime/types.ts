@@ -146,7 +146,8 @@ export type DiagnosticSink =
   | { emit: (event: DiagnosticEvent) => void | Promise<void> };
 
 export interface DeviceRuntime {
-  getDevice(id: string): Promise<DeviceDescriptor>;
+  listDevices(options?: { signal?: AbortSignal }): Promise<readonly DeviceDescriptor[]>;
+  getDevice(id: string, options?: { signal?: AbortSignal }): Promise<DeviceDescriptor>;
   getCapabilities(
     id: string,
     options?: { signal?: AbortSignal },
