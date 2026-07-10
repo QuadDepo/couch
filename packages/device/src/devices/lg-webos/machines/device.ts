@@ -54,6 +54,9 @@ export const webosDeviceMachine = createDeviceMachine<
   pairing: {
     logic: pairingActor,
     input: (context) => ({ ip: context.deviceIp, useSsl: context.useSsl }),
+    retryTarget: "#webosDevice.pairing.active",
+    retryActions: ["clearError", "resetPromptReceived"],
+    timeoutErrorTarget: "#webosDevice.pairing.active.error",
     promptTarget: "waitingForUser",
     states: ({ userInputTimeout }) => ({
       waitingForUser: {
@@ -69,8 +72,10 @@ export const webosDeviceMachine = createDeviceMachine<
           }),
         },
         target: "active",
+        reenter: true,
         actions: [
           "enableSsl",
+          "resetPromptReceived",
           { type: "log", params: { message: "Connection reset - retrying with SSL" } },
         ],
       },
@@ -106,7 +111,10 @@ export const webosDeviceMachine = createDeviceMachine<
   },
   extraGuards: {
     shouldRetrySsl: ({ context }: { context: WebOSExtraContext }, params: { error: string }) =>
-      !context.useSsl && params.error.includes("ECONNRESET"),
+      !context.useSsl &&
+      (params.error.includes("ECONNRESET") ||
+        params.error.includes("WebSocket connection failed") ||
+        params.error.includes("Connection ended")),
   },
 });
 

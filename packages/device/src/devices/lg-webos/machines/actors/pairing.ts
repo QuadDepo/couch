@@ -40,11 +40,6 @@ export const pairingActor = fromCallback<PairingEvent, PairingInput>(({ input, s
     }
   });
 
-  connection.on("error", (error) => {
-    logger.error("WebOS", `Pairing connection error: ${error}`);
-    sendBack({ type: "PAIRING_ERROR", error: String(error) });
-  });
-
   logger.info("WebOS", "Initiating connection for pairing");
   connection.connect().catch((err) => {
     logger.error("WebOS", `Pairing connection failed: ${err}`);

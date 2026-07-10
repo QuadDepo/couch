@@ -134,6 +134,10 @@ export interface DevicePairingConfig<TContext, TPairing extends UnknownActorLogi
   errorTransitions?: readonly DeviceTransitionFragment[];
   /** Actions for START_PAIRING from the pairing error sub-state (default: clearError). */
   retryActions?: readonly string[];
+  /** Absolute target used by START_PAIRING when retry must recreate the pairing actor. */
+  retryTarget?: string;
+  /** Absolute target used by pairing timeouts (default: the machine's top-level error). */
+  timeoutErrorTarget?: string;
   /** Where setup and START_PAIRING enter pairing (android-tv ADB uses "instructions"). */
   entryTarget?: string;
   /** Actions on START_PAIRING from idle (default: a "Starting pairing" log). */
@@ -223,13 +227,14 @@ export function createDeviceMachine<
   const { credentials: credentialsConfig, pairing, session } = config;
 
   const errorTarget = `#${config.id}.error`;
+  const timeoutErrorTarget = pairing.timeoutErrorTarget ?? errorTarget;
   const setPairingTimeoutError = {
     type: "setError" as const,
     params: { error: PAIRING_TIMEOUT_ERROR },
   };
   const helpers: DevicePairingHelpers = {
     errorTarget,
-    userInputTimeout: { target: errorTarget, actions: setPairingTimeoutError },
+    userInputTimeout: { target: timeoutErrorTarget, actions: setPairingTimeoutError },
   };
 
   const extraContext = (credentials: TCredentials | undefined): Record<string, unknown> =>
@@ -303,6 +308,9 @@ export function createDeviceMachine<
       }),
       setPromptReceived: assign({
         promptReceived: true,
+      }),
+      resetPromptReceived: assign({
+        promptReceived: false,
       }),
       setCredentials: assign({
         credentials: ({ context, event }) =>
@@ -518,7 +526,7 @@ export function createDeviceMachine<
                 },
                 after: {
                   pairingConnectTimeout: {
-                    target: errorTarget,
+                    target: timeoutErrorTarget,
                     actions: setPairingTimeoutError,
                   },
                 },
@@ -527,7 +535,7 @@ export function createDeviceMachine<
               error: {
                 on: {
                   START_PAIRING: {
-                    target: "connecting",
+                    target: pairing.retryTarget ?? "connecting",
                     actions: (pairing.retryActions ?? ["clearError"]) as never,
                   },
                 },
