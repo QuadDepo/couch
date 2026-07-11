@@ -3,7 +3,7 @@ import { logger } from "../../../utils/logger";
 import type { AndroidTvRemoteCredentials } from "../credentials";
 import { computePairingSecret, generateClientCertificate } from "../protocol/certificate";
 import { createFrameReader, frameMessage } from "../protocol/framing";
-import { hexToBytes } from "../protocol/hex";
+import { bytesToHex, hexToBytes } from "../protocol/hex";
 import {
   buildConfiguration,
   buildOptions,
@@ -154,7 +154,7 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
       return;
     }
 
-    logger.debug("AndroidTVRemote", `Received server secret: ${toHex(serverSecret)}`);
+    logger.debug("AndroidTVRemote", `Received server secret: ${bytesToHex(serverSecret)}`);
     verifyServerSecret(serverSecret);
   }
 
@@ -170,9 +170,9 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
       state.clientCertPem,
       codeBytes,
     );
-    logger.debug("AndroidTVRemote", `Expected server secret: ${toHex(expectedSecret)}`);
+    logger.debug("AndroidTVRemote", `Expected server secret: ${bytesToHex(expectedSecret)}`);
 
-    if (!arraysEqual(serverSecret, expectedSecret)) {
+    if (Buffer.compare(serverSecret, expectedSecret) !== 0) {
       logger.warn(
         "AndroidTVRemote",
         "Server secret mismatch - continuing anyway (some TVs don't match exactly)",
@@ -212,14 +212,8 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
       throw new Error(`Pairing send failed: socket not writable during ${phase}`);
     }
     const framed = frameMessage(data);
-    logger.debug("AndroidTVRemote", `Sending ${framed.length} bytes: ${toHex(framed)}`);
+    logger.debug("AndroidTVRemote", `Sending ${framed.length} bytes: ${bytesToHex(framed)}`);
     socket.write(framed);
-  }
-
-  function toHex(data: Uint8Array): string {
-    return Array.from(data)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join(" ");
   }
 
   async function connect(): Promise<void> {
@@ -265,7 +259,10 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
 
       conn.on("data", (data: Buffer) => {
         const bytes = new Uint8Array(data);
-        logger.debug("AndroidTVRemote", `Received raw data: ${data.length} bytes: ${toHex(bytes)}`);
+        logger.debug(
+          "AndroidTVRemote",
+          `Received raw data: ${data.length} bytes: ${bytesToHex(bytes)}`,
+        );
         try {
           frameReader.append(bytes);
           for (let message = frameReader.read(); message; message = frameReader.read()) {
@@ -355,7 +352,7 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
       }
 
       logger.info("AndroidTVRemote", `Sending SECRET with code suffix: ${codeSuffix}`);
-      logger.debug("AndroidTVRemote", `Client secret: ${toHex(clientSecret)}`);
+      logger.debug("AndroidTVRemote", `Client secret: ${bytesToHex(clientSecret)}`);
       // handleSecretAck resolves this once the TV confirms the pairing.
       resolveResult = resolve;
       sendMessage(buildSecret(clientSecret));
@@ -376,12 +373,4 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
     submitCode,
     getPhase,
   };
-}
-
-function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
 }

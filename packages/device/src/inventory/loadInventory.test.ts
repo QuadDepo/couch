@@ -3,7 +3,8 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TVDevice } from "../types";
-import { InventoryError, loadDevicesFromFile, saveDevicesToFile } from "./loadInventory";
+import { InventoryError } from "./inventorySchema";
+import { loadDevicesFromFile, saveDevicesToFile } from "./loadInventory";
 
 const tempDirectories: string[] = [];
 

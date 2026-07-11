@@ -1,9 +1,5 @@
 import * as v from "valibot";
-
-const MacAddressSchema = v.pipe(
-  v.string(),
-  v.regex(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/, "Invalid MAC address format"),
-);
+import { MacAddressSchema } from "../shared/macAddress";
 
 export const WebOSCredentialsSchema = v.object({
   clientKey: v.pipe(v.string(), v.minLength(1, "Client key cannot be empty")),

@@ -51,5 +51,3 @@ export function loadDevices(): Promise<PersistedDevice[] | null> {
 export function saveDevices(devices: TVDevice[]): Promise<void> {
   return saveDevicesToFile(DEVICES_FILE, devices);
 }
-
-export { InventoryError } from "./inventorySchema";

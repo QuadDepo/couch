@@ -7,9 +7,7 @@ export interface DiagnosticEvent {
   at: string;
 }
 
-export type DiagnosticSink =
-  | ((event: DiagnosticEvent) => void | Promise<void>)
-  | { emit: (event: DiagnosticEvent) => void | Promise<void> };
+export type DiagnosticSink = (event: DiagnosticEvent) => void | Promise<void>;
 
 export function createDiagnosticEvent(
   level: DiagnosticEvent["level"],
@@ -24,6 +22,5 @@ export async function emitDiagnostic(
   event: DiagnosticEvent,
 ): Promise<void> {
   if (!sink) return;
-  if (typeof sink === "function") await sink(event);
-  else await sink.emit(event);
+  await sink(event);
 }

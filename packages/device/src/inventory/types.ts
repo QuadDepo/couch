@@ -3,7 +3,6 @@ import type { DriverRegistry } from "../drivers/types";
 import type {
   DriverId,
   OperationCapability,
-  OperationError,
   OperationKind,
   ProductPlatform,
 } from "../operations/types";
@@ -86,20 +85,4 @@ export interface DeviceInventoryOptions {
   closeTimeoutMs?: number;
 }
 
-export type DeviceInventoryErrorCode =
-  | "DEVICE_NOT_FOUND"
-  | "DRIVER_NOT_FOUND"
-  | "DRIVER_NOT_READY"
-  | "UNSUPPORTED_OPERATION"
-  | "EXPERIMENTAL_OPERATION";
-
-export class DeviceInventoryError extends Error {
-  constructor(
-    readonly code: DeviceInventoryErrorCode,
-    message: string,
-    readonly category: OperationError["category"] = "infrastructure",
-  ) {
-    super(message);
-    this.name = "DeviceInventoryError";
-  }
-}
+export { DeviceInventoryError, type DeviceInventoryErrorCode } from "../errors";

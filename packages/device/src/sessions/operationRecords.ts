@@ -1,7 +1,7 @@
 import { createDiagnosticEvent, type DiagnosticSink, emitDiagnostic } from "../diagnostics/events";
 import { jsonSafeRecord } from "../diagnostics/redact";
 import type { DriverReceipt } from "../drivers/types";
-import { DeviceInventoryError } from "../inventory/types";
+import { DeviceInventoryError } from "../errors";
 import type {
   Confirmation,
   DeviceOperation,

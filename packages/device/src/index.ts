@@ -60,7 +60,8 @@ export type {
   InventoryErrorCode,
   StorageSchema,
 } from "./inventory/inventorySchema";
-export { InventoryError, loadDevices, saveDevices } from "./inventory/loadInventory";
+export { InventoryError } from "./inventory/inventorySchema";
+export { loadDevices, saveDevices } from "./inventory/loadInventory";
 export type {
   DeviceDescriptor,
   DeviceInventory,

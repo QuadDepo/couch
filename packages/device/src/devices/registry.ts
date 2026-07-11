@@ -1,4 +1,4 @@
-import { createActor, type InspectionEvent, type Observer } from "xstate";
+import { type AnyStateMachine, createActor, type InspectionEvent, type Observer } from "xstate";
 import type { TVDevice } from "../types";
 import type { DeviceActor } from "./actors";
 import { capabilities as androidTVCapabilities } from "./android-tv/capabilities";
@@ -36,25 +36,36 @@ export type ImplementedPlatform =
   | "samsung-tizen"
   | "android-tv-remote";
 
+// Builds the createActor closure for a platform: every device machine takes the same
+// base input, plus—for credentialed platforms—the stored credentials read from the config
+// key named `configKey` (omitted entirely when a platform stores no credentials).
+function actorFactory(
+  machine: AnyStateMachine,
+  platform: ImplementedPlatform,
+  configKey?: string,
+): PlatformRegistration["createActor"] {
+  return (device, inspect) =>
+    createActor(machine, {
+      input: {
+        deviceId: device.id,
+        deviceName: device.name,
+        deviceIp: device.ip,
+        platform,
+        ...(configKey
+          ? { credentials: (device.config as Record<string, unknown> | undefined)?.[configKey] }
+          : {}),
+      },
+      inspect,
+    });
+}
+
 export const platformRegistry: Record<ImplementedPlatform, PlatformRegistration> = {
   "lg-webos": {
     name: "LG WebOS TV",
     label: "LG",
     description: "LG WebOS TVs (via WebSocket)",
     capabilities: webosCapabilities,
-    createActor: (device, inspect) => {
-      const config = device.config as { webos?: unknown } | undefined;
-      return createActor(webosDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "lg-webos",
-          credentials: config?.webos,
-        },
-        inspect,
-      });
-    },
+    createActor: actorFactory(webosDeviceMachine, "lg-webos", "webos"),
     wrapCredentials: (raw) => ({ webos: validateWebOSCredentials(raw) }),
   },
 
@@ -63,16 +74,7 @@ export const platformRegistry: Record<ImplementedPlatform, PlatformRegistration>
     label: "Android",
     description: "Android TVs via ADB debugging",
     capabilities: androidTVCapabilities,
-    createActor: (device, inspect) =>
-      createActor(androidTVDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "android-tv",
-        },
-        inspect,
-      }),
+    createActor: actorFactory(androidTVDeviceMachine, "android-tv"),
     wrapCredentials: () => undefined,
   },
 
@@ -81,19 +83,7 @@ export const platformRegistry: Record<ImplementedPlatform, PlatformRegistration>
     label: "Philips",
     description: "Philips TVs (via JointSpace)",
     capabilities: philipsCapabilities,
-    createActor: (device, inspect) => {
-      const config = device.config as { philips?: unknown } | undefined;
-      return createActor(philipsDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "philips-tv",
-          credentials: config?.philips,
-        },
-        inspect,
-      });
-    },
+    createActor: actorFactory(philipsDeviceMachine, "philips-tv", "philips"),
     wrapCredentials: (raw) => ({ philips: validatePhilipsCredentials(raw) }),
   },
 
@@ -102,19 +92,7 @@ export const platformRegistry: Record<ImplementedPlatform, PlatformRegistration>
     label: "Samsung",
     description: "Samsung Tizen TVs (via WebSocket)",
     capabilities: tizenCapabilities,
-    createActor: (device, inspect) => {
-      const config = device.config as { tizen?: unknown } | undefined;
-      return createActor(tizenDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "samsung-tizen",
-          credentials: config?.tizen,
-        },
-        inspect,
-      });
-    },
+    createActor: actorFactory(tizenDeviceMachine, "samsung-tizen", "tizen"),
     wrapCredentials: (raw) => ({ tizen: validateTizenCredentials(raw) }),
   },
 
@@ -123,19 +101,7 @@ export const platformRegistry: Record<ImplementedPlatform, PlatformRegistration>
     label: "Android (Remote)",
     description: "Android TVs via TLS remote protocol",
     capabilities: androidTvRemoteCapabilities,
-    createActor: (device, inspect) => {
-      const config = device.config as { androidTvRemote?: unknown } | undefined;
-      return createActor(androidTvRemoteDeviceMachine, {
-        input: {
-          deviceId: device.id,
-          deviceName: device.name,
-          deviceIp: device.ip,
-          platform: "android-tv-remote",
-          credentials: config?.androidTvRemote,
-        },
-        inspect,
-      });
-    },
+    createActor: actorFactory(androidTvRemoteDeviceMachine, "android-tv-remote", "androidTvRemote"),
     wrapCredentials: (raw) => ({
       androidTvRemote: validateAndroidTvRemoteCredentials(raw),
     }),

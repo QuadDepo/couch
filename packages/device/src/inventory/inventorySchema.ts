@@ -78,8 +78,21 @@ function credentialValue(platform: ImplementedPlatform, config: unknown, key: st
   return record[key];
 }
 
-// Parse a single-credential-key config fragment for the switch branches below; returns an
-// empty fragment when no config is stored so the caller can spread it unconditionally.
+// The per-platform credential config: each of these platforms stores its credentials under a
+// single named key that is parsed by the matching persisted-credentials parser. "android-tv"
+// is absent because it stores an arbitrary config record with no credential key.
+const CREDENTIAL_CONFIG: Record<
+  Exclude<ImplementedPlatform, "android-tv">,
+  { key: string; parse: (value: unknown) => unknown }
+> = {
+  "lg-webos": { key: "webos", parse: parsePersistedWebOSCredentials },
+  "android-tv-remote": { key: "androidTvRemote", parse: parsePersistedAndroidRemoteCredentials },
+  "philips-tv": { key: "philips", parse: parsePersistedPhilipsCredentials },
+  "samsung-tizen": { key: "tizen", parse: parsePersistedTizenCredentials },
+};
+
+// Parse a single-credential-key config fragment; returns an empty fragment when no config is
+// stored so the caller can spread it unconditionally.
 function optionalCredentialConfig<K extends string, T>(
   platform: ImplementedPlatform,
   config: unknown,
@@ -102,62 +115,26 @@ function parseDevice(value: unknown, index: number): PersistedDevice {
     throw invalidSchema(`Invalid IP address for device at index ${index}`);
   }
   const { id, name, ip, mac, config } = result.output;
+  const platform = result.output.platform;
   const fields = { id, name, ip, ...(mac === undefined ? {} : { mac }) };
   try {
-    switch (result.output.platform) {
-      case "android-tv":
-        return {
-          ...fields,
-          platform: "android-tv",
-          ...(config === undefined ? {} : { config: configRecord("android-tv", config) }),
-        };
-      case "lg-webos":
-        return {
-          ...fields,
-          platform: "lg-webos",
-          ...optionalCredentialConfig("lg-webos", config, "webos", parsePersistedWebOSCredentials),
-        };
-      case "android-tv-remote":
-        return {
-          ...fields,
-          platform: "android-tv-remote",
-          ...optionalCredentialConfig(
-            "android-tv-remote",
-            config,
-            "androidTvRemote",
-            parsePersistedAndroidRemoteCredentials,
-          ),
-        };
-      case "philips-tv":
-        return {
-          ...fields,
-          platform: "philips-tv",
-          ...optionalCredentialConfig(
-            "philips-tv",
-            config,
-            "philips",
-            parsePersistedPhilipsCredentials,
-          ),
-        };
-      case "samsung-tizen":
-        return {
-          ...fields,
-          platform: "samsung-tizen",
-          ...optionalCredentialConfig(
-            "samsung-tizen",
-            config,
-            "tizen",
-            parsePersistedTizenCredentials,
-          ),
-        };
+    if (platform === "android-tv") {
+      return {
+        ...fields,
+        platform,
+        ...(config === undefined ? {} : { config: configRecord("android-tv", config) }),
+      };
     }
+    const { key, parse } = CREDENTIAL_CONFIG[platform];
+    return {
+      ...fields,
+      platform,
+      ...optionalCredentialConfig(platform, config, key, parse),
+    } as PersistedDevice;
   } catch (error) {
     if (error instanceof InventoryError) throw error;
     const detail = error instanceof Error ? error.message : String(error);
-    throw invalidSchema(
-      `Invalid credentials for platform ${result.output.platform}: ${detail}`,
-      error,
-    );
+    throw invalidSchema(`Invalid credentials for platform ${platform}: ${detail}`, error);
   }
 }
 
