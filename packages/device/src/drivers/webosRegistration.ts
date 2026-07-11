@@ -58,10 +58,8 @@ function getCapabilities(target: InventoryTarget): ReadonlyMap<OperationKind, Op
 export function createWebosRegistration(): DriverRegistration {
   return {
     driverId: "lg-ssap",
-    platform: "webos",
     createDriver: (target) =>
       createLgWebosDriver({ ip: target.ip, credentials: webosCredentials(target) }),
     getCapabilities,
-    lockResourceId: (target) => `device:${target.id}`,
   };
 }

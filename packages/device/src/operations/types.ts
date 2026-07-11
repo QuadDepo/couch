@@ -7,12 +7,10 @@ export const OPERATION_KINDS = [
   "control.press",
   "control.text",
   "device.wake",
-  "app.install",
   "app.launch",
   "app.stop",
   "app.foreground",
   "screen.capture",
-  "logs.capture",
 ] as const;
 
 export type OperationKind = (typeof OPERATION_KINDS)[number];
@@ -27,12 +25,10 @@ export type DeviceOperation =
   | { kind: "control.press"; key: RemoteKey }
   | { kind: "control.text"; text: string }
   | { kind: "device.wake" }
-  | { kind: "app.install"; artifact: string; appId?: string }
   | { kind: "app.launch"; appId: string; activity?: string; params?: Record<string, unknown> }
   | { kind: "app.stop"; appId: string }
   | { kind: "app.foreground"; appId: string }
-  | { kind: "screen.capture"; format?: string; path?: string }
-  | { kind: "logs.capture"; sinceMs?: number; path?: string };
+  | { kind: "screen.capture"; format?: string; path?: string };
 
 export type Support = "stable" | "experimental" | "unsupported";
 export type Readiness = "ready" | "missing-tool" | "unauthorized" | "offline" | "misconfigured";
@@ -65,6 +61,8 @@ export interface OperationRecord {
   id: string;
   ordinal: number;
   kind: OperationKind;
+  // Persisted in trace JSON as `adapterId` for wire-compatibility; the in-memory driver
+  // identity (DeviceDriver, DriverRegistration) is `driverId`.
   adapterId: DriverId;
   status: OperationStatus;
   confirmation?: Confirmation;

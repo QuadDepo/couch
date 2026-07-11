@@ -1,7 +1,5 @@
 import type { AndroidTvDriverDependencies } from "../devices/android-tv/driver";
-import type { InventoryTarget } from "../inventory/types";
 import { createAndroidRegistration } from "./androidRegistration";
-import { deviceLockResourceId } from "./lockResourceId";
 import type { DriverRegistration, DriverRegistry } from "./types";
 import { createWebosRegistration } from "./webosRegistration";
 
@@ -20,22 +18,7 @@ export function createDriverRegistry(options: DriverRegistryOptions = {}): Drive
   );
   return {
     getRegistration(device) {
-      if (device.driverId) return byDriver.get(device.driverId);
-      const fallback =
-        device.platform === "android-tv"
-          ? "adb"
-          : device.platform === "webos"
-            ? "lg-ssap"
-            : undefined;
-      return fallback ? byDriver.get(fallback) : undefined;
+      return device.driverId ? byDriver.get(device.driverId) : undefined;
     },
   };
-}
-
-export function getLockResourceId(
-  device: InventoryTarget,
-  registration?: DriverRegistration,
-): string {
-  if (registration?.lockResourceId) return registration.lockResourceId(device);
-  return deviceLockResourceId(device);
 }

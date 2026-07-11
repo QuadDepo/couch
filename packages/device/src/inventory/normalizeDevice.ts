@@ -1,33 +1,39 @@
 import type { DriverId, ProductPlatform } from "../operations/types";
 import type { DeviceDescriptor, InventoryTarget, PersistedDevice } from "./types";
 
-function platformDetails(platform: PersistedDevice["platform"]): {
+// Two platform vocabularies meet here. PersistedDevice.platform is the device-facing
+// TVPlatform ("lg-webos", "samsung-tizen", "android-tv-remote"); ProductPlatform is the
+// coarser product family callers see. driverId is set only for platforms that have a real
+// operation driver registered (adb, lg-ssap) — the rest are connection-direct and resolve
+// no driver, so leaving it undefined lets the registry raise a specific "no driver" error
+// instead of silently borrowing another platform's driver.
+function toProductPlatform(platform: PersistedDevice["platform"]): {
   platform: ProductPlatform;
-  driverId: DriverId;
+  driverId?: DriverId;
 } {
   switch (platform) {
     case "android-tv":
-      return { platform, driverId: "adb" };
+      return { platform: "android-tv", driverId: "adb" };
     case "android-tv-remote":
-      return { platform: "android-tv", driverId: "android-remote" };
+      return { platform: "android-tv" };
     case "lg-webos":
       return { platform: "webos", driverId: "lg-ssap" };
     case "philips-tv":
-      return { platform, driverId: "philips-jointspace" };
+      return { platform: "philips-tv" };
     case "samsung-tizen":
-      return { platform: "tizen", driverId: "samsung-remote" };
+      return { platform: "tizen" };
   }
 }
 
 export function normalizeDevice(source: PersistedDevice): InventoryTarget {
-  const { platform, driverId } = platformDetails(source.platform);
+  const { platform, driverId } = toProductPlatform(source.platform);
   return {
     id: source.id,
     name: source.name,
     platform,
     ip: source.ip,
     ...(source.mac ? { mac: source.mac } : {}),
-    driverId,
+    ...(driverId ? { driverId } : {}),
     source,
   };
 }

@@ -1,7 +1,7 @@
 export interface SDKAvailability {
   adb: boolean;
-  aresDevice: boolean;
-  sdb: boolean;
+  webOsCli: boolean;
+  tizenCli: boolean;
 }
 
 async function isCommandAvailable(command: string): Promise<boolean> {
@@ -19,11 +19,11 @@ async function isCommandAvailable(command: string): Promise<boolean> {
 }
 
 export async function checkSDKAvailability(): Promise<SDKAvailability> {
-  const [adb, aresDevice, sdb] = await Promise.all([
+  const [adb, webOsCli, tizenCli] = await Promise.all([
     isCommandAvailable("adb"),
     isCommandAvailable("ares-device"),
     isCommandAvailable("sdb"),
   ]);
 
-  return { adb, aresDevice, sdb };
+  return { adb, webOsCli, tizenCli };
 }

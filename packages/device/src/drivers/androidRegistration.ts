@@ -44,9 +44,7 @@ export function createAndroidRegistration(
 ): DriverRegistration {
   return {
     driverId: "adb",
-    platform: "android-tv",
     createDriver: (target) => createAndroidTvDriver({ ip: target.ip }, dependencies),
     getCapabilities: (target, options) => getCapabilities(target, dependencies, options),
-    lockResourceId: (target) => `adb:${target.ip}:5555`,
   };
 }
