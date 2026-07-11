@@ -15,18 +15,9 @@ import {
 } from "react";
 import { JSX_CONTENT_KEY } from "./constants";
 import { DialogManager } from "./manager";
-import type {
-  AlertContext,
-  ChoiceContext,
-  ConfirmContext,
-  DialogState,
-  PromptContext,
-} from "./prompts";
+import type { DialogState, PromptContext } from "./prompts";
 import { DialogContainerRenderable } from "./renderables/dialog-container";
 import type {
-  BaseAlertOptions,
-  BaseChoiceOptions,
-  BaseConfirmOptions,
   BaseDialogActions,
   BasePromptOptions,
   DialogContainerOptions,
@@ -65,15 +56,6 @@ export interface ShowOptions extends Omit<DialogShowOptions, "content"> {
 /** Content factory for prompt dialogs. */
 type PromptContent<T> = (ctx: PromptContext<T>) => ReactNode;
 
-/** Content factory for confirm dialogs. */
-type ConfirmContent = (ctx: ConfirmContext) => ReactNode;
-
-/** Content factory for alert dialogs. */
-type AlertContent = (ctx: AlertContext) => ReactNode;
-
-/** Content factory for choice dialogs. */
-type ChoiceContent<K> = (ctx: ChoiceContext<K>) => ReactNode;
-
 /**
  * Options for a generic prompt dialog.
  * @template T The type of value the prompt resolves to.
@@ -81,34 +63,12 @@ type ChoiceContent<K> = (ctx: ChoiceContext<K>) => ReactNode;
 export interface PromptOptions<T> extends BasePromptOptions<T, PromptContent<T>> {}
 
 /**
- * Options for a confirm dialog.
- */
-export interface ConfirmOptions extends BaseConfirmOptions<ConfirmContent> {}
-
-/**
- * Options for an alert dialog.
- */
-export interface AlertOptions extends BaseAlertOptions<AlertContent> {}
-
-/**
- * Options for a choice dialog.
- * @template K The type of keys for the available choices.
- */
-export interface ChoiceOptions<K> extends BaseChoiceOptions<ChoiceContent<K>, K> {}
-
-/**
  * Dialog actions for showing, closing, and managing dialogs.
- * Extends BaseDialogActions with async prompt methods.
+ * Extends BaseDialogActions with the async prompt method.
  */
 export interface DialogActions extends BaseDialogActions<ShowOptions> {
   /** Show a generic prompt dialog and wait for a response. */
   prompt: <T>(options: PromptOptions<T>) => Promise<T | undefined>;
-  /** Show a confirmation dialog and wait for the user to confirm or cancel. */
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
-  /** Show an alert dialog and wait for the user to dismiss it. */
-  alert: (options: AlertOptions) => Promise<void>;
-  /** Show a choice dialog and wait for the user to select an option. */
-  choice: <K>(options: ChoiceOptions<K>) => Promise<K | undefined>;
 }
 
 const DialogContext = createContext<DialogManager | null>(null);
@@ -186,9 +146,6 @@ function useDialogManager(): DialogManager {
  *
  * // Close a specific dialog
  * dialog.close(dialogId);
- *
- * // Close all dialogs
- * dialog.closeAll();
  * ```
  */
 export function useDialog(): DialogActions {
@@ -203,41 +160,9 @@ export function useDialog(): DialogActions {
 
       close: (id?: DialogId) => manager.close(id),
 
-      closeAll: () => manager.closeAll(),
-
-      replace: (options: ShowOptions) => {
-        const { content, ...rest } = options;
-        return manager.replace(buildShowOptions(content, rest));
-      },
-
-      // =====================================================================
-      // Async Prompt Methods (delegate to manager with factory pattern)
-      // =====================================================================
-
       prompt: <T,>(options: PromptOptions<T>): Promise<T | undefined> => {
         const { content, fallback, ...rest } = options;
         return manager.prompt<T>((ctx) => ({
-          ...buildShowOptions(content, rest, ctx),
-          fallback,
-        }));
-      },
-
-      confirm: (options: ConfirmOptions): Promise<boolean> => {
-        const { content, fallback, ...rest } = options;
-        return manager.confirm((ctx) => ({
-          ...buildShowOptions(content, rest, ctx),
-          fallback,
-        }));
-      },
-
-      alert: (options: AlertOptions): Promise<void> => {
-        const { content, ...rest } = options;
-        return manager.alert((ctx) => buildShowOptions(content, rest, ctx));
-      },
-
-      choice: <K,>(options: ChoiceOptions<K>): Promise<K | undefined> => {
-        const { content, fallback, ...rest } = options;
-        return manager.choice<K>((ctx) => ({
           ...buildShowOptions(content, rest, ctx),
           fallback,
         }));
@@ -420,16 +345,5 @@ export function DialogProvider(props: DialogProviderProps) {
 // Re-exports for convenience
 // =============================================================================
 
-export type {
-  AlertContext,
-  ChoiceContext,
-  ConfirmContext,
-  DialogState,
-  PromptContext,
-} from "./prompts";
-export type {
-  DialogContainerOptions,
-  DialogId,
-  DialogSize,
-  DialogStyle,
-} from "./types";
+export type { DialogState, PromptContext } from "./prompts";
+export type { DialogContainerOptions, DialogId, DialogSize, DialogStyle } from "./types";

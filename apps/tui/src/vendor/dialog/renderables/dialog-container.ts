@@ -1,13 +1,7 @@
 import { BoxRenderable, type RenderContext } from "@opentui/core";
 import { DIALOG_Z_INDEX } from "../constants";
 import type { DialogManager } from "../manager";
-import type {
-  DialogContainerOptions,
-  DialogId,
-  DialogOptions,
-  DialogSize,
-  InternalDialog,
-} from "../types";
+import type { DialogContainerOptions, DialogId, InternalDialog } from "../types";
 import { isDialogToClose } from "../types";
 import { BackdropRenderable } from "./backdrop";
 import { DialogRenderable } from "./dialog";
@@ -117,10 +111,6 @@ export class DialogContainerRenderable extends BoxRenderable {
     return topId !== undefined ? this._dialogRenderables.get(topId) : undefined;
   }
 
-  public getDialogRenderable(id: DialogId): DialogRenderable | undefined {
-    return this._dialogRenderables.get(id);
-  }
-
   public getDialogRenderables(): Map<DialogId, DialogRenderable> {
     return this._dialogRenderables;
   }
@@ -176,38 +166,6 @@ export class DialogContainerRenderable extends BoxRenderable {
     }
   }
 
-  public set size(value: DialogSize) {
-    this._options.size = value;
-  }
-
-  public set dialogOptions(value: DialogOptions) {
-    this._options.dialogOptions = value;
-  }
-
-  public set sizePresets(value: Partial<Record<DialogSize, number>>) {
-    this._options.sizePresets = value;
-  }
-
-  public set closeOnEscape(value: boolean) {
-    this._options.closeOnEscape = value;
-  }
-
-  public set closeOnClickOutside(value: boolean) {
-    this._options.closeOnClickOutside = value;
-  }
-
-  public set backdropColor(value: string) {
-    this._options.backdropColor = value;
-    this._backdrop.updateContainerOptions(this._options);
-    this.updateBackdropStyle();
-  }
-
-  public set backdropOpacity(value: number | string) {
-    this._options.backdropOpacity = value;
-    this._backdrop.updateContainerOptions(this._options);
-    this.updateBackdropStyle();
-  }
-
   private updateBackdropVisibility(): void {
     const hasDialogs = this._dialogRenderables.size > 0;
     this._backdrop.visible = hasDialogs;
@@ -233,10 +191,6 @@ export class DialogContainerRenderable extends BoxRenderable {
     if (closeOnClickOutside === true) {
       this._manager.close(topDialog.dialog.id);
     }
-  }
-
-  public set unstyled(value: boolean) {
-    this._options.unstyled = value;
   }
 
   public override destroy(): void {

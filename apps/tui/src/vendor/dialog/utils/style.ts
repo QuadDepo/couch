@@ -1,7 +1,6 @@
 import { DEFAULT_SIZE, DEFAULT_SIZES, FULL_SIZE_OFFSET } from "../constants";
-import { DEFAULT_PADDING, DEFAULT_STYLE } from "../themes";
+import { DEFAULT_STYLE } from "../themes";
 import type { Dialog, DialogContainerOptions, DialogSize, DialogStyle } from "../types";
-import { resolvePadding } from "./padding";
 import { mergeStyles } from "./styles";
 
 export interface ComputeDialogStyleInput {
@@ -25,13 +24,19 @@ export function computeDialogStyle(input: ComputeDialogStyleInput): ComputedDial
 
   const baseStyle = isUnstyled ? {} : DEFAULT_STYLE;
 
-  const computed = mergeStyles(baseStyle, containerOptions?.dialogOptions?.style, dialog.style);
+  const computed = mergeStyles<DialogStyle>(
+    baseStyle,
+    containerOptions?.dialogOptions?.style,
+    dialog.style,
+  );
 
-  const defaultPadding = isUnstyled ? { top: 0, right: 0, bottom: 0, left: 0 } : DEFAULT_PADDING;
-
-  const resolvedPadding = isUnstyled
-    ? { top: 0, right: 0, bottom: 0, left: 0 }
-    : resolvePadding(computed, defaultPadding);
+  const uniformPadding = isUnstyled ? 0 : (computed.padding ?? 0);
+  const resolvedPadding = {
+    top: uniformPadding,
+    right: uniformPadding,
+    bottom: uniformPadding,
+    left: uniformPadding,
+  };
 
   return {
     ...computed,

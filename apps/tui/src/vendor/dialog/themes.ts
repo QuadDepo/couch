@@ -9,5 +9,3 @@ export const DEFAULT_STYLE: DialogStyle = {
   border: false,
   padding: 1,
 };
-
-export const DEFAULT_PADDING = { top: 1, right: 1, bottom: 1, left: 1 };

@@ -2,7 +2,6 @@ import type { Dialog, DialogId } from "./types";
 
 /**
  * Dialog state available via useDialogState selector.
- * Shared interface used by both React and Solid adapters.
  */
 export interface DialogState {
   /** Whether any dialog is currently open. */
@@ -24,44 +23,6 @@ export interface PromptContext<T> {
   /** Resolves the Promise with the given value and closes the dialog. */
   resolve: (value: T) => void;
   /** Dismisses the dialog without a value. Resolves Promise with `undefined`. */
-  dismiss: () => void;
-  /** The unique ID of this dialog. Use with `useDialogKeyboard` for scoped keyboard handling. */
-  dialogId: DialogId;
-}
-
-/**
- * Context for a confirm dialog.
- * Call `resolve(true)` to confirm or `resolve(false)` to cancel.
- */
-export interface ConfirmContext {
-  /** Resolves the Promise with the given boolean and closes the dialog. */
-  resolve: (confirmed: boolean) => void;
-  /** Dismisses the dialog without confirmation. Resolves Promise with `false`. */
-  dismiss: () => void;
-  /** The unique ID of this dialog. Use with `useDialogKeyboard` for scoped keyboard handling. */
-  dialogId: DialogId;
-}
-
-/**
- * Context for an alert dialog.
- * Call `dismiss()` to acknowledge and close the dialog.
- */
-export interface AlertContext {
-  /** Acknowledges and closes the alert dialog. */
-  dismiss: () => void;
-  /** The unique ID of this dialog. Use with `useDialogKeyboard` for scoped keyboard handling. */
-  dialogId: DialogId;
-}
-
-/**
- * Context for a choice dialog.
- * Call `resolve(key)` to select an option, or `dismiss()` to cancel.
- * @template K The type of keys for the available choices.
- */
-export interface ChoiceContext<K> {
-  /** Resolves the Promise with the selected key and closes the dialog. */
-  resolve: (key: K) => void;
-  /** Dismisses the dialog without selection. Resolves Promise with `undefined`. */
   dismiss: () => void;
   /** The unique ID of this dialog. Use with `useDialogKeyboard` for scoped keyboard handling. */
   dialogId: DialogId;
