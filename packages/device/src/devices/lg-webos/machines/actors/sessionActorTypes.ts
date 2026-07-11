@@ -1,6 +1,6 @@
 import type { DeviceDriver } from "../../../../drivers/types";
 import type { DeviceLock } from "../../../../locks/deviceLock";
-import type { RemoteKey } from "../../../../types";
+import type { DeviceSessionEvent } from "../../../commonEvents";
 import type { WebOSConnection } from "../../connectionTypes";
 import type { WebOSCredentials } from "../../credentials";
 import type { LgWebosDriverConfig } from "../../driver";
@@ -13,15 +13,7 @@ export interface SessionInput {
   useSsl?: boolean;
 }
 
-export type SessionEvent =
-  | { type: "CONNECTED" }
-  | { type: "CONNECTION_LOST"; error?: string }
-  | { type: "HEARTBEAT_OK" }
-  | { type: "HEARTBEAT_FAILED"; error: string }
-  | { type: "MUTE_STATE_CHANGED"; mute: boolean }
-  | { type: "SEND_KEY"; key: RemoteKey }
-  | { type: "SEND_TEXT"; text: string }
-  | { type: "CHECK_HEARTBEAT" };
+export type SessionEvent = DeviceSessionEvent | { type: "MUTE_STATE_CHANGED"; mute: boolean };
 
 export interface LgWebosSessionDependencies {
   createDriver?: (

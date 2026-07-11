@@ -1,8 +1,8 @@
-import { chmod, mkdir, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import type { DeviceDriver, DriverReceipt } from "../../drivers/types";
 import type { DeviceOperation } from "../../operations/types";
 import type { RemoteKey } from "../../types";
+import { atomicWrite } from "../../utils/atomicWrite";
+import { createDriverLifecycle } from "../shared/driverLifecycle";
 import {
   type ADBBinaryCommandRunner,
   type ADBCommandOptions,
@@ -51,10 +51,6 @@ export async function probeAndroidTv(
   }
 }
 
-function unsupported(kind: string): Error {
-  return new Error(`Unsupported Android TV operation: ${kind}`);
-}
-
 function optionsFor(signal?: AbortSignal, timeoutMs?: number): ADBCommandOptions {
   return { signal, timeoutMs };
 }
@@ -69,36 +65,21 @@ export function createAndroidTvDriver(
       runCommand: dependencies.runCommand,
       runBinaryCommand: dependencies.runBinaryCommand,
     });
-  let ready = false;
-  let openAttempted = false;
-  let generation = 0;
-  let closePromise: Promise<void> | undefined;
+  const lifecycle = createDriverLifecycle({
+    connect: async (options) => {
+      await adb.connect(options);
+    },
+    disconnect: () => adb.disconnect(),
+  });
 
   return {
-    adapterId: "adb",
-    async open(options = {}) {
-      if (ready) return;
-      closePromise = undefined;
-      openAttempted = true;
-      const attempt = ++generation;
-      try {
-        await adb.connect(options);
-        if (attempt !== generation) {
-          await Promise.resolve(adb.disconnect()).catch(() => undefined);
-          return;
-        }
-        ready = true;
-      } catch (error) {
-        await Promise.resolve(adb.disconnect()).catch(() => undefined);
-        openAttempted = false;
-        throw error;
-      }
-    },
+    driverId: "adb",
+    open: (options) => lifecycle.open(options),
     async execute(
       operation: DeviceOperation,
       options: { signal?: AbortSignal; timeoutMs?: number } = {},
     ): Promise<DriverReceipt> {
-      if (!ready) throw new Error("Android TV driver is not open");
+      if (!lifecycle.isOpen()) throw new Error("Android TV driver is not open");
       const commandOptions = optionsFor(options.signal, options.timeoutMs);
 
       switch (operation.kind) {
@@ -141,17 +122,7 @@ export function createAndroidTvDriver(
           if (!operation.path) throw new Error("screen.capture requires an output path");
           const bytes = await adb.captureScreen(commandOptions);
           commandOptions.signal?.throwIfAborted();
-          await mkdir(dirname(operation.path), { recursive: true, mode: 0o700 });
-          const temporary = join(dirname(operation.path), `.${crypto.randomUUID()}.tmp`);
-          try {
-            await writeFile(temporary, bytes, { mode: 0o600 });
-            commandOptions.signal?.throwIfAborted();
-            await rename(temporary, operation.path);
-            await chmod(operation.path, 0o600).catch(() => undefined);
-          } catch (error) {
-            await unlink(temporary).catch(() => undefined);
-            throw error;
-          }
+          await atomicWrite(operation.path, bytes, { signal: commandOptions.signal });
           return {
             confirmation: "process-exit",
             artifacts: [
@@ -164,25 +135,12 @@ export function createAndroidTvDriver(
             ],
           };
         }
-        default:
-          throw unsupported(operation.kind);
       }
     },
     async isReady() {
-      if (!ready) return false;
+      if (!lifecycle.isOpen()) return false;
       return adb.isConnected().catch(() => false);
     },
-    async close() {
-      if (closePromise) return closePromise;
-      if (!ready && !openAttempted) return;
-      generation += 1;
-      ready = false;
-      openAttempted = false;
-      closePromise = adb.disconnect().catch((error) => {
-        closePromise = undefined;
-        throw error;
-      });
-      return closePromise;
-    },
+    close: () => lifecycle.close(),
   };
 }

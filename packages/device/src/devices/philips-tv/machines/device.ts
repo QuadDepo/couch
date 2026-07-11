@@ -1,26 +1,17 @@
 import { type Actor, sendTo } from "xstate";
-import type { TVPlatform } from "../../../types";
-import { createDeviceMachine } from "../../shared/machine";
+import {
+  createDeviceMachine,
+  type DeviceLoadInput,
+  type PlatformInput,
+} from "../../shared/machine";
 import type { PhilipsCredentials } from "../credentials";
 import { validatePhilipsCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
-interface PlatformMachineInput {
-  deviceId: string;
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-  credentials?: unknown;
-}
+export type PhilipsSetupInput = PlatformInput<"philips-tv">;
 
-export interface PhilipsSetupInput {
-  platform: "philips-tv";
-}
-
-export interface PhilipsLoadInput extends PlatformMachineInput {
-  platform: "philips-tv";
-}
+export type PhilipsLoadInput = DeviceLoadInput<"philips-tv">;
 
 export type PhilipsMachineInput = PhilipsSetupInput | PhilipsLoadInput;
 

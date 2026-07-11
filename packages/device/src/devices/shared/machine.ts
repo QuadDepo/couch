@@ -30,6 +30,10 @@ import {
 const PAIRING_TIMEOUT_ERROR =
   "Pairing timed out — make sure the TV is on and accepting connections";
 const INVALID_STORED_CREDENTIALS_ERROR = "Stored credentials are invalid — pair again";
+const MAX_RETRIES_ERROR = "Max retries exceeded";
+
+// Remote commands relayed verbatim to the session actor while connected.
+const FORWARDED_SESSION_EVENTS = ["SEND_KEY", "SEND_TEXT"] as const;
 
 /** Context fields every device machine shares. */
 export interface DeviceContextBase {
@@ -109,7 +113,6 @@ export interface DeviceCredentialsConfig<
 > {
   /** Parses stored credentials in load mode; a throw surfaces as a pair-again error. */
   validate: (data: unknown) => TCredentials;
-  /** Builds the stored credentials from the platform's PAIRED event. */
   fromPairedEvent: (event: TPairedEvent, context: TContext) => TCredentials;
   hasCredentials: (credentials: TCredentials | undefined) => boolean;
 }
@@ -149,8 +152,6 @@ export interface DevicePairingConfig<TContext, TPairing extends UnknownActorLogi
 export interface DeviceSessionConfig<TContext, TSession extends UnknownActorLogic> {
   logic: TSession;
   input: (context: TContext) => InputFrom<TSession>;
-  /** Events forwarded verbatim to the session actor while connected. */
-  forward?: readonly ("SEND_KEY" | "SEND_TEXT")[];
   /** Extra event handlers active while connected (e.g. webOS MUTE_STATE_CHANGED). */
   connectedOn?: DeviceStateFragment;
 }
@@ -172,7 +173,6 @@ export interface DeviceMachineConfig<
     DeviceContext<TCredentials, TExtraContext>,
     Extract<TPlatformEvent, { type: "PAIRED" }>
   > | null;
-  /** Platform context fields beyond the shared base. */
   extraContext?: (credentials: TCredentials | undefined) => TExtraContext;
   /** Extra fields RESET_TO_SETUP resets (webOS useSsl, ADB instructionStep). */
   extraContextOnReset?: Partial<TExtraContext>;
@@ -182,17 +182,22 @@ export interface DeviceMachineConfig<
   extraGuards?: DeviceImplementationFragment;
 }
 
-interface InternalLoadInput {
+/** Setup-mode machine input: the device has no stored identity yet. */
+export interface PlatformInput<TPlatform extends TVPlatform> {
+  platform: TPlatform;
+}
+
+/** Load-mode machine input: an existing device, optionally with stored credentials. */
+export interface DeviceLoadInput<TPlatform extends TVPlatform> extends PlatformInput<TPlatform> {
   deviceId: string;
   deviceName: string;
   deviceIp: string;
-  platform: TVPlatform;
   credentials?: unknown;
 }
 
-type InternalInput = { platform: TVPlatform } | InternalLoadInput;
+type InternalInput = PlatformInput<TVPlatform> | DeviceLoadInput<TVPlatform>;
 
-function isLoadInput(input: InternalInput): input is InternalLoadInput {
+function isLoadInput(input: InternalInput): input is DeviceLoadInput<TVPlatform> {
   return "deviceId" in input && "deviceName" in input && "deviceIp" in input;
 }
 
@@ -204,6 +209,28 @@ interface InternalContext extends DeviceContextBase {
 }
 
 type InternalEvent = DeviceEventBase | { type: "PAIRED" };
+
+// CONNECTION_LOST and HEARTBEAT_FAILED share the same retry-then-give-up shape;
+// only the error text differs, so each caller supplies its own error selector.
+function buildConnectionFailureTransitions(selectError: (event: { error?: string }) => string) {
+  return [
+    {
+      target: ".connection.retrying",
+      guard: "canRetry" as const,
+      actions: [
+        "incrementRetry" as const,
+        {
+          type: "setError" as const,
+          params: ({ event }: { event: { error?: string } }) => ({ error: selectError(event) }),
+        },
+      ],
+    },
+    {
+      target: "error",
+      actions: { type: "setError" as const, params: { error: MAX_RETRIES_ERROR } },
+    },
+  ];
+}
 
 export function createDeviceMachine<
   TInput extends { platform: TVPlatform },
@@ -225,6 +252,13 @@ export function createDeviceMachine<
   type PairedEvent = Extract<TPlatformEvent, { type: "PAIRED" }>;
 
   const { credentials: credentialsConfig, pairing, session } = config;
+
+  // The chart is assembled against the widened Internal* types because the
+  // platform-supplied state fragments reference actions and events the factory
+  // cannot know statically. These two functions are the single boundary where a
+  // widened value is handed back to a platform callback as its precise shape.
+  const asPlatformContext = (context: InternalContext) => context as unknown as PlatformContext;
+  const asPairedEvent = (event: InternalEvent) => event as unknown as PairedEvent;
 
   const errorTarget = `#${config.id}.error`;
   const timeoutErrorTarget = pairing.timeoutErrorTarget ?? errorTarget;
@@ -265,7 +299,7 @@ export function createDeviceMachine<
     : { target: "pairing.idle", actions: ["resetRetry"] as const };
 
   const connectedForwardOn = Object.fromEntries(
-    (session.forward ?? ["SEND_KEY", "SEND_TEXT"]).map((eventType) => [
+    FORWARDED_SESSION_EVENTS.map((eventType) => [
       eventType,
       { actions: sendTo("connectionManager", ({ event }: { event: InternalEvent }) => event) },
     ]),
@@ -314,10 +348,7 @@ export function createDeviceMachine<
       }),
       setCredentials: assign({
         credentials: ({ context, event }) =>
-          credentialsConfig?.fromPairedEvent(
-            event as unknown as PairedEvent,
-            context as unknown as PlatformContext,
-          ),
+          credentialsConfig?.fromPairedEvent(asPairedEvent(event), asPlatformContext(context)),
       }),
       clearCredentials: assign({
         credentials: undefined,
@@ -501,7 +532,7 @@ export function createDeviceMachine<
               ...(pairing.invokeId ? { id: pairing.invokeId } : {}),
               src: "pairingConnection",
               input: ({ context }: { context: InternalContext }) =>
-                pairing.input(context as unknown as PlatformContext),
+                pairing.input(asPlatformContext(context)),
             } as never,
             on: {
               PAIRED: {
@@ -563,38 +594,16 @@ export function createDeviceMachine<
           id: "connectionManager",
           src: "connectionManager",
           input: ({ context }: { context: InternalContext }) =>
-            session.input(context as unknown as PlatformContext),
+            session.input(asPlatformContext(context)),
         } as never,
         on: {
           DISCONNECT: { target: "disconnected", actions: "resetRetry" },
-          CONNECTION_LOST: [
-            {
-              target: ".connection.retrying",
-              guard: "canRetry",
-              actions: [
-                "incrementRetry",
-                { type: "setError", params: ({ event }) => ({ error: event.error ?? "Unknown" }) },
-              ],
-            },
-            {
-              target: "error",
-              actions: { type: "setError", params: { error: "Max retries exceeded" } },
-            },
-          ],
-          HEARTBEAT_FAILED: [
-            {
-              target: ".connection.retrying",
-              guard: "canRetry",
-              actions: [
-                "incrementRetry",
-                { type: "setError", params: ({ event }) => ({ error: event.error }) },
-              ],
-            },
-            {
-              target: "error",
-              actions: { type: "setError", params: { error: "Max retries exceeded" } },
-            },
-          ],
+          CONNECTION_LOST: buildConnectionFailureTransitions(
+            (event) => event.error ?? "Connection lost unexpectedly",
+          ),
+          HEARTBEAT_FAILED: buildConnectionFailureTransitions(
+            (event) => event.error ?? "Heartbeat check failed",
+          ),
           FORGET: forgetAndResetTransition,
         },
         states: {

@@ -1,26 +1,17 @@
 import { type Actor, assign } from "xstate";
-import type { TVPlatform } from "../../../types";
-import { createDeviceMachine } from "../../shared/machine";
+import {
+  createDeviceMachine,
+  type DeviceLoadInput,
+  type PlatformInput,
+} from "../../shared/machine";
 import type { WebOSCredentials } from "../credentials";
 import { createCredentials, validateWebOSCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
-interface PlatformMachineInput {
-  deviceId: string;
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-  credentials?: unknown;
-}
+export type WebOSSetupInput = PlatformInput<"lg-webos">;
 
-export interface WebOSSetupInput {
-  platform: "lg-webos";
-}
-
-export interface WebOSLoadInput extends PlatformMachineInput {
-  platform: "lg-webos";
-}
+export type WebOSLoadInput = DeviceLoadInput<"lg-webos">;
 
 export type WebOSMachineInput = WebOSSetupInput | WebOSLoadInput;
 

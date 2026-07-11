@@ -1,19 +1,11 @@
-import { fromCallback } from "xstate";
-import { deviceLockResourceId } from "../../../../drivers/lockResourceId";
-import type { DeviceDriver } from "../../../../drivers/types";
-import {
-  createDeviceLock,
-  DEFAULT_DEVICE_LOCK_DIRECTORY,
-  type DeviceLockHandle,
-} from "../../../../locks/deviceLock";
-import { logger } from "../../../../utils/logger";
-import { awaitSessionHandoff, publishSessionHandoff } from "../../../shared/sessionHandoff";
+import { createDeviceLock } from "../../../../locks/deviceLock";
+import { createDriverSessionActor, DEFAULT_LOCK_DIRECTORY } from "../../../shared/driverSession";
 import { createWebOSConnection } from "../../connection";
 import { createLgWebosDriver } from "../../driver";
 import { keymap } from "../../keymap";
-import type { LgWebosSessionDependencies, SessionEvent, SessionInput } from "./sessionActorTypes";
+import type { LgWebosSessionDependencies, SessionInput } from "./sessionActorTypes";
 
-const defaultLockDirectory = process.env.COUCH_DEVICE_LOCK_DIR ?? DEFAULT_DEVICE_LOCK_DIRECTORY;
+type MuteStateEvent = { type: "MUTE_STATE_CHANGED"; mute: boolean };
 
 export function createLgWebosSessionActor(dependencies: LgWebosSessionDependencies = {}) {
   const makeLock = dependencies.createLock ?? ((directory) => createDeviceLock(directory));
@@ -21,154 +13,48 @@ export function createLgWebosSessionActor(dependencies: LgWebosSessionDependenci
   const makeDriver =
     dependencies.createDriver ??
     ((config, driverDependencies) => createLgWebosDriver(config, driverDependencies));
-  const lockDirectory = dependencies.lockDirectory ?? defaultLockDirectory;
+  const lockDirectory = dependencies.lockDirectory ?? DEFAULT_LOCK_DIRECTORY;
 
-  return fromCallback<SessionEvent, SessionInput>(({ input, sendBack, receive }) => {
-    const useSsl = input.useSsl ?? input.credentials.useSsl ?? false;
-    logger.info("WebOS", `Starting session connection to ${input.deviceName} (SSL: ${useSsl})`, {
-      ip: input.ip,
-    });
+  return createDriverSessionActor<SessionInput, MuteStateEvent>({
+    logCategory: "WebOS",
+    platform: "lg-webos",
+    lockDirectory,
+    createLock: makeLock,
+    createDriver: ({ input, sendBack, reportFailure, isConnected }) => {
+      const useSsl = input.useSsl ?? input.credentials.useSsl ?? false;
+      const connection = makeConnection({
+        ip: input.ip,
+        mac: input.credentials.mac ?? "",
+        clientKey: input.credentials.clientKey,
+        timeout: 15000,
+        reconnect: 0,
+        useSsl,
+      });
 
-    const resourceId = deviceLockResourceId({
-      id: input.deviceId,
-      platform: "lg-webos",
-      ip: input.ip,
-    });
-    const connection = makeConnection({
-      ip: input.ip,
-      mac: input.credentials.mac ?? "",
-      clientKey: input.credentials.clientKey,
-      timeout: 15000,
-      reconnect: 0,
-      useSsl,
-    });
-    const driver = makeDriver(
-      { ip: input.ip, credentials: input.credentials, useSsl },
-      { connection, onMuteStateChanged: (mute) => sendBack({ type: "MUTE_STATE_CHANGED", mute }) },
-    );
-    const lock = makeLock(lockDirectory);
-    const sessionController = new AbortController();
-    const operationControllers = new Set<AbortController>();
-    const operations = new Set<Promise<void>>();
-    let lockHandle: DeviceLockHandle | undefined;
-    let connected = false;
-    let closed = false;
+      connection.on("close", () => {
+        if (isConnected()) reportFailure("Connection closed");
+      });
+      connection.on("error", (error) => {
+        reportFailure(error);
+      });
 
-    const reportFailure = (error: unknown) => {
-      if (closed) return;
-      connected = false;
-      sendBack({ type: "CONNECTION_LOST", error: String(error) });
-    };
-
-    connection.on("close", () => {
-      if (connected) reportFailure("Connection closed");
-    });
-    connection.on("error", (error) => {
-      reportFailure(error);
-    });
-
-    const track = (operation: Parameters<DeviceDriver["execute"]>[0]) => {
-      const controller = new AbortController();
-      operationControllers.add(controller);
-      const task = Promise.resolve()
-        .then(() => driver.execute(operation, { signal: controller.signal }))
-        .then(() => undefined)
-        .catch((error) => {
-          if (!closed) reportFailure(error);
-        })
-        .finally(() => {
-          operationControllers.delete(controller);
-          operations.delete(task);
-        });
-      operations.add(task);
-      return task;
-    };
-
-    const runConnection = async () => {
-      try {
-        await awaitSessionHandoff(resourceId);
-        if (closed) return;
-        lockHandle = await lock.acquire(resourceId, { signal: sessionController.signal });
-        if (closed) {
-          await Promise.resolve(driver.close()).catch(() => undefined);
-          await lockHandle.release().catch(() => undefined);
-          lockHandle = undefined;
-          return;
-        }
-        await driver.open({ signal: sessionController.signal });
-        if (closed) {
-          await Promise.resolve(driver.close()).catch(() => undefined);
-          await lockHandle?.release().catch(() => undefined);
-          lockHandle = undefined;
-          return;
-        }
-        connected = true;
-        logger.info("WebOS", `Connected to ${input.deviceName}`);
-        sendBack({ type: "CONNECTED" });
-      } catch (error) {
-        if (!closed) {
-          logger.error("WebOS", `Connection failed: ${error}`);
-          reportFailure(error);
-        }
-      }
-    };
-
-    receive((event) => {
-      if (event.type === "CHECK_HEARTBEAT") {
-        void Promise.resolve(connected && driver.isReady())
-          .then((ready) =>
-            sendBack(
-              ready
-                ? { type: "HEARTBEAT_OK" }
-                : { type: "HEARTBEAT_FAILED", error: "Connection lost" },
-            ),
-          )
-          .catch((error) => sendBack({ type: "HEARTBEAT_FAILED", error: String(error) }));
-        return;
-      }
-
-      if (event.type === "SEND_KEY") {
-        if (!keymap[event.key]) {
-          logger.warn("WebOS", `Unsupported key: ${event.key}`);
-          return;
-        }
-        if (!connected) {
-          logger.warn("WebOS", "Cannot send key: not connected");
-          return;
-        }
-        void track({ kind: "control.press", key: event.key });
-        return;
-      }
-
-      if (event.type === "SEND_TEXT") {
-        if (!connected) {
-          logger.warn("WebOS", "Cannot send text: not connected");
-          return;
-        }
-        void track({ kind: "control.text", text: event.text });
-      }
-    });
-
-    const lifecycle = runConnection();
-
-    return () => {
-      if (closed) return;
-      closed = true;
-      connected = false;
-      sessionController.abort(new Error("Session closed"));
-      for (const controller of operationControllers) controller.abort(new Error("Session closed"));
-
-      const cleanup = (async () => {
-        await Promise.resolve(driver.close()).catch((error) => {
-          logger.debug("WebOS", `Error during disconnect (may already be closed): ${error}`);
-        });
-        await Promise.allSettled([...operations]);
-        await lifecycle.catch(() => undefined);
-        await lockHandle?.release().catch(() => undefined);
-        lockHandle = undefined;
-      })();
-      publishSessionHandoff(resourceId, cleanup);
-    };
+      return makeDriver(
+        { ip: input.ip, credentials: input.credentials, useSsl },
+        {
+          connection,
+          onMuteStateChanged: (mute) => sendBack({ type: "MUTE_STATE_CHANGED", mute }),
+        },
+      );
+    },
+    supportsKey: (key) => Boolean(keymap[key]),
+    heartbeatFailedMessage: "Connection lost",
+    startLog: (input) => {
+      const useSsl = input.useSsl ?? input.credentials.useSsl ?? false;
+      return {
+        message: `Starting session connection to ${input.deviceName} (SSL: ${useSsl})`,
+        details: { ip: input.ip },
+      };
+    },
   });
 }
 

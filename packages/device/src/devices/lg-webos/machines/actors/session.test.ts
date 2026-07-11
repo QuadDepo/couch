@@ -29,7 +29,7 @@ describe("LG webOS session actor", () => {
       settleOperation = resolve;
     });
     const driver: DeviceDriver = {
-      adapterId: "lg-ssap",
+      driverId: "lg-ssap",
       open: () => calls.push("open"),
       isReady: () => true,
       execute: async (_operation, { signal }) => {
@@ -93,7 +93,7 @@ describe("LG webOS session actor", () => {
         driverCount += 1;
         const current = driverCount;
         return {
-          adapterId: "lg-ssap",
+          driverId: "lg-ssap",
           open: () => calls.push(`open${current}`),
           isReady: () => true,
           execute: async (_operation, { signal }) => {

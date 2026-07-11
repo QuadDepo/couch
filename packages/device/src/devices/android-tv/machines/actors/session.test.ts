@@ -20,7 +20,7 @@ async function waitForCall(calls: string[], expected: string): Promise<void> {
 
 function fakeDriver(calls: string[]): DeviceDriver {
   return {
-    adapterId: "adb",
+    driverId: "adb",
     open: () => {
       calls.push("open");
     },
@@ -95,7 +95,7 @@ describe("Android TV session actor", () => {
         driverCount += 1;
         const current = driverCount;
         return {
-          adapterId: "adb",
+          driverId: "adb",
           open: () => calls.push(`open${current}`),
           isReady: () => true,
           execute: async (_operation, { signal }) => {

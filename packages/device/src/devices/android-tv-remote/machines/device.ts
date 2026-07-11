@@ -1,27 +1,18 @@
 import type { Actor, SnapshotFrom } from "xstate";
 import { assign, sendTo } from "xstate";
-import type { TVPlatform } from "../../../types";
-import { createDeviceMachine } from "../../shared/machine";
+import {
+  createDeviceMachine,
+  type DeviceLoadInput,
+  type PlatformInput,
+} from "../../shared/machine";
 import type { AndroidTvRemoteCredentials } from "../credentials";
 import { createCredentials, validateAndroidTvRemoteCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
-interface PlatformMachineInput {
-  deviceId: string;
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-  credentials?: unknown;
-}
+export type AndroidTvRemoteSetupInput = PlatformInput<"android-tv-remote">;
 
-export interface AndroidTvRemoteSetupInput {
-  platform: "android-tv-remote";
-}
-
-export interface AndroidTvRemoteLoadInput extends PlatformMachineInput {
-  platform: "android-tv-remote";
-}
+export type AndroidTvRemoteLoadInput = DeviceLoadInput<"android-tv-remote">;
 
 export type AndroidTvRemoteMachineInput = AndroidTvRemoteSetupInput | AndroidTvRemoteLoadInput;
 

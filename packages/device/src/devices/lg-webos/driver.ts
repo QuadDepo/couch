@@ -1,6 +1,6 @@
 import type { DeviceDriver, DriverReceipt } from "../../drivers/types";
 import type { DeviceOperation } from "../../operations/types";
-import type { RemoteKey } from "../../types";
+import { createDriverLifecycle } from "../shared/driverLifecycle";
 import { createWebOSConnection } from "./connection";
 import type { RemoteInputSocket, WebOSConnection, WebOSRequestOptions } from "./connectionTypes";
 import type { WebOSCredentials } from "./credentials";
@@ -58,27 +58,34 @@ export function createLgWebosDriver(
     dependencies.connection ??
     createWebOSConnection({
       ip: config.ip,
-      mac: config.credentials.mac ?? "",
+      mac: config.credentials.mac || undefined,
       clientKey: config.credentials.clientKey,
       timeout: 15000,
       reconnect: 0,
       useSsl: config.useSsl ?? config.credentials.useSsl,
     });
 
-  let ready = false;
-  let openAttempted = false;
-  let generation = 0;
   let inputSocket: RemoteInputSocket | null = null;
-  let closePromise: Promise<void> | undefined;
   const muteState = createMuteState(connection, dependencies.onMuteStateChanged);
 
+  const lifecycle = createDriverLifecycle({
+    connect: (options) => connection.connect(options),
+    disconnect: () => connection.disconnect(),
+    afterConnect: () => muteState.subscribe(),
+    beforeDisconnect: () => {
+      inputSocket = null;
+      muteState.reset();
+    },
+    hasLiveConnection: () => connection.isConnected(),
+  });
+
   connection.on("close", () => {
-    ready = false;
+    lifecycle.markClosed();
     inputSocket = null;
     muteState.reset();
   });
   connection.on("error", () => {
-    ready = false;
+    lifecycle.markClosed();
   });
 
   const ensureInputSocket = async (options?: WebOSRequestOptions): Promise<RemoteInputSocket> => {
@@ -88,36 +95,19 @@ export function createLgWebosDriver(
   };
 
   return {
-    adapterId: "lg-ssap",
-    async open(options = {}) {
-      if (ready) return;
-      closePromise = undefined;
-      openAttempted = true;
-      const attempt = ++generation;
-      try {
-        await connection.connect(options);
-        if (attempt !== generation) {
-          connection.disconnect();
-          return;
-        }
-        ready = true;
-        await muteState.subscribe();
-      } catch (error) {
-        connection.disconnect();
-        openAttempted = false;
-        throw error;
-      }
-    },
+    driverId: "lg-ssap",
+    open: (options) => lifecycle.open(options),
     async execute(
       operation: DeviceOperation,
       options: { signal?: AbortSignal; timeoutMs?: number } = {},
     ): Promise<DriverReceipt> {
-      if (!ready || !connection.isConnected()) throw new Error("LG webOS driver is not open");
+      if (!lifecycle.isOpen() || !connection.isConnected())
+        throw new Error("LG webOS driver is not open");
       const commandOptions = optionsFor(options.signal, options.timeoutMs);
 
       switch (operation.kind) {
         case "control.press": {
-          const keyCode = keymap[operation.key as RemoteKey];
+          const keyCode = keymap[operation.key];
           if (!keyCode) throw new Error(`Unsupported LG webOS key: ${operation.key}`);
           if (isInputSocketKey(String(keyCode))) {
             const socket = await ensureInputSocket(commandOptions);
@@ -152,21 +142,8 @@ export function createLgWebosDriver(
       }
     },
     isReady() {
-      return ready && connection.isConnected();
+      return lifecycle.isOpen() && connection.isConnected();
     },
-    async close() {
-      if (closePromise) return closePromise;
-      if (!ready && !openAttempted && !connection.isConnected()) return;
-      generation += 1;
-      ready = false;
-      openAttempted = false;
-      inputSocket = null;
-      muteState.reset();
-      closePromise = Promise.resolve(connection.disconnect()).catch((error) => {
-        closePromise = undefined;
-        throw error;
-      });
-      return closePromise;
-    },
+    close: () => lifecycle.close(),
   };
 }

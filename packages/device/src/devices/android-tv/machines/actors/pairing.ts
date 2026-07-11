@@ -19,6 +19,9 @@ export const pairingActor = fromCallback<PairingEvent, PairingInput>(({ input, s
 
   const runPairing = async () => {
     try {
+      // ADB exposes no discrete "prompt shown" signal: adb.connect() is what makes the TV
+      // raise its authorize-debugging dialog, and it blocks until the user responds. So we
+      // signal the prompt as the connect begins to move the wizard into waitingForUser.
       sendBack({ type: "PROMPT_RECEIVED" });
       logger.info("ADB", "Attempting ADB connect - user should approve on TV if prompted");
 

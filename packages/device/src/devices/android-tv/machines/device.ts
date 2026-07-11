@@ -1,6 +1,9 @@
 import { type Actor, assign, type SnapshotFrom } from "xstate";
-import type { TVPlatform } from "../../../types";
-import { createDeviceMachine } from "../../shared/machine";
+import {
+  createDeviceMachine,
+  type DeviceLoadInput,
+  type PlatformInput,
+} from "../../shared/machine";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
@@ -16,20 +19,9 @@ export const INSTRUCTION_STEPS = [
   },
 ];
 
-interface PlatformMachineInput {
-  deviceId: string;
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-}
+export type AndroidTVSetupInput = PlatformInput<"android-tv">;
 
-export interface AndroidTVSetupInput {
-  platform: "android-tv";
-}
-
-export interface AndroidTVLoadInput extends PlatformMachineInput {
-  platform: "android-tv";
-}
+export type AndroidTVLoadInput = DeviceLoadInput<"android-tv">;
 
 export type AndroidTVMachineInput = AndroidTVSetupInput | AndroidTVLoadInput;
 

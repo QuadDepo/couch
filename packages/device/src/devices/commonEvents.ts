@@ -29,3 +29,18 @@ export type CommonDeviceEvent =
 
   // Lifecycle
   | { type: "CANCEL" };
+
+/**
+ * Events exchanged between a device machine and its session actor: the commands
+ * the machine sends (CHECK_HEARTBEAT/SEND_KEY/SEND_TEXT) and the status the actor
+ * reports back. Protocol-specific actors extend this with their own emit-only
+ * events (e.g. LG's MUTE_STATE_CHANGED).
+ */
+export type DeviceSessionEvent =
+  | { type: "CONNECTED" }
+  | { type: "CONNECTION_LOST"; error?: string }
+  | { type: "HEARTBEAT_OK" }
+  | { type: "HEARTBEAT_FAILED"; error: string }
+  | { type: "SEND_KEY"; key: RemoteKey }
+  | { type: "SEND_TEXT"; text: string }
+  | { type: "CHECK_HEARTBEAT" };

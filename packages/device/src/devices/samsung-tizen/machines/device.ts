@@ -1,26 +1,17 @@
 import type { Actor } from "xstate";
-import type { TVPlatform } from "../../../types";
-import { createDeviceMachine } from "../../shared/machine";
+import {
+  createDeviceMachine,
+  type DeviceLoadInput,
+  type PlatformInput,
+} from "../../shared/machine";
 import type { TizenCredentials } from "../credentials";
 import { createCredentials, validateTizenCredentials } from "../credentials";
 import { pairingActor } from "./actors/pairing";
 import { sessionActor } from "./actors/session";
 
-interface PlatformMachineInput {
-  deviceId: string;
-  deviceName: string;
-  deviceIp: string;
-  platform: TVPlatform;
-  credentials?: unknown;
-}
+export type TizenSetupInput = PlatformInput<"samsung-tizen">;
 
-export interface TizenSetupInput {
-  platform: "samsung-tizen";
-}
-
-export interface TizenLoadInput extends PlatformMachineInput {
-  platform: "samsung-tizen";
-}
+export type TizenLoadInput = DeviceLoadInput<"samsung-tizen">;
 
 export type TizenMachineInput = TizenSetupInput | TizenLoadInput;
 
