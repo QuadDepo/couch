@@ -1,11 +1,6 @@
 import { create } from "zustand";
 
-export type FocusPath =
-  | "app/dpad"
-  | "app/devices"
-  | "modal/text-input"
-  | "modal/wizard"
-  | "modal/add-device";
+export type FocusPath = "app/dpad" | "app/devices" | "modal/wizard" | "modal/add-device";
 
 interface UIState {
   focusPath: FocusPath;

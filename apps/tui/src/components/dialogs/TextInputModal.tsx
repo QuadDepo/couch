@@ -1,5 +1,5 @@
+import type { TextQuickAction } from "@couch/device";
 import { type KeyEvent, TextAttributes } from "@opentui/core";
-import { useKeyboard } from "@opentui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ACTIVE_COLOR,
@@ -11,8 +11,7 @@ import {
   TEXT_SECONDARY,
 } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
-import { useUIStore } from "../../store/uiStore";
-import type { PromptContext } from "../../vendor/dialog/react";
+import { type PromptContext, useDialogKeyboard } from "../../vendor/dialog/react";
 import { KeyHint } from "../shared/KeyHint.tsx";
 
 type TextInputModalProps = PromptContext<unknown>;
@@ -56,11 +55,20 @@ function InputBuffer({
   );
 }
 
+// `action` matches the device capability list (`textQuickActions`); `keyName`
+// is the terminal key event name that triggers it (Enter arrives as "return").
 const QUICK_ACTIONS = [
-  { action: "enter", label: "[Enter]" },
-  { action: "space", label: "[Space]" },
-  { action: "backspace", label: "[Bs]" },
-] as const;
+  { action: "enter", keyName: "return", label: "[Enter]", char: "\n" },
+  { action: "space", keyName: "space", label: "[Space]", char: " " },
+  { action: "backspace", keyName: "backspace", label: "[Bs]", char: "\b" },
+] as const satisfies readonly {
+  action: TextQuickAction;
+  keyName: string;
+  label: string;
+  char: string;
+}[];
+
+type QuickActionRow = (typeof QUICK_ACTIONS)[number];
 
 function QuickActions({
   focused,
@@ -115,15 +123,12 @@ function UnsupportedMessage() {
   );
 }
 
-export function TextInputModal({ dismiss }: TextInputModalProps) {
+export function TextInputModal({ dismiss, dialogId }: TextInputModalProps) {
   const { status, sendText, capabilities } = useDevice();
 
   const enabled = status === "connected";
   const textInputSupported = capabilities?.textInputSupported ?? false;
   const quickActions = capabilities?.textQuickActions ?? [];
-
-  const focusPath = useUIStore((s) => s.focusPath);
-  const setFocusPath = useUIStore((s) => s.setFocusPath);
 
   const [input, setInput] = useState("");
   const [internalFocus, setInternalFocus] = useState<"input" | "actions">("input");
@@ -148,19 +153,12 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
   );
 
   const triggerAction = useCallback(
-    (action: string) => {
+    (row: QuickActionRow) => {
       if (actionTimeoutRef.current) {
         clearTimeout(actionTimeoutRef.current);
       }
-      setLastAction(action);
-      // Send special control characters that the device machine handles appropriately
-      if (action === "enter") {
-        sendText("\n"); // Enter/Return - triggers search/go
-      } else if (action === "backspace") {
-        sendText("\b"); // Backspace - delete one character
-      } else if (action === "space") {
-        sendText(" "); // Space - insert space character
-      }
+      setLastAction(row.action);
+      sendText(row.char);
       actionTimeoutRef.current = setTimeout(() => {
         setLastAction(null);
       }, ACTION_HIGHLIGHT_DELAY);
@@ -198,22 +196,19 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
 
   const handleActionsKey = useCallback(
     (event: KeyEvent) => {
-      if (event.name === "return" && quickActions.includes("enter")) {
+      const row = QUICK_ACTIONS.find(
+        (r) => r.keyName === event.name && quickActions.includes(r.action),
+      );
+      if (row) {
         event.preventDefault();
-        triggerAction("enter");
-      } else if (event.name === "space" && quickActions.includes("space")) {
-        event.preventDefault();
-        triggerAction("space");
-      } else if (event.name === "backspace" && quickActions.includes("backspace")) {
-        event.preventDefault();
-        triggerAction("backspace");
+        triggerAction(row);
       }
     },
     [quickActions, triggerAction],
   );
 
-  useKeyboard((event) => {
-    if (!enabled || focusPath !== "modal/text-input") return;
+  useDialogKeyboard((event) => {
+    if (!enabled) return;
 
     if (event.name === "escape") {
       event.preventDefault();
@@ -232,17 +227,15 @@ export function TextInputModal({ dismiss }: TextInputModalProps) {
     } else {
       handleActionsKey(event);
     }
-  });
+  }, dialogId);
 
   useEffect(() => {
-    setFocusPath("modal/text-input");
     return () => {
-      setFocusPath("app/dpad");
       if (actionTimeoutRef.current) {
         clearTimeout(actionTimeoutRef.current);
       }
     };
-  }, [setFocusPath]);
+  }, []);
 
   const inputFocused = internalFocus === "input";
   const actionsFocused = internalFocus === "actions";
