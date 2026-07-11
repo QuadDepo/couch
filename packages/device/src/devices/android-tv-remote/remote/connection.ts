@@ -267,7 +267,6 @@ export function createAndroidTvRemoteConnection(
     disposed = true;
     stopPingInterval();
 
-    // Clear any pending reconnection timer
     if (reconnectTimeoutId) {
       clearTimeout(reconnectTimeoutId);
       reconnectTimeoutId = null;

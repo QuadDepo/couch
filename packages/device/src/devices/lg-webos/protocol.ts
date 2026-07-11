@@ -23,10 +23,6 @@ export const URI_INSERT_TEXT = "ssap://com.webos.service.ime/insertText";
 export const URI_SEND_ENTER_KEY = "ssap://com.webos.service.ime/sendEnterKey";
 export const URI_DELETE_CHARACTERS = "ssap://com.webos.service.ime/deleteCharacters";
 
-// TODO: Additional URIs for future implementation
-// Reference: https://github.com/merdok/homebridge-webos-tv
-
-// Full list: https://github.com/merdok/homebridge-webos-tv/blob/master/lib/LgTvController.js
 export const REMOTE_COMMANDS = [
   "UP",
   "DOWN",

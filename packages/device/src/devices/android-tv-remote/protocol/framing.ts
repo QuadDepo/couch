@@ -27,11 +27,9 @@ export function decodeVarint(data: Uint8Array, offset = 0): { value: number; byt
 
   while (offset + bytesRead < data.length) {
     const byte = data[offset + bytesRead] as number;
-    // Extract 7 data bits and place them at the correct position
     value |= (byte & 0x7f) << shift;
     bytesRead++;
 
-    // MSB unset means this is the final byte
     if ((byte & 0x80) === 0) {
       return { value, bytesRead };
     }

@@ -9,6 +9,7 @@ import {
 } from "./protocol";
 
 const DEFAULT_TIMEOUT_MS = 15000;
+const MAC_DISCOVERY_TIMEOUT_MS = 5000;
 const LOG_TRUNCATE_LENGTH = 200;
 
 export type ConnectionEvent = "connect" | "close" | "error" | "message";
@@ -51,7 +52,7 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
   async function fetchMac(): Promise<string | undefined> {
     try {
       const response = await fetch(buildDeviceInfoUrl(ip), {
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(MAC_DISCOVERY_TIMEOUT_MS),
       });
       const data = (await response.json()) as TizenDeviceInfo;
       return data.device?.wifiMac;
@@ -151,7 +152,7 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
       events.emit("connect");
       onConnected();
 
-      fetchMac().then((mac) => {
+      void fetchMac().then((mac) => {
         if (mac) {
           logger.info("Tizen", `Discovered MAC: ${mac}`);
         }

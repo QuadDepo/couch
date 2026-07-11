@@ -1,13 +1,8 @@
 import type { RemoteKey } from "../types";
 
 /**
- * Common events that all device machines should support.
- * These events are used by the useDevice hook to send commands to actors.
- *
- * Device-specific machines can extend this type with additional events:
- * ```typescript
- * type MyDeviceMachineEvent = CommonDeviceEvent | { type: "CUSTOM_EVENT"; ... };
- * ```
+ * Common events that all device machines support, used by the useDevice hook to
+ * send commands to actors.
  */
 export type CommonDeviceEvent =
   // Connection control

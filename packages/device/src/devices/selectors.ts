@@ -1,7 +1,6 @@
 import type { ConnectionStatus } from "../types";
 import type { DeviceSnapshot } from "./actors";
 
-// TODO: split priority logic into a pure function for testability
 export const selectConnectionStatus = (snapshot: DeviceSnapshot | undefined): ConnectionStatus => {
   if (!snapshot) return "disconnected";
   if (snapshot.matches("error")) return "error";

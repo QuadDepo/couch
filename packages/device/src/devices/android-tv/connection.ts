@@ -105,7 +105,6 @@ export function createADBConnection(
         throw new Error(output);
       }
 
-      // Verify connection is actually working
       try {
         const testResult = await runAdb(["-s", target, "shell", "echo", "ok"], options);
         if (!testResult.includes("ok")) {
@@ -132,7 +131,6 @@ export function createADBConnection(
     },
 
     async sendText(text: string, options) {
-      // Handle special characters that should be sent as key events
       const specialChars: Record<string, string> = {
         "\b": "KEYCODE_DEL", // backspace
         "\n": "KEYCODE_ENTER", // enter/newline
@@ -140,15 +138,12 @@ export function createADBConnection(
         "\x1b": "KEYCODE_BACK", // escape
       };
 
-      // Check if text is a single special character
       const specialChar = text.length === 1 ? specialChars[text] : undefined;
       if (specialChar) {
         await runAdb(["-s", target, "shell", "input", "keyevent", specialChar], options);
         return;
       }
 
-      // Escape text for shell - replace spaces with %s and other special chars
-      // Also escape other shell special characters
       const escapedText = text
         .replace(/ /g, "%s")
         .replace(/&/g, "\\&")

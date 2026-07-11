@@ -152,7 +152,7 @@ export function createPhilipsConnection(
     const response = await fetch(`${baseUrl}/pair/request`, {
       ...fetchOptions,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({
         scope: ["read", "write", "control"],
         device: {

@@ -210,7 +210,6 @@ export function parseMessage(
       const { value: tag, bytesRead: tagBytes } = decodeVarint(data, offset);
       offset += tagBytes;
 
-      // Reverse of fieldTag(): extract field number and wire type from tag
       const fieldNumber = tag >> 3;
       const wireType = tag & 0x07;
 
