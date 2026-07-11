@@ -93,7 +93,7 @@ export function AndroidTVPairingFlow({
 
   if (isCompleteState) {
     return (
-      <PairingCompleteStage progress="4/4" deviceName={deviceName || deviceInfo.name || "Device"} />
+      <PairingCompleteStage progress="4/4" deviceName={deviceName} fallbackName={deviceInfo.name} />
     );
   }
 

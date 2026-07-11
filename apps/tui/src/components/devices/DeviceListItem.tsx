@@ -1,12 +1,8 @@
-import {
-  type ImplementedPlatform,
-  platformRegistry,
-  selectConnectionStatus,
-  type TVDevice,
-} from "@couch/device";
+import { selectConnectionStatus, type TVDevice } from "@couch/device";
 import { useSelector } from "@xstate/react";
 import { FOCUS_COLOR, TEXT_DIM, TEXT_PRIMARY } from "../../constants/colors.ts";
 import { useDeviceStore } from "../../store/deviceStore";
+import { lookupPlatformRegistration } from "../../utils/platformRegistry.ts";
 import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 
 interface DeviceListItemProps {
@@ -30,7 +26,7 @@ export function DeviceListItem({ device, isSelected, isFocused }: DeviceListItem
       <text fg={textColor}> {device.name}</text>
       <text fg={TEXT_DIM}>
         {" "}
-        [{platformRegistry[device.platform as ImplementedPlatform]?.label ?? device.platform}]
+        [{lookupPlatformRegistration(device.platform)?.label ?? device.platform}]
       </text>
     </box>
   );

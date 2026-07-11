@@ -1,127 +1,17 @@
-import type { TextQuickAction } from "@couch/device";
 import { type KeyEvent, TextAttributes } from "@opentui/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ACTIVE_COLOR,
-  DIM_COLOR,
-  ERROR_COLOR,
-  FOCUS_COLOR,
-  TEXT_DIM,
-  TEXT_PRIMARY,
-  TEXT_SECONDARY,
-} from "../../constants/colors.ts";
+import { DIM_COLOR, FOCUS_COLOR, TEXT_DIM } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
 import { type PromptContext, useDialogKeyboard } from "../../vendor/dialog/react";
 import { KeyHint } from "../shared/KeyHint.tsx";
+import { InputBuffer } from "./InputBuffer.tsx";
+import { QUICK_ACTIONS, type QuickActionRow, QuickActions } from "./QuickActions.tsx";
+import { UnsupportedMessage } from "./UnsupportedMessage.tsx";
 
 type TextInputModalProps = PromptContext<unknown>;
 
 const ACTION_HIGHLIGHT_DELAY = 200;
 const SEND_DEBOUNCE_MS = 100;
-
-function InputBuffer({
-  input,
-  focused,
-  enabled,
-}: {
-  input: string;
-  focused: boolean;
-  enabled: boolean;
-}) {
-  const bright = enabled ? TEXT_PRIMARY : DIM_COLOR;
-  return (
-    <box
-      borderStyle="single"
-      borderColor={focused ? FOCUS_COLOR : DIM_COLOR}
-      paddingLeft={1}
-      paddingRight={1}
-      justifyContent="center"
-    >
-      <box flexDirection="row" gap={1}>
-        <text fg={focused ? FOCUS_COLOR : DIM_COLOR}>{focused ? "▶" : "▷"}</text>
-        <text
-          fg={focused ? FOCUS_COLOR : bright}
-          attributes={focused ? TextAttributes.BOLD : undefined}
-        >
-          {input}
-        </text>
-        {focused && (
-          <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
-            _
-          </text>
-        )}
-      </box>
-    </box>
-  );
-}
-
-// `action` matches the device capability list (`textQuickActions`); `keyName`
-// is the terminal key event name that triggers it (Enter arrives as "return").
-const QUICK_ACTIONS = [
-  { action: "enter", keyName: "return", label: "[Enter]", char: "\n" },
-  { action: "space", keyName: "space", label: "[Space]", char: " " },
-  { action: "backspace", keyName: "backspace", label: "[Bs]", char: "\b" },
-] as const satisfies readonly {
-  action: TextQuickAction;
-  keyName: string;
-  label: string;
-  char: string;
-}[];
-
-type QuickActionRow = (typeof QUICK_ACTIONS)[number];
-
-function QuickActions({
-  focused,
-  lastAction,
-  actions,
-}: {
-  focused: boolean;
-  lastAction: string | null;
-  actions: readonly string[];
-}) {
-  return (
-    <>
-      <box>
-        <text fg={focused ? FOCUS_COLOR : DIM_COLOR}>
-          {focused ? "▶ QUICK ACTIONS" : "▷ QUICK ACTIONS"}
-        </text>
-      </box>
-      <box flexDirection="row" gap={2}>
-        {QUICK_ACTIONS.filter(({ action }) => actions.includes(action)).map(({ action, label }) => (
-          <text
-            key={action}
-            fg={lastAction === action ? ACTIVE_COLOR : focused ? TEXT_SECONDARY : DIM_COLOR}
-            attributes={lastAction === action ? TextAttributes.BOLD : undefined}
-          >
-            {label}
-          </text>
-        ))}
-      </box>
-    </>
-  );
-}
-
-function UnsupportedMessage() {
-  const { device } = useDevice();
-  const deviceType = device?.platform ?? null;
-
-  return (
-    <box flexDirection="column" gap={1}>
-      <box justifyContent="center">
-        <text fg={ERROR_COLOR} attributes={TextAttributes.BOLD}>
-          Text input is not supported on this device
-        </text>
-      </box>
-      <box justifyContent="center">
-        <text fg={DIM_COLOR}>
-          {deviceType === "philips-tv"
-            ? "Philips TV does not support text input via the JointSpace API"
-            : "This device does not support text input"}
-        </text>
-      </box>
-    </box>
-  );
-}
 
 export function TextInputModal({ dismiss, dialogId }: TextInputModalProps) {
   const { status, sendText, capabilities } = useDevice();
@@ -197,7 +87,7 @@ export function TextInputModal({ dismiss, dialogId }: TextInputModalProps) {
   const handleActionsKey = useCallback(
     (event: KeyEvent) => {
       const row = QUICK_ACTIONS.find(
-        (r) => r.keyName === event.name && quickActions.includes(r.action),
+        (row) => row.keyName === event.name && quickActions.includes(row.action),
       );
       if (row) {
         event.preventDefault();

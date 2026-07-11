@@ -24,9 +24,9 @@ export function useDeviceInfoFields(): DeviceInfoFieldsState {
   const handleChar = useCallback(
     (char: string) => {
       if (activeField === "name") {
-        setName((n) => n + char);
+        setName((prev) => prev + char);
       } else {
-        setIp((i) => i + char);
+        setIp((prev) => prev + char);
       }
     },
     [activeField],
@@ -34,14 +34,14 @@ export function useDeviceInfoFields(): DeviceInfoFieldsState {
 
   const handleBackspace = useCallback(() => {
     if (activeField === "name") {
-      setName((n) => n.slice(0, -1));
+      setName((prev) => prev.slice(0, -1));
     } else {
-      setIp((i) => i.slice(0, -1));
+      setIp((prev) => prev.slice(0, -1));
     }
   }, [activeField]);
 
   const handleTab = useCallback(() => {
-    setActiveField((f) => (f === "name" ? "ip" : "name"));
+    setActiveField((prev) => (prev === "name" ? "ip" : "name"));
   }, []);
 
   const reset = useCallback(() => {

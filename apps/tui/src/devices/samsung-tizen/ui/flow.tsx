@@ -68,7 +68,7 @@ export function TizenPairingFlow({
 
   if (isCompleteState) {
     return (
-      <PairingCompleteStage progress="3/3" deviceName={deviceName || deviceInfo.name || "Device"} />
+      <PairingCompleteStage progress="3/3" deviceName={deviceName} fallbackName={deviceInfo.name} />
     );
   }
 

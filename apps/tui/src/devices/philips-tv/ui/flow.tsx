@@ -19,9 +19,8 @@ import {
 } from "../../../components/shared/pairing/stages.tsx";
 import { usePairingFlow } from "../../../components/shared/pairing/usePairingFlow.ts";
 import { inspector } from "../../../utils/inspector.ts";
-import { PhilipsPairingStep } from "./steps.tsx";
+import { PhilipsPairingStep, PIN_LENGTH } from "./steps.tsx";
 
-const PIN_LENGTH = 4;
 const DIGIT = /^\d$/;
 
 export function PhilipsPairingFlow({
@@ -37,7 +36,6 @@ export function PhilipsPairingFlow({
 
   const deviceInfo = useDeviceInfoFields();
 
-  // PIN input state (Philips-specific)
   const [pinInput, setPinInput] = useState("");
 
   const isSetupState = useSelector(actorRef, isSetup);
@@ -69,14 +67,14 @@ export function PhilipsPairingFlow({
       },
       erase: () => {
         if (!isWaitingForPinState) return false;
-        setPinInput((p) => p.slice(0, -1));
+        setPinInput((prev) => prev.slice(0, -1));
         return true;
       },
       type: (char) => {
         if (!isWaitingForPinState || pinInput.length >= PIN_LENGTH || !DIGIT.test(char)) {
           return false;
         }
-        setPinInput((p) => p + char);
+        setPinInput((prev) => prev + char);
         return true;
       },
       goBack: () => {
@@ -103,7 +101,7 @@ export function PhilipsPairingFlow({
 
   if (isCompleteState) {
     return (
-      <PairingCompleteStage progress="3/3" deviceName={deviceName || deviceInfo.name || "Device"} />
+      <PairingCompleteStage progress="3/3" deviceName={deviceName} fallbackName={deviceInfo.name} />
     );
   }
 

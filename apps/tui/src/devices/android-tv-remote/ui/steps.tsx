@@ -20,8 +20,10 @@ import { PairingErrorStep } from "../../../components/shared/pairing/PairingErro
 import { PairingStateView } from "../../../components/shared/pairing/PairingStateView.tsx";
 import { FOCUS_COLOR, TEXT_SECONDARY, WARNING_COLOR } from "../../../constants/colors.ts";
 
+export const PAIRING_CODE_LENGTH = 6;
+
 function CodeEntryStep({ code }: { code: string }) {
-  const display = code.padEnd(6, "_").split("").join(" ");
+  const display = code.padEnd(PAIRING_CODE_LENGTH, "_").split("").join(" ");
   return (
     <>
       <text fg={TEXT_SECONDARY}>A 6-character code should be displayed on your TV.</text>
@@ -67,7 +69,7 @@ export function AndroidTvRemotePairingStep({ actorRef }: Props) {
         },
         {
           active: isWaitingForUser,
-          hints: code.length === 6 ? [HINT_SUBMIT_CODE, HINT_BACK] : [HINT_BACK],
+          hints: code.length === PAIRING_CODE_LENGTH ? [HINT_SUBMIT_CODE, HINT_BACK] : [HINT_BACK],
           content: <CodeEntryStep code={code} />,
         },
         { active: isVerifying, hints: [HINT_BACK], content: <VerifyingStep /> },

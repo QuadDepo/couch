@@ -24,7 +24,7 @@ export function DeviceList({ focused = false }: DeviceListProps) {
   const addDevice = useDeviceStore((s) => s.addDevice);
   const removeDevice = useDeviceStore((s) => s.removeDevice);
 
-  const selectedIndex = devices.findIndex((d) => d.id === selectedDeviceId);
+  const selectedIndex = devices.findIndex((device) => device.id === selectedDeviceId);
   const safeSelectedIndex = selectedIndex === -1 ? 0 : selectedIndex;
 
   const { device: activeDevice, status, connect, disconnect } = useDevice();
@@ -63,10 +63,8 @@ export function DeviceList({ focused = false }: DeviceListProps) {
     if (confirmed) {
       removeDevice(activeDevice.id);
 
-      // Select another device after removal
-      const remainingDevices = devices.filter((d) => d.id !== activeDevice.id);
+      const remainingDevices = devices.filter((device) => device.id !== activeDevice.id);
       if (remainingDevices.length > 0) {
-        // Try to select the device at the same index, or the previous one
         const nextIndex = Math.min(safeSelectedIndex, remainingDevices.length - 1);
         selectDevice(remainingDevices[nextIndex]?.id ?? null);
       } else {

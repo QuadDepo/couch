@@ -8,10 +8,8 @@ export function useAppKeyboard(): void {
   const isDialogOpen = useDialogState((s) => s.isOpen);
 
   useKeyboard((event) => {
-    // Only handle when in app scope (not modal)
     if (isDialogOpen) return;
 
-    // Tab cycles through app sections
     if (event.name === "tab") {
       event.preventDefault();
       setFocusPath(focusPath === "app/devices" ? "app/dpad" : "app/devices");

@@ -48,10 +48,10 @@ export function AddDeviceWizard({
 
     switch (event.name) {
       case "up":
-        setSelectedIndex((i) => Math.max(0, i - 1));
+        setSelectedIndex((index) => Math.max(0, index - 1));
         break;
       case "down":
-        setSelectedIndex((i) => Math.min(implementedPlatforms.length - 1, i + 1));
+        setSelectedIndex((index) => Math.min(implementedPlatforms.length - 1, index + 1));
         break;
       case "return": {
         const selectedPlatform = implementedPlatforms[selectedIndex];
@@ -66,7 +66,6 @@ export function AddDeviceWizard({
     }
   }, dialogId);
 
-  // Platform selection phase
   if (!platform) {
     return (
       <box
@@ -85,7 +84,6 @@ export function AddDeviceWizard({
     );
   }
 
-  // Platform-specific flow phase
   const FlowComponent = PLATFORM_FLOWS[platform];
   return (
     <FlowComponent

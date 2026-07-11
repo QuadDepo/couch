@@ -19,10 +19,9 @@ import {
 } from "../../../components/shared/pairing/stages.tsx";
 import { usePairingFlow } from "../../../components/shared/pairing/usePairingFlow.ts";
 import { inspector } from "../../../utils/inspector.ts";
-import { AndroidTvRemotePairingStep } from "./steps.tsx";
+import { AndroidTvRemotePairingStep, PAIRING_CODE_LENGTH } from "./steps.tsx";
 
 const HEX_CHARS = /^[0-9a-fA-F]$/;
-const PAIRING_CODE_LENGTH = 6;
 
 export function AndroidTvRemotePairingFlow({
   dialogId,
@@ -98,7 +97,7 @@ export function AndroidTvRemotePairingFlow({
 
   if (isCompleteState) {
     return (
-      <PairingCompleteStage progress="3/3" deviceName={deviceName || deviceInfo.name || "Device"} />
+      <PairingCompleteStage progress="3/3" deviceName={deviceName} fallbackName={deviceInfo.name} />
     );
   }
 

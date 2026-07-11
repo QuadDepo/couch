@@ -93,7 +93,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       const newActors = new Map(state.deviceActors);
       newActors.delete(deviceId);
       return {
-        devices: state.devices.filter((d) => d.id !== deviceId),
+        devices: state.devices.filter((device) => device.id !== deviceId),
         deviceActors: newActors,
         selectedDeviceId: state.selectedDeviceId === deviceId ? null : state.selectedDeviceId,
       };
@@ -107,6 +107,5 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   },
 }));
 
-// Selector hook for selected device - only re-renders when selected device changes
 export const useSelectedDevice = () =>
-  useDeviceStore((s) => s.devices.find((d) => d.id === s.selectedDeviceId) ?? null);
+  useDeviceStore((s) => s.devices.find((device) => device.id === s.selectedDeviceId) ?? null);

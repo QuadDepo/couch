@@ -15,9 +15,11 @@ import { PairingErrorStep } from "../../../components/shared/pairing/PairingErro
 import { PairingStateView } from "../../../components/shared/pairing/PairingStateView.tsx";
 import { FOCUS_COLOR, TEXT_SECONDARY, WARNING_COLOR } from "../../../constants/colors.ts";
 
+export const PIN_LENGTH = 4;
+
 function formatPinDisplay(pin: string): string {
   const filled = pin.split("").map(() => "*");
-  const empty = Array(4 - pin.length).fill("_");
+  const empty = Array(PIN_LENGTH - pin.length).fill("_");
   return [...filled, ...empty].join(" ");
 }
 
@@ -30,7 +32,7 @@ function EnteringPinStep({ pinInput }: { pinInput: string }) {
         <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
           {formatPinDisplay(pinInput)}
         </text>
-        {pinInput.length < 4 && (
+        {pinInput.length < PIN_LENGTH && (
           <text fg={FOCUS_COLOR} attributes={TextAttributes.BOLD}>
             {" "}
             ←
@@ -68,7 +70,7 @@ export function PhilipsPairingStep({ actorRef, pinInput }: Props) {
         },
         {
           active: isEnteringPin,
-          hints: pinInput.length === 4 ? [HINT_SUBMIT, HINT_BACK] : [HINT_BACK],
+          hints: pinInput.length === PIN_LENGTH ? [HINT_SUBMIT, HINT_BACK] : [HINT_BACK],
           content: <EnteringPinStep pinInput={pinInput} />,
         },
         { active: isConfirmingPairing, hints: [HINT_BACK], content: <ConfirmingStep /> },

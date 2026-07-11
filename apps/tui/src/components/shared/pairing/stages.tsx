@@ -23,13 +23,18 @@ export function PairingSetupStage({ progress, deviceInfo, error }: PairingSetupS
 
 interface PairingCompleteStageProps {
   progress: string;
-  deviceName: string;
+  deviceName?: string;
+  fallbackName?: string;
 }
 
-export function PairingCompleteStage({ progress, deviceName }: PairingCompleteStageProps) {
+export function PairingCompleteStage({
+  progress,
+  deviceName,
+  fallbackName,
+}: PairingCompleteStageProps) {
   return (
     <WizardShell stepLabel="Complete" progress={progress}>
-      <CompletionStep deviceName={deviceName} />
+      <CompletionStep deviceName={deviceName || fallbackName || "Device"} />
     </WizardShell>
   );
 }
