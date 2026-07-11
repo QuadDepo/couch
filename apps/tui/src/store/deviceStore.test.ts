@@ -112,22 +112,6 @@ describe("deviceStore", () => {
     expect(useDeviceStore.getState().selectedDeviceId).toBe("device-1");
   });
 
-  test("should return selected device from getSelectedDevice", () => {
-    const actor = createMockActor();
-    const device = makeDevice();
-
-    useDeviceStore.getState().addDevice(device, actor as never);
-    useDeviceStore.getState().selectDevice("device-1");
-
-    const selected = useDeviceStore.getState().getSelectedDevice();
-    expect(selected?.id).toBe("device-1");
-    expect(selected?.name).toBe("Test TV");
-  });
-
-  test("should return null from getSelectedDevice when no device selected", () => {
-    expect(useDeviceStore.getState().getSelectedDevice()).toBeNull();
-  });
-
   test("should surface persistence failures through the UI logger", async () => {
     saveDevicesMock.mockRejectedValueOnce(new Error("disk full"));
     useDeviceStore.setState({ isLoaded: true });

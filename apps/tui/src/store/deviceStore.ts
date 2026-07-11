@@ -20,8 +20,6 @@ interface DeviceState {
   addDevice: (device: TVDevice, actor?: DeviceActor) => void;
   removeDevice: (deviceId: string) => void;
   selectDevice: (deviceId: string | null) => void;
-  updateDeviceConfig: (deviceId: string, config: Partial<TVDevice["config"]>) => void;
-  getSelectedDevice: () => TVDevice | null;
 }
 
 const createPlatformActor = (device: TVDevice): DeviceActor => {
@@ -106,25 +104,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
 
   selectDevice: (deviceId) => {
     set({ selectedDeviceId: deviceId });
-  },
-
-  updateDeviceConfig: (deviceId, config) => {
-    set((state) => ({
-      devices: state.devices.map((d) =>
-        d.id === deviceId ? { ...d, config: { ...d.config, ...config } } : d,
-      ),
-    }));
-    logger.info("Store", `Updated device config`, {
-      deviceId,
-      configKeys: Object.keys(config ?? {}),
-    });
-
-    persistDevices(get().devices);
-  },
-
-  getSelectedDevice: () => {
-    const { devices, selectedDeviceId } = get();
-    return devices.find((d) => d.id === selectedDeviceId) || null;
   },
 }));
 

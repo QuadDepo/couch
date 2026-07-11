@@ -7,16 +7,18 @@
   "scripts": {
     "dev": "bun run src/index.tsx",
     "dev:watch": "bun run --watch src/index.tsx",
-    "build": "bun build src/index.tsx --outdir dist --target bun --format esm --external '@opentui/core-*'"
+    "build": "bun build src/index.tsx --outdir dist --target bun --format esm --splitting --external '@opentui/core-*'"
   },
   "dependencies": {
     "@couch/device": "workspace:*",
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",
-    "@statelyai/inspect": "^0.7.2",
     "@xstate/react": "^6.1.0",
     "react": "^19.2.7",
     "xstate": "^5.32.4",
     "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@statelyai/inspect": "^0.7.2"
   }
 }
