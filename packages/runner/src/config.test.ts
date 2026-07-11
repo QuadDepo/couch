@@ -71,23 +71,21 @@ describe("runner config", () => {
     ).toThrow("device credentials");
   });
 
-  test("validates optional adapter and rendering configuration", () => {
+  test("validates optional application and cleanup configuration", () => {
     const config = validateConfig({
       configVersion: 1,
       targets: {
         lab: {
           deviceId: "android-1",
           app: { id: "app", activity: ".Main", artifact: "app.apk" },
-          adapters: { control: "adb", lifecycle: "adb", observation: "adb" },
-          renderingProfile: "android-1080p",
           cleanup: "leave-running",
           cleanupTimeoutMs: 5_000,
         },
       },
     });
     expect(config.targets.lab).toMatchObject({
-      adapters: { control: "adb", lifecycle: "adb", observation: "adb" },
-      renderingProfile: "android-1080p",
+      app: { id: "app", activity: ".Main", artifact: "app.apk" },
+      cleanup: "leave-running",
       cleanupTimeoutMs: 5_000,
     });
   });

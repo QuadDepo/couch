@@ -1,5 +1,6 @@
-import { chmod, mkdir, realpath, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { chmod, mkdir, realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
+import { atomicWrite } from "@couch/device";
 
 export async function prepareArtifactDirectory(path: string): Promise<void> {
   await mkdir(path, { recursive: true, mode: 0o700 });
@@ -16,16 +17,7 @@ export async function publishText(path: string, value: string): Promise<void> {
 }
 
 export async function publishBytes(path: string, value: Uint8Array): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = join(dirname(path), `.${crypto.randomUUID()}.tmp`);
-  try {
-    await writeFile(temporary, value, { mode: 0o600 });
-    await rename(temporary, path);
-    await chmod(path, 0o600).catch(() => undefined);
-  } catch (error) {
-    await unlink(temporary).catch(() => undefined);
-    throw error;
-  }
+  await atomicWrite(path, value);
 }
 
 export function safeArtifactSegment(value: string, fallback: string): string {
@@ -36,28 +28,26 @@ export function safeArtifactSegment(value: string, fallback: string): string {
   return !segment || segment === "." || segment === ".." ? fallback : segment;
 }
 
-export function resolveContained(root: string, ...segments: readonly string[]): string {
-  const absoluteRoot = resolve(root);
-  const candidate = resolve(absoluteRoot, ...segments);
-  const fromRoot = relative(absoluteRoot, candidate);
+// A relative path escapes its root when it steps above it (`..`) or resolves absolutely.
+function assertWithinRoot(root: string, path: string): void {
+  const fromRoot = relative(root, path);
   if (
     fromRoot === ".." ||
     fromRoot.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) ||
     isAbsolute(fromRoot)
   ) {
-    throw new Error(`Artifact path escapes ${absoluteRoot}`);
+    throw new Error(`Artifact path escapes ${root}`);
   }
+}
+
+export function resolveContained(root: string, ...segments: readonly string[]): string {
+  const absoluteRoot = resolve(root);
+  const candidate = resolve(absoluteRoot, ...segments);
+  assertWithinRoot(absoluteRoot, candidate);
   return candidate;
 }
 
 export async function assertRealContained(root: string, path: string): Promise<void> {
   const [physicalRoot, physicalPath] = await Promise.all([realpath(root), realpath(path)]);
-  const fromRoot = relative(physicalRoot, physicalPath);
-  if (
-    fromRoot === ".." ||
-    fromRoot.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) ||
-    isAbsolute(fromRoot)
-  ) {
-    throw new Error(`Artifact path escapes ${physicalRoot}`);
-  }
+  assertWithinRoot(physicalRoot, physicalPath);
 }

@@ -1,4 +1,9 @@
-import type { OperationKind, OperationRecord, RemoteKey } from "@couch/device";
+import {
+  isOperationKind,
+  type OperationKind,
+  type OperationRecord,
+  type RemoteKey,
+} from "@couch/device";
 
 export interface TvTestContext {
   tv: {
@@ -21,7 +26,33 @@ export interface TvTestDefinition {
   run(context: TvTestContext): Promise<void> | void;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Single source of truth for the test-definition contract. Runs both at authoring time
+// (defineTvTest) and at the trust boundary when a test module is loaded (loadTest).
+export function assertTvTestDefinition(value: unknown): asserts value is TvTestDefinition {
+  if (!isRecord(value)) {
+    throw new Error("TV test must default-export defineTvTest({...})");
+  }
+  if (typeof value.name !== "string" || !value.name.trim()) {
+    throw new Error("TV test name must be a non-empty string");
+  }
+  if (!Array.isArray(value.requires)) {
+    throw new Error("TV test requires must be an array of operation kinds");
+  }
+  value.requires.forEach((kind, index) => {
+    if (typeof kind !== "string" || !isOperationKind(kind)) {
+      throw new Error(`TV test requires[${index}] is not a known operation kind`);
+    }
+  });
+  if (typeof value.run !== "function") {
+    throw new Error("TV test run must be a function");
+  }
+}
+
 export function defineTvTest(test: TvTestDefinition): TvTestDefinition {
-  if (!test.name.trim()) throw new Error("TV test name must not be empty");
+  assertTvTestDefinition(test);
   return test;
 }

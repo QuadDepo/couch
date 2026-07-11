@@ -5,8 +5,6 @@ import { isOperationKind, type OperationKind } from "@couch/device";
 export interface TestTargetConfig {
   deviceId: string;
   app: { id: string; activity: string; artifact?: string };
-  adapters?: { control: string; lifecycle?: string; observation?: string };
-  renderingProfile?: string;
   allowExperimental?: readonly OperationKind[];
   cleanup?: "stop" | "leave-running";
   artifactDirectory?: string;
@@ -37,10 +35,36 @@ function assertKnownKeys(
   }
 }
 
+function requiredString(value: unknown, path: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${path} must be a non-empty string`);
+  }
+  return value;
+}
+
+function optionalString(value: unknown, path: string): string | undefined {
+  if (value === undefined) return undefined;
+  return requiredString(value, path);
+}
+
 function positiveFinite(value: unknown, path: string): number | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     throw new Error(`${path} must be a positive finite number`);
+  }
+  return value;
+}
+
+function optionalOperationKinds(
+  value: unknown,
+  path: string,
+): readonly OperationKind[] | undefined {
+  if (value === undefined) return undefined;
+  if (
+    !Array.isArray(value) ||
+    !value.every((kind): kind is OperationKind => typeof kind === "string" && isOperationKind(kind))
+  ) {
+    throw new Error(`${path} has invalid allowExperimental operation`);
   }
   return value;
 }
@@ -54,138 +78,88 @@ function assertNoCredentials(value: unknown, path = "config"): void {
   }
 }
 
+function validateTarget(alias: string, rawTarget: Record<string, unknown>): TestTargetConfig {
+  assertKnownKeys(
+    rawTarget,
+    [
+      "deviceId",
+      "app",
+      "allowExperimental",
+      "cleanup",
+      "artifactDirectory",
+      "operationTimeoutMs",
+      "foregroundTimeoutMs",
+      "cleanupTimeoutMs",
+    ],
+    `targets.${alias}`,
+  );
+
+  const deviceId = requiredString(rawTarget.deviceId, `targets.${alias}.deviceId`);
+
+  if (!isRecord(rawTarget.app)) throw new Error(`targets.${alias}.app must be an object`);
+  assertKnownKeys(rawTarget.app, ["id", "activity", "artifact"], `targets.${alias}.app`);
+  const appId = requiredString(rawTarget.app.id, `targets.${alias}.app.id`);
+  const appActivity = requiredString(rawTarget.app.activity, `targets.${alias}.app.activity`);
+  const appArtifact = optionalString(rawTarget.app.artifact, `targets.${alias}.app.artifact`);
+
+  const cleanup = rawTarget.cleanup;
+  if (cleanup !== undefined && cleanup !== "stop" && cleanup !== "leave-running") {
+    throw new Error(`targets.${alias}.cleanup has invalid cleanup policy`);
+  }
+
+  const artifactDirectory = optionalString(
+    rawTarget.artifactDirectory,
+    `targets.${alias}.artifactDirectory`,
+  );
+
+  const allowExperimental = optionalOperationKinds(
+    rawTarget.allowExperimental,
+    `targets.${alias}.allowExperimental`,
+  );
+
+  const operationTimeoutMs = positiveFinite(
+    rawTarget.operationTimeoutMs,
+    `targets.${alias}.operationTimeoutMs`,
+  );
+  const foregroundTimeoutMs = positiveFinite(
+    rawTarget.foregroundTimeoutMs,
+    `targets.${alias}.foregroundTimeoutMs`,
+  );
+  const cleanupTimeoutMs = positiveFinite(
+    rawTarget.cleanupTimeoutMs,
+    `targets.${alias}.cleanupTimeoutMs`,
+  );
+
+  return {
+    deviceId,
+    app: {
+      id: appId,
+      activity: appActivity,
+      ...(appArtifact !== undefined ? { artifact: appArtifact } : {}),
+    },
+    ...(allowExperimental !== undefined ? { allowExperimental } : {}),
+    ...(cleanup !== undefined ? { cleanup } : {}),
+    ...(artifactDirectory !== undefined ? { artifactDirectory } : {}),
+    ...(operationTimeoutMs !== undefined ? { operationTimeoutMs } : {}),
+    ...(foregroundTimeoutMs !== undefined ? { foregroundTimeoutMs } : {}),
+    ...(cleanupTimeoutMs !== undefined ? { cleanupTimeoutMs } : {}),
+  };
+}
+
 export function validateConfig(value: unknown): CouchTestConfig {
   assertNoCredentials(value);
   if (!isRecord(value)) throw new Error("couch.config.ts must export an object");
   assertKnownKeys(value, ["configVersion", "targets"], "config");
   if (value.configVersion !== 1) throw new Error("Unsupported couch configVersion");
   if (!isRecord(value.targets)) throw new Error("Config targets are required");
+
   const targets: Record<string, TestTargetConfig> = {};
   for (const [alias, rawTarget] of Object.entries(value.targets)) {
-    if (!alias.trim() || alias === "." || alias === ".." || !isRecord(rawTarget)) {
+    if (!alias.trim() || alias === "." || alias === "..") {
       throw new Error("Invalid target alias");
     }
-    assertKnownKeys(
-      rawTarget,
-      [
-        "deviceId",
-        "app",
-        "allowExperimental",
-        "cleanup",
-        "artifactDirectory",
-        "operationTimeoutMs",
-        "foregroundTimeoutMs",
-        "cleanupTimeoutMs",
-        "adapters",
-        "renderingProfile",
-      ],
-      `targets.${alias}`,
-    );
-    if (typeof rawTarget.deviceId !== "string" || !rawTarget.deviceId.trim()) {
-      throw new Error(`Target ${alias} requires deviceId`);
-    }
-    if (!isRecord(rawTarget.app)) throw new Error(`Target ${alias} requires app`);
-    assertKnownKeys(rawTarget.app, ["id", "activity", "artifact"], `targets.${alias}.app`);
-    if (typeof rawTarget.app.id !== "string" || !rawTarget.app.id.trim()) {
-      throw new Error(`Target ${alias} requires app.id`);
-    }
-    if (typeof rawTarget.app.activity !== "string" || !rawTarget.app.activity.trim()) {
-      throw new Error(`Target ${alias} requires app.activity`);
-    }
-    if (
-      rawTarget.app.artifact !== undefined &&
-      (typeof rawTarget.app.artifact !== "string" || !rawTarget.app.artifact.trim())
-    ) {
-      throw new Error(`Target ${alias} has invalid app.artifact`);
-    }
-    if (
-      rawTarget.cleanup !== undefined &&
-      rawTarget.cleanup !== "stop" &&
-      rawTarget.cleanup !== "leave-running"
-    ) {
-      throw new Error(`Target ${alias} has invalid cleanup policy`);
-    }
-    if (
-      rawTarget.artifactDirectory !== undefined &&
-      (typeof rawTarget.artifactDirectory !== "string" || !rawTarget.artifactDirectory.trim())
-    ) {
-      throw new Error(`Target ${alias} has invalid artifactDirectory`);
-    }
-    if (
-      rawTarget.allowExperimental !== undefined &&
-      (!Array.isArray(rawTarget.allowExperimental) ||
-        rawTarget.allowExperimental.some(
-          (kind) => typeof kind !== "string" || !isOperationKind(kind),
-        ))
-    ) {
-      throw new Error(`Target ${alias} has invalid allowExperimental operation`);
-    }
-    if (rawTarget.adapters !== undefined) {
-      if (!isRecord(rawTarget.adapters)) throw new Error(`Target ${alias} has invalid adapters`);
-      assertKnownKeys(
-        rawTarget.adapters,
-        ["control", "lifecycle", "observation"],
-        `targets.${alias}.adapters`,
-      );
-      for (const key of ["control", "lifecycle", "observation"] as const) {
-        const adapter = rawTarget.adapters[key];
-        if (
-          (key === "control" || adapter !== undefined) &&
-          (typeof adapter !== "string" || !adapter.trim())
-        ) {
-          throw new Error(`Target ${alias} has invalid adapters.${key}`);
-        }
-      }
-    }
-    if (
-      rawTarget.renderingProfile !== undefined &&
-      (typeof rawTarget.renderingProfile !== "string" || !rawTarget.renderingProfile.trim())
-    ) {
-      throw new Error(`Target ${alias} has invalid renderingProfile`);
-    }
-    targets[alias] = {
-      deviceId: rawTarget.deviceId,
-      app: {
-        id: rawTarget.app.id,
-        activity: rawTarget.app.activity,
-        ...(typeof rawTarget.app.artifact === "string" ? { artifact: rawTarget.app.artifact } : {}),
-      },
-      ...(isRecord(rawTarget.adapters)
-        ? {
-            adapters: {
-              control: rawTarget.adapters.control as string,
-              ...(typeof rawTarget.adapters.lifecycle === "string"
-                ? { lifecycle: rawTarget.adapters.lifecycle }
-                : {}),
-              ...(typeof rawTarget.adapters.observation === "string"
-                ? { observation: rawTarget.adapters.observation }
-                : {}),
-            },
-          }
-        : {}),
-      ...(typeof rawTarget.renderingProfile === "string"
-        ? { renderingProfile: rawTarget.renderingProfile }
-        : {}),
-      ...(rawTarget.allowExperimental
-        ? { allowExperimental: rawTarget.allowExperimental as OperationKind[] }
-        : {}),
-      ...(rawTarget.cleanup ? { cleanup: rawTarget.cleanup } : {}),
-      ...(typeof rawTarget.artifactDirectory === "string"
-        ? { artifactDirectory: rawTarget.artifactDirectory }
-        : {}),
-      ...(positiveFinite(rawTarget.operationTimeoutMs, `targets.${alias}.operationTimeoutMs`) !==
-      undefined
-        ? { operationTimeoutMs: rawTarget.operationTimeoutMs as number }
-        : {}),
-      ...(positiveFinite(rawTarget.foregroundTimeoutMs, `targets.${alias}.foregroundTimeoutMs`) !==
-      undefined
-        ? { foregroundTimeoutMs: rawTarget.foregroundTimeoutMs as number }
-        : {}),
-      ...(positiveFinite(rawTarget.cleanupTimeoutMs, `targets.${alias}.cleanupTimeoutMs`) !==
-      undefined
-        ? { cleanupTimeoutMs: rawTarget.cleanupTimeoutMs as number }
-        : {}),
-    };
+    if (!isRecord(rawTarget)) throw new Error(`targets.${alias} must be an object`);
+    targets[alias] = validateTarget(alias, rawTarget);
   }
   return { configVersion: 1, targets };
 }

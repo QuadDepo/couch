@@ -23,7 +23,7 @@ const kinds: OperationKind[] = [
   "screen.capture",
 ];
 
-function record(
+function makeOperationRecord(
   operation: DeviceOperation,
   ordinal: number,
   status: OperationRecord["status"] = "succeeded",
@@ -54,7 +54,7 @@ function record(
   };
 }
 
-async function files(
+async function createRunnerFixture(
   testSource: string,
   target: Record<string, unknown> = {},
 ): Promise<{ root: string; configPath: string; testPath: string }> {
@@ -78,7 +78,7 @@ async function files(
   return { root, configPath, testPath };
 }
 
-function inventory(
+function createInventoryStub(
   session: DeviceSession,
   overrides: Partial<DeviceInventory> = {},
 ): DeviceInventory {
@@ -109,7 +109,7 @@ function currentArtifactDirectory(root: string): string | undefined {
 
 describe("runner operation contracts", () => {
   test("rejects undeclared operations before driver execution", async () => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "undeclared", requires: ["control.press"], async run({ tv }) { await tv.app.launch(); } }`,
     );
     const executed: DeviceOperation[] = [];
@@ -117,14 +117,14 @@ describe("runner operation contracts", () => {
       capabilities: new Map(),
       async execute(operation) {
         executed.push(operation);
-        return record(operation, executed.length);
+        return makeOperationRecord(operation, executed.length);
       },
       close: async () => undefined,
     };
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       configPath: paths.configPath,
       artifactDirectory: join(paths.root, "artifacts"),
     });
@@ -134,7 +134,7 @@ describe("runner operation contracts", () => {
   });
 
   test("foreground timeout is an assertion failure with an assertion record", async () => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "foreground", requires: ["app.foreground"], async run({ tv }) { await tv.app.foreground(); } }`,
       { foregroundTimeoutMs: 1 },
     );
@@ -142,7 +142,7 @@ describe("runner operation contracts", () => {
     const session: DeviceSession = {
       capabilities: new Map(),
       execute: async (operation) =>
-        record(
+        makeOperationRecord(
           operation,
           ++ordinal,
           "succeeded",
@@ -153,7 +153,7 @@ describe("runner operation contracts", () => {
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       configPath: paths.configPath,
       artifactDirectory: join(paths.root, "artifacts"),
     });
@@ -166,22 +166,25 @@ describe("runner operation contracts", () => {
   });
 
   test("cleanup stop failure changes a pass to infrastructure failure", async () => {
-    const paths = await files(`export default { name: "cleanup", requires: [], async run() {} }`, {
-      cleanup: "stop",
-    });
+    const paths = await createRunnerFixture(
+      `export default { name: "cleanup", requires: [], async run() {} }`,
+      {
+        cleanup: "stop",
+      },
+    );
     let stops = 0;
     const session: DeviceSession = {
       capabilities: new Map(),
       async execute(operation) {
         stops += 1;
-        return record(operation, stops, stops === 2 ? "failed" : "succeeded");
+        return makeOperationRecord(operation, stops, stops === 2 ? "failed" : "succeeded");
       },
       close: async () => undefined,
     };
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       configPath: paths.configPath,
       artifactDirectory: join(paths.root, "artifacts"),
     });
@@ -212,7 +215,7 @@ describe("runner cancellation and lock reuse", () => {
       cleanup: `export default { name: "cleanup", requires: [], async run() {} }`,
       close: `export default { name: "close", requires: [], async run() {} }`,
     }[phase];
-    const paths = await files(source, phase === "cleanup" ? { cleanup: "stop" } : {});
+    const paths = await createRunnerFixture(source, phase === "cleanup" ? { cleanup: "stop" } : {});
     const controller = new AbortController();
     let locked = false;
     let ordinal = 0;
@@ -233,7 +236,7 @@ describe("runner cancellation and lock reuse", () => {
       capabilities: new Map(),
       async execute(operation) {
         if (shouldCancel(operation)) controller.abort(new Error("Interrupted"));
-        return record(
+        return makeOperationRecord(
           operation,
           ++ordinal,
           controller.signal.aborted ? "cancelled" : "succeeded",
@@ -245,7 +248,7 @@ describe("runner cancellation and lock reuse", () => {
         locked = false;
       },
     };
-    const deviceInventory = inventory(session, {
+    const deviceInventory = createInventoryStub(session, {
       async openSession() {
         if (locked) throw new Error("device locked");
         locked = true;
@@ -272,7 +275,7 @@ describe("runner cancellation and lock reuse", () => {
   });
 
   test("releases the canonical inventory lock for immediate reacquisition", async () => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "real-lock", requires: ["app.launch"], async run({ tv }) { await tv.app.launch(); } }`,
     );
     const controller = new AbortController();
@@ -280,11 +283,9 @@ describe("runner cancellation and lock reuse", () => {
     const registry: NonNullable<DeviceInventoryOptions["registry"]> = {
       getRegistration: () => ({
         driverId: "adb",
-        platform: "android-tv",
-        lockResourceId: () => "adb:serial-1",
         getCapabilities: () => capabilities,
         createDriver: () => ({
-          adapterId: "adb",
+          driverId: "adb",
           open: async () => undefined,
           isReady: async () => true,
           async execute(operation) {
@@ -323,20 +324,20 @@ describe("runner cancellation and lock reuse", () => {
   });
 
   test("bounds a non-cooperative final close", async () => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "bounded-close", requires: [], async run() {} }`,
       { cleanupTimeoutMs: 10 },
     );
     const session: DeviceSession = {
       capabilities: new Map(),
-      execute: async (operation) => record(operation, 1),
+      execute: async (operation) => makeOperationRecord(operation, 1),
       close: () => new Promise(() => undefined),
     };
     const started = performance.now();
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       configPath: paths.configPath,
       artifactDirectory: join(paths.root, "artifacts"),
     });
@@ -349,7 +350,7 @@ describe("runner cancellation and lock reuse", () => {
   });
 
   test("retains the real lock until a timed-out close actually settles", async () => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "retained-lock", requires: [], async run() {} }`,
       { cleanupTimeoutMs: 10 },
     );
@@ -359,14 +360,12 @@ describe("runner cancellation and lock reuse", () => {
     const registry: NonNullable<DeviceInventoryOptions["registry"]> = {
       getRegistration: () => ({
         driverId: "adb",
-        platform: "android-tv",
-        lockResourceId: () => "adb:serial-retained",
         getCapabilities: () => capabilities,
         createDriver: () => {
           const waitsForSettlement = firstDriver;
           firstDriver = false;
           return {
-            adapterId: "adb",
+            driverId: "adb",
             open: async () => undefined,
             isReady: async () => true,
             execute: async () => ({ confirmation: "process-exit" }),
@@ -420,7 +419,7 @@ describe("runner artifacts and schema", () => {
     ["SIGINT", 130, false],
     ["SIGTERM", 143, true],
   ] as const)("%s during publication wins in returned and persisted results", async (_signal, exitCode, failPublication) => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "publication-cancel", requires: [], async run() {} }`,
     );
     const controller = new AbortController();
@@ -434,13 +433,13 @@ describe("runner artifacts and schema", () => {
     });
     const session: DeviceSession = {
       capabilities: new Map(),
-      execute: async (operation) => record(operation, 1),
+      execute: async (operation) => makeOperationRecord(operation, 1),
       close: async () => undefined,
     };
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       signal: controller.signal,
       signalExitCode: () => (controller.signal.aborted ? exitCode : undefined),
       diagnostics,
@@ -461,20 +460,20 @@ describe("runner artifacts and schema", () => {
     ["SIGINT", 130],
     ["SIGTERM", 143],
   ] as const)("%s after the first result write atomically replaces it", async (_signal, exitCode) => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "result-publication-cancel", requires: [], async run() {} }`,
     );
     const artifactRoot = join(paths.root, "artifacts");
     const controller = new AbortController();
     const session: DeviceSession = {
       capabilities: new Map(),
-      execute: async (operation) => record(operation, 1),
+      execute: async (operation) => makeOperationRecord(operation, 1),
       close: async () => undefined,
     };
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       signal: controller.signal,
       signalExitCode: () => {
         const directory = currentArtifactDirectory(artifactRoot);
@@ -497,7 +496,7 @@ describe("runner artifacts and schema", () => {
   });
 
   test("final result publication failure keeps active cancellation precedence", async () => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "result-publication-failure", requires: [], async run() {} }`,
     );
     const artifactRoot = join(paths.root, "artifacts");
@@ -514,13 +513,13 @@ describe("runner artifacts and schema", () => {
     });
     const session: DeviceSession = {
       capabilities: new Map(),
-      execute: async (operation) => record(operation, 1),
+      execute: async (operation) => makeOperationRecord(operation, 1),
       close: async () => undefined,
     };
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       signal: controller.signal,
       signalExitCode: () => (controller.signal.aborted ? 130 : undefined),
       diagnostics,
@@ -534,7 +533,7 @@ describe("runner artifacts and schema", () => {
   });
 
   test("contains dot-segment capture names and publishes allowlisted device metadata", async () => {
-    const paths = await files(
+    const paths = await createRunnerFixture(
       `export default { name: "paths", requires: ["screen.capture"], async run({ tv }) { await tv.screen.capture(".."); } }`,
     );
     let capturePath = "";
@@ -543,14 +542,14 @@ describe("runner artifacts and schema", () => {
       capabilities: new Map(),
       async execute(operation) {
         if (operation.kind === "screen.capture") capturePath = operation.path ?? "";
-        return record(operation, ++ordinal);
+        return makeOperationRecord(operation, ++ordinal);
       },
       close: async () => undefined,
     };
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session),
+      inventory: createInventoryStub(session),
       configPath: paths.configPath,
       artifactDirectory: join(paths.root, "artifacts"),
     });
@@ -567,17 +566,19 @@ describe("runner artifacts and schema", () => {
   });
 
   test("rejects non-Android devices before capability probing", async () => {
-    const paths = await files(`export default { name: "webos", requires: [], async run() {} }`);
+    const paths = await createRunnerFixture(
+      `export default { name: "webos", requires: [], async run() {} }`,
+    );
     let probed = false;
     const session: DeviceSession = {
       capabilities: new Map(),
-      execute: async (operation) => record(operation, 1),
+      execute: async (operation) => makeOperationRecord(operation, 1),
       close: async () => undefined,
     };
     const outcome = await runTvTest({
       file: paths.testPath,
       targetAlias: "lab",
-      inventory: inventory(session, {
+      inventory: createInventoryStub(session, {
         getDevice: async () => ({
           id: "android-1",
           name: "WebOS",
@@ -619,7 +620,7 @@ describe("runner artifacts and schema", () => {
       validateTestTrace({
         traceVersion: 1,
         runId: "run",
-        targetId: "lab",
+        targetAlias: "lab",
         startedAt: "invalid",
         completedAt: "invalid",
         operations: [],
@@ -630,7 +631,7 @@ describe("runner artifacts and schema", () => {
       validateTestTrace({
         traceVersion: 1,
         runId: "run",
-        targetId: "lab",
+        targetAlias: "lab",
         startedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
         operations: [

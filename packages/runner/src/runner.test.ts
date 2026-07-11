@@ -23,14 +23,14 @@ test("runs through one session and publishes canonical ordered records", async (
     testPath,
     `export default { name: "tracer", requires: ["app.launch", "app.foreground", "control.press", "screen.capture"], async run({ tv, expect }) { await tv.app.launch(); const foreground = await tv.app.foreground(); expect.foreground(foreground); await tv.press("LEFT", { times: 3 }); await tv.screen.capture(); } };`,
   );
-  const records: OperationRecord[] = [];
+  const operationRecords: OperationRecord[] = [];
   let closed = 0;
   const session: DeviceSession = {
     capabilities: new Map(),
     async execute(operation: DeviceOperation) {
-      const record: OperationRecord = {
+      const operationRecord: OperationRecord = {
         id: crypto.randomUUID(),
-        ordinal: records.length + 1,
+        ordinal: operationRecords.length + 1,
         kind: operation.kind,
         adapterId: "adb",
         status: "succeeded",
@@ -41,8 +41,8 @@ test("runs through one session and publishes canonical ordered records", async (
         artifacts: [],
         ...(operation.kind === "app.foreground" ? { metadata: { foreground: true } } : {}),
       };
-      records.push(record);
-      return record;
+      operationRecords.push(operationRecord);
+      return operationRecord;
     },
     async close() {
       closed += 1;
@@ -56,7 +56,7 @@ test("runs through one session and publishes canonical ordered records", async (
     "control.press",
     "screen.capture",
   ];
-  const inventory: DeviceInventory = {
+  const inventoryStub: DeviceInventory = {
     listDevices: async () => [],
     getDevice: async () => ({
       id: "android-1",
@@ -70,7 +70,7 @@ test("runs through one session and publishes canonical ordered records", async (
   const outcome = await runTvTest({
     file: testPath,
     targetAlias: "lab",
-    inventory,
+    inventory: inventoryStub,
     configPath,
     artifactDirectory: join(root, "artifacts"),
   });
