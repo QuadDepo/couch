@@ -22,27 +22,22 @@ interface PersistedDeviceBase {
   mac?: string;
 }
 
-export type PersistedDevice =
-  | (PersistedDeviceBase & {
-      platform: "android-tv";
-      config?: Record<string, unknown>;
-    })
-  | (PersistedDeviceBase & {
-      platform: "android-tv-remote";
-      config?: { androidTvRemote: PersistedAndroidRemoteCredentials };
-    })
-  | (PersistedDeviceBase & {
-      platform: "lg-webos";
-      config?: { webos: PersistedWebOSCredentials };
-    })
-  | (PersistedDeviceBase & {
-      platform: "philips-tv";
-      config?: { philips: PersistedPhilipsCredentials };
-    })
-  | (PersistedDeviceBase & {
-      platform: "samsung-tizen";
-      config?: { tizen: PersistedTizenCredentials };
-    });
+// The stored config key per platform mirrors TVDevice's PlatformConfig, but over the looser
+// persisted credential types (unknown keys allowed, no injected defaults).
+interface PersistedConfigByPlatform {
+  "android-tv": Record<string, unknown>;
+  "android-tv-remote": { androidTvRemote: PersistedAndroidRemoteCredentials };
+  "lg-webos": { webos: PersistedWebOSCredentials };
+  "philips-tv": { philips: PersistedPhilipsCredentials };
+  "samsung-tizen": { tizen: PersistedTizenCredentials };
+}
+
+export type PersistedDevice = {
+  [P in keyof PersistedConfigByPlatform]: PersistedDeviceBase & {
+    platform: P;
+    config?: PersistedConfigByPlatform[P];
+  };
+}[keyof PersistedConfigByPlatform];
 
 export interface DeviceDescriptor {
   id: string;
@@ -91,9 +86,16 @@ export interface DeviceInventoryOptions {
   closeTimeoutMs?: number;
 }
 
+export type DeviceInventoryErrorCode =
+  | "DEVICE_NOT_FOUND"
+  | "DRIVER_NOT_FOUND"
+  | "DRIVER_NOT_READY"
+  | "UNSUPPORTED_OPERATION"
+  | "EXPERIMENTAL_OPERATION";
+
 export class DeviceInventoryError extends Error {
   constructor(
-    readonly code: string,
+    readonly code: DeviceInventoryErrorCode,
     message: string,
     readonly category: OperationError["category"] = "infrastructure",
   ) {

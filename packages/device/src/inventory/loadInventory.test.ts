@@ -40,7 +40,7 @@ describe("device inventory storage", () => {
 
     await saveDevicesToFile(path, [device]);
 
-    expect(await loadDevicesFromFile(path)).toEqual([{ ...device, status: "disconnected" }]);
+    expect(await loadDevicesFromFile(path)).toEqual([device]);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect((await stat(join(path, ".."))).mode & 0o777).toBe(0o700);
   });
@@ -59,7 +59,7 @@ describe("device inventory storage", () => {
     };
     await Bun.write(path, JSON.stringify({ version: 1, devices: [stored] }));
 
-    expect(await loadDevicesFromFile(path)).toEqual([{ ...stored, status: "disconnected" }]);
+    expect(await loadDevicesFromFile(path)).toEqual([stored]);
   });
 
   test("throws InventoryError for malformed inventory data", async () => {

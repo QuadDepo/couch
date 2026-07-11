@@ -19,10 +19,7 @@ export async function loadDevicesFromFile(filePath: string): Promise<PersistedDe
       cause: error,
     });
   }
-  return parseStorage(raw).devices.map((device) => ({
-    ...device,
-    status: "disconnected" as const,
-  }));
+  return parseStorage(raw).devices;
 }
 
 export async function saveDevicesToFile(filePath: string, devices: TVDevice[]): Promise<void> {
