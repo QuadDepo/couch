@@ -26,6 +26,9 @@
     "apps/cli": {
       "project": ["src/**/*.{ts,tsx}"]
     },
+    "packages/runner": {
+      "project": ["src/**/*.{ts,tsx}"]
+    },
     "apps/inspector": {
       "project": ["src/**/*.{ts,tsx}"]
     },

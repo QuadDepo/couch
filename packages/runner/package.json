@@ -1,0 +1,31 @@
+{
+  "name": "@couch/runner",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "bun run build:js && bun run build:types",
+    "build:js": "bun build src/defineTvTest.ts src/config.ts src/preflight.ts src/artifacts.ts src/runner.ts --outdir dist --root src --target bun --format esm",
+    "build:types": "tsc -b tsconfig.json --force"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/defineTvTest.d.ts",
+      "bun": "./src/defineTvTest.ts",
+      "default": "./dist/defineTvTest.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "bun": "./src/config.ts",
+      "default": "./dist/config.js"
+    },
+    "./runner": {
+      "types": "./dist/runner.d.ts",
+      "bun": "./src/runner.ts",
+      "default": "./dist/runner.js"
+    }
+  },
+  "dependencies": {
+    "@couch/device": "workspace:*"
+  }
+}
