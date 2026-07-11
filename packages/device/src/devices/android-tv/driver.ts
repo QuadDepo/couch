@@ -1,3 +1,4 @@
+import { extname } from "node:path";
 import type { DeviceDriver, DriverReceipt } from "../../drivers/types";
 import type { DeviceOperation } from "../../operations/types";
 import type { RemoteKey } from "../../types";
@@ -120,6 +121,9 @@ export function createAndroidTvDriver(
             throw new Error(`Unsupported Android capture format: ${operation.format}`);
           }
           if (!operation.path) throw new Error("screen.capture requires an output path");
+          if (extname(operation.path).toLowerCase() !== ".png") {
+            throw new Error("Android screen.capture output must use a .png extension");
+          }
           const bytes = await adb.captureScreen(commandOptions);
           commandOptions.signal?.throwIfAborted();
           await atomicWrite(operation.path, bytes, { signal: commandOptions.signal });

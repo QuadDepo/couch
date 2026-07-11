@@ -1,5 +1,8 @@
 import { writeFile } from "node:fs";
+import { DeviceInventoryError } from "../../errors";
 import { logger } from "../../utils/logger";
+import { isRecord } from "../../utils/validation";
+import { sanitizeWebosRequestError } from "./authorization";
 import { cancellationError } from "./cancellation";
 import type {
   WebOSRequestMessage,
@@ -9,7 +12,26 @@ import type {
 import { createPendingRequests } from "./pendingRequests";
 import { getKeyFilePath, PAIRING_MANIFEST } from "./protocol";
 
-const LOG_TRUNCATE_LENGTH = 200;
+const RESPONSE_TYPES = new Set(["registered", "response", "purchased"]);
+
+function parseResponseMessage(value: unknown): WebOSResponseMessage | undefined {
+  if (!isRecord(value) || typeof value.id !== "string" || !value.id) return undefined;
+  if (typeof value.type !== "string" || !RESPONSE_TYPES.has(value.type)) return undefined;
+  if (value.payload !== undefined && !isRecord(value.payload)) return undefined;
+  return value as unknown as WebOSResponseMessage;
+}
+
+function invalidResponseError(): DeviceInventoryError {
+  return new DeviceInventoryError(
+    "WEBOS_INVALID_RESPONSE",
+    "LG webOS returned an invalid protocol response.",
+  );
+}
+
+export function formatWebosRequestLog(message: WebOSRequestMessage): string {
+  const uri = message.uri ? ` uri=${message.uri}` : "";
+  return `Sending type=${message.type} id=${message.id}${uri}`;
+}
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw cancellationError(signal);
@@ -36,9 +58,7 @@ export function createRequestChannel(options: RequestChannelOptions) {
   const getCid = () => cidPrefix + `000${(cidCount++).toString(16)}`.slice(-4);
 
   function send(message: WebOSRequestMessage): void {
-    const payload = JSON.stringify(message);
-    const suffix = payload.length > LOG_TRUNCATE_LENGTH ? "..." : "";
-    logger.debug("WebOS", `Sending: ${payload.substring(0, LOG_TRUNCATE_LENGTH)}${suffix}`);
+    logger.debug("WebOS", formatWebosRequestLog(message));
     options.send(message);
   }
 
@@ -103,9 +123,9 @@ export function createRequestChannel(options: RequestChannelOptions) {
 
   function handleRegistered(message: WebOSResponseMessage): void {
     const clientKey = message.payload?.["client-key"];
-    if (typeof clientKey !== "string") {
-      logger.error("WebOS", "Received 'registered' message without client-key");
-      pending.resolve(message.id, message);
+    if (typeof clientKey !== "string" || !clientKey.trim()) {
+      logger.error("WebOS", "Received invalid registration response");
+      pending.reject(message.id, invalidResponseError());
       return;
     }
     options.setClientKey(clientKey);
@@ -129,7 +149,10 @@ export function createRequestChannel(options: RequestChannelOptions) {
 
       if (isFailed) {
         const failureMessage = String(payload?.errorText || payload?.errorCode || "Unknown error");
-        pending.reject(message.id, new Error(`Request failed: ${failureMessage}`));
+        pending.reject(
+          message.id,
+          sanitizeWebosRequestError(new Error(`Request failed: ${failureMessage}`)),
+        );
       } else {
         pending.resolve(message.id, payload);
       }
@@ -144,14 +167,20 @@ export function createRequestChannel(options: RequestChannelOptions) {
     subscribe,
     rejectAll: pending.rejectAll,
     handleMessage(data: string | Buffer) {
-      let message: WebOSResponseMessage;
+      let parsed: unknown;
       try {
-        message = JSON.parse(data.toString());
+        parsed = JSON.parse(data.toString());
       } catch {
-        logger.error("WebOS", `JSON parse error: ${data}`);
+        logger.error("WebOS", "Received invalid JSON response");
+        pending.rejectAll(invalidResponseError());
         return;
       }
-      options.emit("message", message);
+      const message = parseResponseMessage(parsed);
+      if (!message) {
+        logger.error("WebOS", "Received invalid protocol response");
+        pending.rejectAll(invalidResponseError());
+        return;
+      }
       if (message.type === "registered") handleRegistered(message);
       else handleResponse(message);
     },

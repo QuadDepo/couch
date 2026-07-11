@@ -1,20 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import type { WebOSRequestMessage } from "./connectionTypes";
-import { createRequestChannel } from "./requestChannel";
+import { createRequestChannel, formatWebosRequestLog } from "./requestChannel";
 
 function channel() {
   const sent: WebOSRequestMessage[] = [];
   const events: string[] = [];
+  const clientKeys: string[] = [];
   const value = createRequestChannel({
     ip: "192.168.1.20",
     mac: "",
     timeout: 100,
     getClientKey: () => "client-key",
-    setClientKey: () => undefined,
+    setClientKey: (clientKey) => clientKeys.push(clientKey),
     send: (message) => sent.push(message),
     emit: (event) => events.push(event),
   });
-  return { value, sent, events };
+  return { value, sent, events, clientKeys };
 }
 
 describe("webOS request channel", () => {
@@ -67,5 +68,102 @@ describe("webOS request channel", () => {
     );
 
     expect(payloads).toEqual([{ returnValue: true, mute: false }]);
+  });
+
+  test("sanitizes permission failures before rejecting the request", async () => {
+    const { value, sent } = channel();
+    const result = value.request("ssap://tv/executeOneShot");
+    value.handleMessage(
+      JSON.stringify({
+        id: sent[0]?.id,
+        type: "response",
+        payload: {
+          returnValue: false,
+          errorCode: "403",
+          errorText: "permission denied for ssap://secret?client-key=raw",
+        },
+      }),
+    );
+
+    await expect(result).rejects.toMatchObject({
+      code: "WEBOS_AUTHORIZATION_REQUIRED",
+      message:
+        "LG webOS denied the operation; explicitly re-pair the TV outside the test before retrying.",
+    });
+  });
+
+  test.each([
+    null,
+    42,
+    "response",
+    [],
+    {},
+    { id: "request" },
+    { type: "response" },
+  ])("rejects malformed envelopes without throwing: %p", async (message) => {
+    const { value } = channel();
+    const result = value.request("ssap://audio/getVolume");
+
+    expect(() => value.handleMessage(JSON.stringify(message))).not.toThrow();
+    await expect(result).rejects.toMatchObject({
+      code: "WEBOS_INVALID_RESPONSE",
+      message: "LG webOS returned an invalid protocol response.",
+    });
+  });
+
+  test("redacts non-authorization failures from errors and events", async () => {
+    const { value, sent, events } = channel();
+    const result = value.request("ssap://tv/executeOneShot");
+    value.handleMessage(
+      JSON.stringify({
+        id: sent[0]?.id,
+        type: "response",
+        payload: {
+          returnValue: false,
+          errorCode: "FIRMWARE_9001",
+          errorText: "failed at ssap://capture?token=secret&client-key=raw-pairing-material",
+        },
+      }),
+    );
+
+    const error = await result.catch((caught) => caught);
+    expect(error).toMatchObject({
+      code: "WEBOS_REQUEST_FAILED",
+      message: "LG webOS rejected the operation.",
+    });
+    expect(JSON.stringify(error)).not.toMatch(/secret|client-key|pairing|ssap:/);
+    expect(events).not.toContain("message");
+  });
+
+  test.each([undefined, "", "   "])("rejects invalid registration client keys: %p", async (key) => {
+    const { value, sent, events, clientKeys } = channel();
+    const registration = value.register();
+    value.handleMessage(
+      JSON.stringify({
+        id: sent[0]?.id,
+        type: "registered",
+        payload: key === undefined ? {} : { "client-key": key },
+      }),
+    );
+
+    await expect(registration).rejects.toMatchObject({ code: "WEBOS_INVALID_RESPONSE" });
+    expect(clientKeys).toEqual([]);
+    expect(events).not.toContain("connect");
+  });
+
+  test("logs only outgoing envelope metadata", async () => {
+    const logged = formatWebosRequestLog({
+      type: "request",
+      id: "request-id",
+      uri: "ssap://system.launcher/launch",
+      payload: {
+        id: "app",
+        params: { token: "secret", "client-key": "pairing-material" },
+      },
+    });
+
+    expect(logged).toContain("type=request");
+    expect(logged).toContain("ssap://system.launcher/launch");
+    expect(logged).not.toMatch(/secret|client-key|pairing-material/);
   });
 });

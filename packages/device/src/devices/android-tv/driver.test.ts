@@ -97,4 +97,14 @@ describe("Android TV driver", () => {
       metadata: { byteLength: 4, format: "png" },
     });
   });
+
+  test("rejects PNG capture paths with a misleading extension", async () => {
+    const { adb } = fakeAdb();
+    const driver = createAndroidTvDriver({ ip: "192.0.2.10" }, { connection: adb });
+    await driver.open();
+
+    await expect(
+      driver.execute({ kind: "screen.capture", path: "/tmp/actual.jpg" }),
+    ).rejects.toThrow(".png extension");
+  });
 });

@@ -22,6 +22,10 @@ export const URI_POINTER_INPUT = "ssap://com.webos.service.networkinput/getPoint
 export const URI_INSERT_TEXT = "ssap://com.webos.service.ime/insertText";
 export const URI_SEND_ENTER_KEY = "ssap://com.webos.service.ime/sendEnterKey";
 export const URI_DELETE_CHARACTERS = "ssap://com.webos.service.ime/deleteCharacters";
+export const URI_LIST_APPS = "ssap://com.webos.applicationManager/listApps";
+export const URI_LAUNCH_APP = "ssap://system.launcher/launch";
+export const URI_GET_FOREGROUND_APP = "ssap://com.webos.applicationManager/getForegroundAppInfo";
+export const URI_CAPTURE_SCREEN = "ssap://tv/executeOneShot";
 
 export const REMOTE_COMMANDS = [
   "UP",

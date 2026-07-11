@@ -7,6 +7,21 @@ import type { DriverRegistration } from "./types";
 const capabilities = new Map<OperationKind, OperationCapability>([
   ["control.press", stableCapability()],
   ["control.text", stableCapability()],
+  ["app.launch", stableCapability()],
+  ["app.foreground", stableCapability()],
+  [
+    "screen.capture",
+    {
+      support: "experimental",
+      readiness: "ready",
+      constraints: {
+        readinessCheck: "paired-configuration-only",
+        format: "jpeg",
+        dimensions: "unavailable",
+        transport: "ssap-execute-one-shot",
+      },
+    },
+  ],
 ]);
 
 function stableCapability(): OperationCapability {

@@ -33,7 +33,7 @@ export interface WebOSRequestMessage {
 
 export interface WebOSResponseMessage {
   id: string;
-  type?: "registered" | "response" | "purchased";
+  type: "registered" | "response" | "purchased";
   payload?: Record<string, unknown>;
   "client-key"?: string;
 }

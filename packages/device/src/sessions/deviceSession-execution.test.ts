@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
+import { sanitizeWebosRequestError } from "../devices/lg-webos/authorization";
 import type { DriverReceipt } from "../drivers/types";
+import { DeviceInventoryError } from "../errors";
 import { fakeDriver, openSession } from "./testSupport";
 
 const directories: string[] = [];
@@ -39,6 +41,53 @@ describe("DeviceSession execution", () => {
 
     expect(record).toMatchObject({ status: "failed", error: { code: "unsupported-operation" } });
     expect(driver.calls).toEqual(["open"]);
+    await session.close();
+  });
+
+  test("preserves typed webOS authorization failures in operation records", async () => {
+    const driver = fakeDriver();
+    driver.execute = async () => {
+      throw new DeviceInventoryError(
+        "WEBOS_AUTHORIZATION_REQUIRED",
+        "LG webOS denied the operation; explicitly re-pair the TV outside the test before retrying.",
+      );
+    };
+    const { session } = await open(driver);
+    const record = await session.execute({ kind: "control.press", key: "LEFT" });
+
+    expect(record).toMatchObject({
+      status: "failed",
+      error: {
+        code: "WEBOS_AUTHORIZATION_REQUIRED",
+        category: "infrastructure",
+        message:
+          "LG webOS denied the operation; explicitly re-pair the TV outside the test before retrying.",
+      },
+    });
+    expect(JSON.stringify(record)).not.toContain("client-key");
+    await session.close();
+  });
+
+  test("redacts non-authorization webOS failures from operation records", async () => {
+    const driver = fakeDriver();
+    driver.execute = async () => {
+      throw sanitizeWebosRequestError(
+        new Error("firmware failed at ssap://capture?token=secret&client-key=raw"),
+      );
+    };
+    const { session } = await open(driver);
+
+    const record = await session.execute({ kind: "control.press", key: "LEFT" });
+
+    expect(record).toMatchObject({
+      status: "failed",
+      error: {
+        code: "WEBOS_REQUEST_FAILED",
+        category: "infrastructure",
+        message: "LG webOS rejected the operation.",
+      },
+    });
+    expect(JSON.stringify(record)).not.toMatch(/secret|client-key|ssap:/);
     await session.close();
   });
 
