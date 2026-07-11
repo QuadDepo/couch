@@ -7,13 +7,13 @@ import type {
   OperationKind,
   OperationRecord,
 } from "../operations/types";
+import { awaitTimeout, now, settlesWithin } from "../utils/timing";
 import type { ExecuteOptions } from "./deviceSession";
 import {
   createBlockedRecord,
   createOperationRecord,
   emitOperationRecord,
 } from "./operationRecords";
-import { awaitTimeout, now, settlesWithin } from "./timing";
 
 interface PendingOperation extends ExecuteOptions {
   operation: DeviceOperation;

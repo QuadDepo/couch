@@ -1,6 +1,6 @@
 import { readdir, readFile, rmdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { throwIfAborted } from "../sessions/timing";
+import { throwIfAborted } from "../utils/timing";
 import type { DeviceLockOwner } from "./ownerRecord";
 import { parseOwner } from "./ownerRecord";
 

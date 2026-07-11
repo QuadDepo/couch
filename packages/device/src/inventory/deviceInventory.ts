@@ -6,7 +6,7 @@ import { createDeviceLock, DEFAULT_DEVICE_LOCK_DIRECTORY } from "../locks/device
 import { evaluateRequirement } from "../operations/requirements";
 import type { OperationCapability, OperationKind } from "../operations/types";
 import { createDeviceSession } from "../sessions/deviceSession";
-import { awaitWithAbort, throwIfAborted } from "../sessions/timing";
+import { awaitWithAbort, throwIfAborted } from "../utils/timing";
 import { loadDevices } from "./loadInventory";
 import { describeDevice, normalizeDevice } from "./normalizeDevice";
 import {

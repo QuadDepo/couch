@@ -7,8 +7,8 @@ import type {
   OperationKind,
   OperationRecord,
 } from "../operations/types";
+import { succeedsWithin } from "../utils/timing";
 import { OperationQueue } from "./operationQueue";
-import { succeedsWithin } from "./timing";
 
 export interface ExecuteOptions {
   signal?: AbortSignal;

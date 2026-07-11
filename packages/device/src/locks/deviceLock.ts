@@ -2,7 +2,7 @@ import { chmod, mkdir, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { kill } from "node:process";
-import { abortError, throwIfAborted } from "../sessions/timing";
+import { abortError, throwIfAborted } from "../utils/timing";
 import { createOwnerRecord, type DeviceLockOwner, readOwner, releaseOwner } from "./ownerRecord";
 import { recoverTemporaryOwners, removeStaleOwner } from "./staleRecovery";
 
