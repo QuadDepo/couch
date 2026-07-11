@@ -112,7 +112,6 @@ test("connect resolves on a bare (envelope-less) remote configure frame", async 
     ip: "127.0.0.1",
     credentials: CREDENTIALS,
     timeout: 3000,
-    reconnect: 0,
   });
 
   await conn.connect();
@@ -131,7 +130,6 @@ test("connect resolves only once the remote protocol is configured", async () =>
     ip: "127.0.0.1",
     credentials: CREDENTIALS,
     timeout: 3000,
-    reconnect: 0,
   });
 
   await conn.connect();

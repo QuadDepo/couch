@@ -1,6 +1,5 @@
 import * as tls from "node:tls";
 import { logger } from "../../../utils/logger";
-import { cappedExponentialBackoff } from "../../constants";
 import { createConnectionEvents } from "../../shared/connectionEvents";
 import type { AndroidTvRemoteCredentials } from "../credentials";
 import { createFrameReader, frameMessage } from "../protocol/framing";
@@ -29,27 +28,19 @@ interface ConnectionConfig {
   ip: string;
   credentials: AndroidTvRemoteCredentials;
   timeout?: number;
-  reconnect?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 15000;
-const DEFAULT_RECONNECT_MS = 5000;
-const MAX_RECONNECT_DELAY_MS = 60000;
-const MAX_RECONNECT_ATTEMPTS = 10;
 const PING_INTERVAL_MS = 5000;
 
 export function createAndroidTvRemoteConnection(
   config: ConnectionConfig,
 ): AndroidTvRemoteConnection {
   const { ip, credentials, timeout = DEFAULT_TIMEOUT_MS } = config;
-  const baseReconnectDelay = config.reconnect ?? DEFAULT_RECONNECT_MS;
 
   let socket: tls.TLSSocket | null = null;
   let connected = false;
   let configReceived = false;
-  let disposed = false;
-  let reconnectAttempts = 0;
-  let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
   let pingInterval: ReturnType<typeof setInterval> | null = null;
 
   let imeCounter = 0;
@@ -134,37 +125,6 @@ export function createAndroidTvRemoteConnection(
     }
   }
 
-  function canReconnect(wasConnected: boolean): boolean {
-    return (
-      wasConnected &&
-      !disposed &&
-      baseReconnectDelay > 0 &&
-      reconnectAttempts < MAX_RECONNECT_ATTEMPTS
-    );
-  }
-
-  function scheduleReconnect() {
-    const delay = cappedExponentialBackoff({
-      attempt: reconnectAttempts,
-      baseDelayMs: baseReconnectDelay,
-      maxDelayMs: MAX_RECONNECT_DELAY_MS,
-    });
-    reconnectAttempts++;
-    logger.info(
-      "AndroidTVRemote",
-      `Scheduling reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`,
-    );
-
-    reconnectTimeoutId = setTimeout(() => {
-      reconnectTimeoutId = null;
-      if (!disposed && !connected) {
-        connect().catch((err) => {
-          logger.error("AndroidTVRemote", `Reconnect failed: ${err.message}`);
-        });
-      }
-    }, delay);
-  }
-
   function connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (connected && configReceived) {
@@ -210,7 +170,6 @@ export function createAndroidTvRemoteConnection(
         },
         () => {
           connected = true;
-          reconnectAttempts = 0;
           logger.info("AndroidTVRemote", "TLS connection established, waiting for TV config...");
         },
       );
@@ -225,7 +184,7 @@ export function createAndroidTvRemoteConnection(
           }
         } catch (error) {
           // Invalid framing desyncs the stream; drop the socket and let the
-          // reconnect path recover rather than throwing out of the listener.
+          // owning machine reconnect rather than throwing out of the listener.
           const err = error instanceof Error ? error : new Error(String(error));
           logger.error("AndroidTVRemote", `Framing error, dropping connection: ${err.message}`);
           events.emit("error", err);
@@ -244,7 +203,6 @@ export function createAndroidTvRemoteConnection(
       });
 
       conn.on("close", (hadError: boolean) => {
-        const wasConnected = connected && configReceived;
         connected = false;
         configReceived = false;
         imeCounter = 0;
@@ -253,30 +211,17 @@ export function createAndroidTvRemoteConnection(
         frameReader.clear();
         events.emit("close");
         logger.info("AndroidTVRemote", `Connection closed (hadError=${hadError})`);
-
-        if (canReconnect(wasConnected)) {
-          scheduleReconnect();
-        } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-          logger.warn("AndroidTVRemote", "Max reconnect attempts reached, giving up");
-        }
       });
     });
   }
 
   function disconnect() {
-    disposed = true;
     stopPingInterval();
-
-    if (reconnectTimeoutId) {
-      clearTimeout(reconnectTimeoutId);
-      reconnectTimeoutId = null;
-    }
 
     socket?.destroy();
     socket = null;
     connected = false;
     configReceived = false;
-    reconnectAttempts = 0;
     imeCounter = 0;
     imeFieldCounter = 0;
     frameReader.clear();

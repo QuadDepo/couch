@@ -29,7 +29,6 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
     const connection = createAndroidTvRemoteConnection({
       ip: input.ip,
       credentials: input.credentials,
-      reconnect: 0,
     });
 
     let isConnected = false;

@@ -23,7 +23,7 @@ export interface BackoffOptions {
 }
 
 /** Exponential backoff (`base * multiplier^attempt`) clamped to `maxDelayMs`. */
-export function cappedExponentialBackoff(options: BackoffOptions): number {
+function cappedExponentialBackoff(options: BackoffOptions): number {
   const { attempt, baseDelayMs, maxDelayMs, multiplier = RETRY_BACKOFF_MULTIPLIER } = options;
   return Math.min(baseDelayMs * multiplier ** attempt, maxDelayMs);
 }
