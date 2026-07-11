@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, SimulatedClock, waitFor } from "xstate";
-import { PAIRING_CONNECT_TIMEOUT, PAIRING_USER_INPUT_TIMEOUT } from "../../constants";
+import { PAIRING_USER_INPUT_TIMEOUT } from "../../constants";
 import type { PhilipsCredentials } from "../credentials";
 import type { PairingEvent, PairingInput } from "./actors/pairing";
 import type { SessionEvent, SessionInput } from "./actors/session";
 import { philipsDeviceMachine } from "./device";
+
+// Shared skeleton behavior (init, setup/validation, pairing, session, heartbeat,
+// forget, error recovery, timeouts) is covered by ../../shared/machine.test.ts.
+// This suite covers only the Philips PIN confirmation flow and actor integration.
 
 // biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
 const noopActor = fromCallback(() => () => {}) as any;
@@ -16,213 +20,45 @@ const testMachine = philipsDeviceMachine.provide({
   },
 });
 
-function setupActor() {
+function inWaitingForPin() {
   const actor = createActor(testMachine, { input: { platform: "philips-tv" } });
   actor.start();
+  actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
+  actor.send({ type: "PROMPT_RECEIVED" });
   return actor;
 }
 
-function loadedWithCredentials() {
-  const actor = createActor(testMachine, {
-    input: {
-      platform: "philips-tv",
-      deviceId: "test-id",
-      deviceName: "Philips TV",
-      deviceIp: "192.168.1.150",
-      credentials: { deviceId: "philips-dev-1", authKey: "secret-key" },
-    },
-  });
-  actor.start();
-  return actor;
-}
-
-function loadedWithoutCredentials() {
-  const actor = createActor(testMachine, {
-    input: {
-      platform: "philips-tv",
-      deviceId: "test-id",
-      deviceName: "Philips TV",
-      deviceIp: "192.168.1.150",
-    },
-  });
-  actor.start();
-  return actor;
-}
-
-describe("philipsDeviceMachine", () => {
-  describe("initialization", () => {
-    test("should start in setup state when no device info is provided", () => {
-      const actor = setupActor();
-      expect(actor.getSnapshot().value).toBe("setup");
-    });
-
-    test("should start in disconnected state when loaded with valid credentials", () => {
-      const actor = loadedWithCredentials();
-      expect(actor.getSnapshot().value).toBe("disconnected");
-      expect(actor.getSnapshot().context.credentials?.authKey).toBe("secret-key");
-    });
-
-    test("should start in pairing.idle when loaded without credentials", () => {
-      const actor = loadedWithoutCredentials();
-      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
-    });
+describe("philipsDeviceMachine PIN flow", () => {
+  test("should transition to confirming on SUBMIT_PIN", () => {
+    const actor = inWaitingForPin();
+    actor.send({ type: "SUBMIT_PIN", pin: "1234" });
+    expect(actor.getSnapshot().matches({ pairing: { active: "confirming" } })).toBe(true);
   });
 
-  describe("setup flow", () => {
-    test("should transition to pairing.active with valid device info", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
-      expect(actor.getSnapshot().context.deviceName).toBe("Philips TV");
-      expect(actor.getSnapshot().context.deviceId).not.toBeNull();
+  test("should store credentials on PAIRED", () => {
+    const actor = inWaitingForPin();
+    actor.send({ type: "SUBMIT_PIN", pin: "1234" });
+    actor.send({
+      type: "PAIRED",
+      credentials: { deviceId: "philips-dev-1", authKey: "new-auth-key" },
     });
-
-    test("should set validation error when device name is empty", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "", ip: "192.168.1.150" });
-      expect(actor.getSnapshot().value).toBe("setup");
-      expect(actor.getSnapshot().context.error).toBe("Device name is required");
-    });
-
-    test("should set validation error when IP is invalid", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "nope" });
-      expect(actor.getSnapshot().value).toBe("setup");
-      expect(actor.getSnapshot().context.error).toBe("Invalid IP address");
-    });
+    expect(actor.getSnapshot().value).toBe("disconnected");
+    expect(actor.getSnapshot().context.credentials?.authKey).toBe("new-auth-key");
+    expect(actor.getSnapshot().context.credentials?.deviceId).toBe("philips-dev-1");
   });
 
-  describe("pairing flow", () => {
-    test("should transition to waitingForPin on PROMPT_RECEIVED", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForPin" } })).toBe(true);
-      expect(actor.getSnapshot().context.promptReceived).toBe(true);
-    });
+  test("should time out from confirming to error state", () => {
+    const clock = new SimulatedClock();
+    const actor = createActor(testMachine, { input: { platform: "philips-tv" }, clock });
+    actor.start();
+    actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
+    actor.send({ type: "PROMPT_RECEIVED" });
+    actor.send({ type: "SUBMIT_PIN", pin: "1234" });
+    expect(actor.getSnapshot().matches({ pairing: { active: "confirming" } })).toBe(true);
 
-    test("should transition to confirming on SUBMIT_PIN", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      actor.send({ type: "SUBMIT_PIN", pin: "1234" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "confirming" } })).toBe(true);
-    });
-
-    test("should store credentials and transition to disconnected on PAIRED", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      actor.send({ type: "SUBMIT_PIN", pin: "1234" });
-      actor.send({
-        type: "PAIRED",
-        credentials: { deviceId: "philips-dev-1", authKey: "new-auth-key" },
-      });
-      expect(actor.getSnapshot().value).toBe("disconnected");
-      expect(actor.getSnapshot().context.credentials?.authKey).toBe("new-auth-key");
-      expect(actor.getSnapshot().context.credentials?.deviceId).toBe("philips-dev-1");
-    });
-
-    test("should transition to pairing.active.error on PAIRING_ERROR", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      actor.send({ type: "PAIRING_ERROR", error: "Wrong PIN" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "error" } })).toBe(true);
-      expect(actor.getSnapshot().context.error).toBe("Wrong PIN");
-    });
-  });
-
-  describe("session and retry logic", () => {
-    test("should transition to session on CONNECT from disconnected", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: {} })).toBe(true);
-    });
-
-    test("should increment retry on CONNECTION_LOST when canRetry", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-      expect(actor.getSnapshot().matches({ session: { connection: "retrying" } })).toBe(true);
-      expect(actor.getSnapshot().context.retryCount).toBe(1);
-    });
-
-    test("should transition to error when retries exhausted", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-
-      for (let i = 0; i < 5; i++) {
-        actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-        if (i < 4) {
-          actor.send({ type: "CONNECTED" });
-          actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-        }
-      }
-
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toBe("Max retries exceeded");
-    });
-  });
-
-  describe("pairing timeouts", () => {
-    test("should time out from connecting to error state", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, { input: { platform: "philips-tv" }, clock });
-      actor.start();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
-
-      clock.increment(PAIRING_CONNECT_TIMEOUT);
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
-    });
-
-    test("should time out from waitingForPin to error state", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, { input: { platform: "philips-tv" }, clock });
-      actor.start();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForPin" } })).toBe(true);
-
-      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
-    });
-
-    test("should time out from confirming to error state", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, { input: { platform: "philips-tv" }, clock });
-      actor.start();
-      actor.send({ type: "SET_DEVICE_INFO", name: "Philips TV", ip: "192.168.1.150" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      actor.send({ type: "SUBMIT_PIN", pin: "1234" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "confirming" } })).toBe(true);
-
-      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
-    });
-  });
-
-  describe("connect guard", () => {
-    test("should not start session on CONNECT without credentials", () => {
-      const actor = loadedWithoutCredentials();
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: {} })).toBe(false);
-      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
-    });
-  });
-
-  describe("forget", () => {
-    test("should clear credentials when FORGET from disconnected", () => {
-      const actor = loadedWithCredentials();
-      expect(actor.getSnapshot().context.credentials?.authKey).toBe("secret-key");
-
-      actor.send({ type: "FORGET" });
-      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
-      expect(actor.getSnapshot().context.credentials).toBeUndefined();
-    });
+    clock.increment(PAIRING_USER_INPUT_TIMEOUT);
+    expect(actor.getSnapshot().value).toBe("error");
+    expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
   });
 
   describe("actor integration", () => {

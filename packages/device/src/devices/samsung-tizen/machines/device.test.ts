@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { createActor, fromCallback, SimulatedClock, waitFor } from "xstate";
-import {
-  HEARTBEAT_INTERVAL,
-  PAIRING_CONNECT_TIMEOUT,
-  PAIRING_USER_INPUT_TIMEOUT,
-} from "../../constants";
+import { createActor, fromCallback, waitFor } from "xstate";
 import type { PairingEvent, PairingInput } from "./actors/pairing";
 import type { SessionEvent, SessionInput } from "./actors/session";
 import { tizenDeviceMachine } from "./device";
+
+// Shared skeleton behavior (init, setup/validation, pairing, session, heartbeat,
+// forget, error recovery, timeouts) is covered by ../../shared/machine.test.ts.
+// This suite covers only the Tizen token credential and actor integration.
 
 // biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
 const noopActor = fromCallback(() => () => {}) as any;
@@ -19,271 +18,19 @@ const testMachine = tizenDeviceMachine.provide({
   },
 });
 
-function setupActor(input?: Parameters<typeof createActor<typeof testMachine>>[1]) {
-  const actor = createActor(testMachine, input ?? { input: { platform: "samsung-tizen" } });
+function setupActor() {
+  const actor = createActor(testMachine, { input: { platform: "samsung-tizen" } });
   actor.start();
   return actor;
 }
 
-function loadedWithCredentials() {
-  return setupActor({
-    input: {
-      platform: "samsung-tizen",
-      deviceId: "test-id",
-      deviceName: "Samsung TV",
-      deviceIp: "192.168.1.200",
-      credentials: { token: "test-token", mac: "" },
-    },
-  });
-}
-
-function loadedWithoutCredentials() {
-  return setupActor({
-    input: {
-      platform: "samsung-tizen",
-      deviceId: "test-id",
-      deviceName: "Samsung TV",
-      deviceIp: "192.168.1.200",
-    },
-  });
-}
-
 describe("tizenDeviceMachine", () => {
-  describe("initialization", () => {
-    test("should start in setup when no device info is provided", () => {
-      const actor = setupActor();
-      expect(actor.getSnapshot().value).toBe("setup");
-    });
-
-    test("should start in disconnected when loaded with credentials", () => {
-      const actor = loadedWithCredentials();
-      expect(actor.getSnapshot().value).toBe("disconnected");
-    });
-
-    test("should start in pairing.idle when loaded without credentials", () => {
-      const actor = loadedWithoutCredentials();
-      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
-    });
-  });
-
-  describe("setup and validation", () => {
-    test("should transition to pairing.active with valid device info", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
-      expect(actor.getSnapshot().context.deviceName).toBe("My TV");
-      expect(actor.getSnapshot().context.deviceIp).toBe("192.168.1.50");
-      expect(actor.getSnapshot().context.deviceId).not.toBeNull();
-    });
-
-    test("should set validation error for missing device name", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "", ip: "192.168.1.50" });
-      expect(actor.getSnapshot().value).toBe("setup");
-      expect(actor.getSnapshot().context.error).toBe("Device name is required");
-    });
-
-    test("should set validation error for invalid IP", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "not-an-ip" });
-      expect(actor.getSnapshot().value).toBe("setup");
-      expect(actor.getSnapshot().context.error).toBe("Invalid IP address");
-    });
-
-    test("should transition to cancelled on CANCEL", () => {
-      const actor = setupActor();
-      actor.send({ type: "CANCEL" });
-      expect(actor.getSnapshot().value).toBe("cancelled");
-      expect(actor.getSnapshot().status).toBe("done");
-    });
-  });
-
-  describe("pairing flow", () => {
-    test("should transition to pairing.active.connecting on START_PAIRING from idle", () => {
-      const actor = loadedWithoutCredentials();
-      actor.send({ type: "START_PAIRING" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
-    });
-
-    test("should transition to waitingForUser on PROMPT_RECEIVED", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForUser" } })).toBe(true);
-      expect(actor.getSnapshot().context.promptReceived).toBe(true);
-    });
-
-    test("should transition to disconnected on PAIRED and store token credential", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "PAIRED", token: "my-token" });
-      expect(actor.getSnapshot().value).toBe("disconnected");
-      expect(actor.getSnapshot().context.credentials?.token).toBe("my-token");
-    });
-
-    test("should transition to pairing.active.error on PAIRING_ERROR", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "PAIRING_ERROR", error: "TV denied pairing" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "error" } })).toBe(true);
-      expect(actor.getSnapshot().context.error).toBe("TV denied pairing");
-    });
-
-    test("should reset to setup on RESET_TO_SETUP", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "RESET_TO_SETUP" });
-      expect(actor.getSnapshot().value).toBe("setup");
-      expect(actor.getSnapshot().context.deviceId).toBeNull();
-      expect(actor.getSnapshot().context.deviceName).toBe("");
-    });
-  });
-
-  describe("session and connection", () => {
-    test("should transition to session on CONNECT from disconnected", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: {} })).toBe(true);
-    });
-
-    test("should transition to session.connection.connected on CONNECTED", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTED" });
-      expect(
-        actor.getSnapshot().matches({ session: { connection: "connected", heartbeat: "idle" } }),
-      ).toBe(true);
-    });
-
-    test("should transition to retrying on CONNECTION_LOST when retries remain", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-      expect(actor.getSnapshot().matches({ session: { connection: "retrying" } })).toBe(true);
-      expect(actor.getSnapshot().context.retryCount).toBe(1);
-      expect(actor.getSnapshot().context.error).toBe("Timeout");
-    });
-
-    test("should transition to error when max retries exceeded on CONNECTION_LOST", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-
-      for (let i = 0; i < 5; i++) {
-        actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-        if (i < 4) {
-          actor.send({ type: "CONNECTED" });
-          actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-        }
-      }
-
-      expect(actor.getSnapshot().value).toBe("error");
-    });
-
-    test("should reset retry count on CONNECTED", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTED" });
-      expect(actor.getSnapshot().context.retryCount).toBe(0);
-      expect(actor.getSnapshot().context.error).toBeUndefined();
-    });
-  });
-
-  describe("heartbeat", () => {
-    test("should start heartbeat in waiting state", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: { heartbeat: "waiting" } })).toBe(true);
-    });
-
-    test("should transition heartbeat to idle on CONNECTED", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTED" });
-      expect(actor.getSnapshot().matches({ session: { heartbeat: "idle" } })).toBe(true);
-    });
-
-    test("should transition heartbeat checking to waiting on HEARTBEAT_FAILED", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, {
-        input: {
-          platform: "samsung-tizen",
-          deviceId: "test-id",
-          deviceName: "Samsung TV",
-          deviceIp: "192.168.1.200",
-          credentials: { token: "test-token", mac: "" },
-        },
-        clock,
-      });
-      actor.start();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTED" });
-
-      clock.increment(HEARTBEAT_INTERVAL);
-      expect(actor.getSnapshot().matches({ session: { heartbeat: "checking" } })).toBe(true);
-
-      actor.send({ type: "HEARTBEAT_FAILED", error: "no heartbeat response" });
-      expect(actor.getSnapshot().matches({ session: { heartbeat: "waiting" } })).toBe(true);
-    });
-  });
-
-  describe("pairing timeouts", () => {
-    test("should time out from connecting to error state", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, { input: { platform: "samsung-tizen" }, clock });
-      actor.start();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
-
-      clock.increment(PAIRING_CONNECT_TIMEOUT);
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
-    });
-
-    test("should time out from waitingForUser to error state", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, { input: { platform: "samsung-tizen" }, clock });
-      actor.start();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForUser" } })).toBe(true);
-
-      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
-    });
-  });
-
-  describe("connect guard", () => {
-    test("should not start session on CONNECT without credentials", () => {
-      const actor = loadedWithoutCredentials();
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: {} })).toBe(false);
-      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
-    });
-  });
-
-  describe("disconnect and forget", () => {
-    test("should transition to disconnected on DISCONNECT from session", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "DISCONNECT" });
-      expect(actor.getSnapshot().value).toBe("disconnected");
-    });
-
-    test("should transition to pairing.idle on FORGET from disconnected", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "FORGET" });
-      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
-      expect(actor.getSnapshot().context.credentials).toBeUndefined();
-    });
-
-    test("should transition to pairing.idle on FORGET from session", () => {
-      const actor = loadedWithCredentials();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "FORGET" });
-      expect(actor.getSnapshot().matches({ pairing: "idle" })).toBe(true);
-      expect(actor.getSnapshot().context.credentials).toBeUndefined();
-    });
+  test("should store the token credential on PAIRED", () => {
+    const actor = setupActor();
+    actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
+    actor.send({ type: "PAIRED", token: "my-token" });
+    expect(actor.getSnapshot().value).toBe("disconnected");
+    expect(actor.getSnapshot().context.credentials?.token).toBe("my-token");
   });
 
   describe("actor integration", () => {

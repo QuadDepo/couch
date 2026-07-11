@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { createActor, fromCallback, SimulatedClock, waitFor } from "xstate";
-import { PAIRING_CONNECT_TIMEOUT, PAIRING_USER_INPUT_TIMEOUT } from "../../constants";
+import { createActor, fromCallback, waitFor } from "xstate";
 import type { PairingEvent, PairingInput } from "./actors/pairing";
 import type { SessionEvent, SessionInput } from "./actors/session";
 import { androidTVDeviceMachine } from "./device";
+
+// Shared skeleton behavior (init, setup/validation, pairing, session, heartbeat,
+// forget, error recovery, timeouts) is covered by ../../shared/machine.test.ts.
+// This suite covers only the ADB instruction wizard and actor integration.
 
 // biome-ignore lint/suspicious/noExplicitAny: noop stub for test isolation
 const noopActor = fromCallback(() => () => {}) as any;
@@ -15,68 +18,13 @@ const testMachine = androidTVDeviceMachine.provide({
   },
 });
 
-function setupActor(input?: Parameters<typeof createActor<typeof testMachine>>[1]) {
-  const actor = createActor(testMachine, input ?? { input: { platform: "android-tv" } });
+function setupActor() {
+  const actor = createActor(testMachine, { input: { platform: "android-tv" } });
   actor.start();
   return actor;
 }
 
-function loadedActor() {
-  return setupActor({
-    input: {
-      platform: "android-tv",
-      deviceId: "test-id",
-      deviceName: "Living Room TV",
-      deviceIp: "192.168.1.100",
-    },
-  });
-}
-
 describe("androidTVDeviceMachine", () => {
-  describe("guards", () => {
-    test("should start in setup state when no device info is provided", () => {
-      const actor = setupActor();
-      expect(actor.getSnapshot().value).toBe("setup");
-    });
-
-    test("should start in disconnected state when device info is provided", () => {
-      const actor = loadedActor();
-      expect(actor.getSnapshot().value).toBe("disconnected");
-    });
-  });
-
-  describe("setup flow", () => {
-    test("should transition to pairing.instructions with valid device info", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      expect(actor.getSnapshot().matches({ pairing: "instructions" })).toBe(true);
-      expect(actor.getSnapshot().context.deviceName).toBe("My TV");
-      expect(actor.getSnapshot().context.deviceIp).toBe("192.168.1.50");
-      expect(actor.getSnapshot().context.deviceId).not.toBeNull();
-    });
-
-    test("should set validation error when device name is empty", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "", ip: "192.168.1.50" });
-      expect(actor.getSnapshot().value).toBe("setup");
-      expect(actor.getSnapshot().context.error).toBe("Device name is required");
-    });
-
-    test("should set validation error when IP is invalid", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "not-an-ip" });
-      expect(actor.getSnapshot().value).toBe("setup");
-      expect(actor.getSnapshot().context.error).toBe("Invalid IP address");
-    });
-
-    test("should transition to cancelled on CANCEL from setup", () => {
-      const actor = setupActor();
-      actor.send({ type: "CANCEL" });
-      expect(actor.getSnapshot().value).toBe("cancelled");
-      expect(actor.getSnapshot().status).toBe("done");
-    });
-  });
-
   describe("instruction wizard", () => {
     test("should advance instruction step on CONTINUE_INSTRUCTION", () => {
       const actor = setupActor();
@@ -118,165 +66,6 @@ describe("androidTVDeviceMachine", () => {
       actor.send({ type: "BACK_INSTRUCTION" });
       expect(actor.getSnapshot().value).toBe("setup");
       expect(actor.getSnapshot().context.deviceId).toBeNull();
-    });
-  });
-
-  describe("pairing flow", () => {
-    test("should transition to pairing.active.waitingForUser on PROMPT_RECEIVED", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-
-      actor.send({ type: "PROMPT_RECEIVED" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForUser" } })).toBe(true);
-      expect(actor.getSnapshot().context.promptReceived).toBe(true);
-    });
-
-    test("should transition to disconnected on PAIRED", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-
-      actor.send({ type: "PAIRED" });
-      expect(actor.getSnapshot().value).toBe("disconnected");
-    });
-
-    test("should transition to pairing.active.error on PAIRING_ERROR", () => {
-      const actor = setupActor();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-
-      actor.send({ type: "PAIRING_ERROR", error: "Connection refused" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "error" } })).toBe(true);
-      expect(actor.getSnapshot().context.error).toBe("Connection refused");
-    });
-  });
-
-  describe("session and retry logic", () => {
-    test("should transition to session on CONNECT from disconnected", () => {
-      const actor = loadedActor();
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: {} })).toBe(true);
-    });
-
-    test("should transition to session.connection.connected on CONNECTED", () => {
-      const actor = loadedActor();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTED" });
-      expect(
-        actor.getSnapshot().matches({ session: { connection: "connected", heartbeat: "idle" } }),
-      ).toBe(true);
-    });
-
-    test("should increment retry and go to retrying on CONNECTION_LOST when canRetry", () => {
-      const actor = loadedActor();
-      actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-
-      expect(actor.getSnapshot().matches({ session: { connection: "retrying" } })).toBe(true);
-      expect(actor.getSnapshot().context.retryCount).toBe(1);
-      expect(actor.getSnapshot().context.error).toBe("Timeout");
-    });
-
-    test("should transition to error when retries exhausted on CONNECTION_LOST", () => {
-      const actor = loadedActor();
-      actor.send({ type: "CONNECT" });
-
-      for (let i = 0; i < 5; i++) {
-        actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-        if (i < 4) {
-          // Re-enter session by waiting for retry delay — instead, re-send CONNECT
-          // The machine uses `after: retryDelay` which we can't easily wait for in tests.
-          // So we manually re-enter session state for testing purposes.
-          actor.send({ type: "CONNECTED" });
-          actor.send({ type: "CONNECTION_LOST", error: "Timeout" });
-        }
-      }
-
-      // After maxRetries (5), should be in error state
-      expect(actor.getSnapshot().value).toBe("error");
-    });
-
-    test("should reset retry count on CONNECTED from connecting state", () => {
-      const actor = loadedActor();
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: { connection: "connecting" } })).toBe(true);
-
-      actor.send({ type: "CONNECTED" });
-      expect(actor.getSnapshot().context.retryCount).toBe(0);
-      expect(actor.getSnapshot().context.error).toBeUndefined();
-    });
-  });
-
-  describe("pairing timeouts", () => {
-    test("should time out from connecting to error state", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, { input: { platform: "android-tv" }, clock });
-      actor.start();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
-
-      clock.increment(PAIRING_CONNECT_TIMEOUT);
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
-    });
-
-    test("should time out from waitingForUser to error state", () => {
-      const clock = new SimulatedClock();
-      const actor = createActor(testMachine, { input: { platform: "android-tv" }, clock });
-      actor.start();
-      actor.send({ type: "SET_DEVICE_INFO", name: "My TV", ip: "192.168.1.50" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-      actor.send({ type: "CONTINUE_INSTRUCTION" });
-      actor.send({ type: "PROMPT_RECEIVED" });
-      expect(actor.getSnapshot().matches({ pairing: { active: "waitingForUser" } })).toBe(true);
-
-      clock.increment(PAIRING_USER_INPUT_TIMEOUT);
-      expect(actor.getSnapshot().value).toBe("error");
-      expect(actor.getSnapshot().context.error).toContain("Pairing timed out");
-    });
-  });
-
-  describe("error state", () => {
-    test("should allow CONNECT from error state", () => {
-      const actor = loadedActor();
-      actor.send({ type: "CONNECT" });
-
-      // Exhaust retries to reach error state
-      for (let i = 0; i < 5; i++) {
-        actor.send({ type: "CONNECTION_LOST" });
-        if (i < 4) {
-          actor.send({ type: "CONNECTED" });
-          actor.send({ type: "CONNECTION_LOST" });
-        }
-      }
-      expect(actor.getSnapshot().value).toBe("error");
-
-      actor.send({ type: "CONNECT" });
-      expect(actor.getSnapshot().matches({ session: {} })).toBe(true);
-      expect(actor.getSnapshot().context.retryCount).toBe(0);
-    });
-
-    test("should allow DISCONNECT from error state back to disconnected", () => {
-      const actor = loadedActor();
-      actor.send({ type: "CONNECT" });
-
-      for (let i = 0; i < 5; i++) {
-        actor.send({ type: "CONNECTION_LOST" });
-        if (i < 4) {
-          actor.send({ type: "CONNECTED" });
-          actor.send({ type: "CONNECTION_LOST" });
-        }
-      }
-      expect(actor.getSnapshot().value).toBe("error");
-
-      actor.send({ type: "DISCONNECT" });
-      expect(actor.getSnapshot().value).toBe("disconnected");
     });
   });
 
