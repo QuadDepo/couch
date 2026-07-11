@@ -1,7 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
-    ".": {},
+    ".": {
+      "entry": ["couch.config.ts", "{examples,tests}/**/*.tv.ts"]
+    },
     "packages/device": {
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreMembers": [
