@@ -159,10 +159,10 @@ function remediationFor(targetId: string, capability: OperationCapability): stri
     return "Power on the device, confirm network reachability, then rerun doctor.";
   if (capability.readiness === "misconfigured")
     return "Update the device configuration or pairing credentials, then rerun doctor.";
-  if (capability.constraints?.readinessCheck === "paired-configuration-only")
-    return `Live connectivity was not checked; run \`couch remote press ${targetId} LEFT\` to verify control.`;
   if (capability.support === "experimental")
     return "Explicitly allow this experimental operation for the target before use.";
+  if (capability.constraints?.readinessCheck === "paired-configuration-only")
+    return `Live connectivity was not checked; run \`couch remote press ${targetId} LEFT\` to verify control.`;
   return "None.";
 }
 

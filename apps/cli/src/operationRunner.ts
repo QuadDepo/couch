@@ -1,4 +1,5 @@
 import type {
+  DeviceDescriptor,
   DeviceInventory,
   DeviceOperation,
   DeviceSession,
@@ -55,13 +56,18 @@ export async function runTargetSession(params: {
   signals: SignalControl;
   loadProjectConfig: () => Promise<CouchTestConfig>;
   operationFor: (target: TestTargetConfig) => DeviceOperation;
+  validateFor?: (target: TestTargetConfig, device: DeviceDescriptor) => void;
 }): Promise<SessionOutcome<TestTargetConfig>> {
   return runSession(
     params.signals,
     async () => {
       const target = resolveTarget(await params.loadProjectConfig(), params.targetAlias);
-      const session = await (await params.getInventory()).openSession(target.deviceId, {
+      const inventory = await params.getInventory();
+      const device = await inventory.getDevice(target.deviceId, { signal: params.signals.signal });
+      params.validateFor?.(target, device);
+      const session = await inventory.openSession(target.deviceId, {
         require: params.require,
+        allowExperimental: target.allowExperimental,
         signal: params.signals.signal,
       });
       return { session, context: target };

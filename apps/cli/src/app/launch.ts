@@ -24,7 +24,7 @@ export async function runLaunch(
     operationFor: (target) => ({
       kind: "app.launch",
       appId: target.app.id,
-      activity: target.app.activity,
+      ...(target.app.activity ? { activity: target.app.activity } : {}),
     }),
   });
 

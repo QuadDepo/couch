@@ -106,4 +106,21 @@ describe("device doctor", () => {
       ],
     });
   });
+
+  test("prioritizes experimental approval for configuration-only capture", async () => {
+    const result = output();
+    await runCli(["device", "doctor", "lab", "--json"], {
+      createInventory: () =>
+        inventory({
+          support: "experimental",
+          readiness: "ready",
+          constraints: { readinessCheck: "paired-configuration-only" },
+        }),
+      stdout: result.writeOut,
+      stderr: result.writeErr,
+    });
+    expect(JSON.parse(result.stdout[0] ?? "").capabilities[0].remediation).toBe(
+      "Explicitly allow this experimental operation for the target before use.",
+    );
+  });
 });

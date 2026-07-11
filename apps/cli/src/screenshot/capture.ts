@@ -1,3 +1,4 @@
+import { extname } from "node:path";
 import type { DeviceInventory, OperationRecord } from "@couch/device";
 import { type CouchTestConfig, loadConfig } from "@couch/runner/config";
 import { cancelledFields, failedFields } from "../commandOutput";
@@ -33,7 +34,16 @@ export async function runScreenshot(
     getInventory,
     signals,
     loadProjectConfig,
-    operationFor: () => ({ kind: "screen.capture", format: "png", path: command.out }),
+    validateFor: (_target, device) => {
+      const extension = extname(command.out).toLowerCase();
+      if (device.platform === "webos" && extension !== ".jpg" && extension !== ".jpeg") {
+        throw new Error("LG webOS screenshots must use a .jpg or .jpeg extension");
+      }
+      if (device.platform === "android-tv" && extension !== ".png") {
+        throw new Error("Android TV screenshots must use a .png extension");
+      }
+    },
+    operationFor: () => ({ kind: "screen.capture", path: command.out }),
   });
 
   const classification = classifyOutcome(signals, outcome, "Screenshot capture did not complete");
