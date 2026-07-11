@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isOperationKind, type OperationKind } from "@couch/device";
+import { isRecord } from "./guards";
 
 export interface TestTargetConfig {
   deviceId: string;
@@ -20,10 +21,6 @@ export interface CouchTestConfig {
 
 const SECRET_KEYS =
   /(?:credential|password|token|secret|pairing|client.?key|certificate|private.?key|(?:^|[_-]|device)ip$|address|mac)/i;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function assertKnownKeys(
   value: Record<string, unknown>,

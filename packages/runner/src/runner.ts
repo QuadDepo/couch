@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type {
   ArtifactReference,
@@ -18,8 +18,10 @@ import {
 } from "./artifacts";
 import type { TestTargetConfig } from "./config";
 import { loadConfig, resolveTarget } from "./config";
-import type { TvTestContext, TvTestDefinition } from "./defineTvTest";
+import type { TvTestDefinition } from "./defineTvTest";
 import { assertTvTestDefinition } from "./defineTvTest";
+import { assertExitCodeAligns } from "./result";
+import { AssertionFailure, buildTestContext, type ExecuteOperation } from "./testContext";
 
 export interface TestTrace {
   traceVersion: 1;
@@ -50,10 +52,6 @@ export interface AssertionRecord {
   error?: { code: string; message: string };
 }
 
-class AssertionFailure extends Error {}
-
-const DEFAULT_FOREGROUND_TIMEOUT_MS = 10_000;
-const FOREGROUND_POLL_INTERVAL_MS = 250;
 const DEFAULT_CLEANUP_TIMEOUT_MS = 5_000;
 
 export interface RunTvTestOptions {
@@ -77,23 +75,6 @@ function testLeafDirectory(runDirectory: string, alias: string, leaf: string): s
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function wait(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolveWait, reject) => {
-    const finish = () => {
-      signal?.removeEventListener("abort", abort);
-      resolveWait();
-    };
-    const timer = setTimeout(finish, ms);
-    const abort = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", abort);
-      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
-    };
-    if (signal?.aborted) abort();
-    else signal?.addEventListener("abort", abort, { once: true });
-  });
 }
 
 function requiredOperations(test: TvTestDefinition): OperationKind[] {
@@ -163,37 +144,6 @@ function publicDevice(device: DeviceDescriptor): Record<string, string> {
   };
 }
 
-// --- Result / exit-code invariant ---------------------------------------------
-// status and exitCode are independent literal unions on TestResult, so TypeScript
-// cannot prove they agree. Assert the mapping at publish time.
-
-const EXPECTED_EXIT: Record<TestResult["status"], number | readonly number[]> = {
-  passed: 0,
-  failed: 1,
-  "infrastructure-failed": 2,
-  cancelled: [130, 143],
-};
-
-function exitCodeAligns(status: TestResult["status"], exitCode: number): boolean {
-  const expected = EXPECTED_EXIT[status];
-  return Array.isArray(expected) ? expected.includes(exitCode) : exitCode === expected;
-}
-
-function assertExitCodeAligns(result: TestResult): void {
-  if (!exitCodeAligns(result.status, result.exitCode)) {
-    throw new Error(
-      `Result status "${result.status}" and exitCode ${result.exitCode} do not align`,
-    );
-  }
-}
-
-// --- Execution ----------------------------------------------------------------
-
-type ExecuteOperation = (
-  operation: Parameters<DeviceSession["execute"]>[0],
-  runnerOwned?: boolean,
-) => Promise<OperationRecord>;
-
 function createExecute(params: {
   session: DeviceSession;
   target: TestTargetConfig;
@@ -217,100 +167,6 @@ function createExecute(params: {
       throw new Error(record.error?.message ?? `${record.kind} failed`);
     }
     return record;
-  };
-}
-
-function recordAssertion(
-  assertions: AssertionRecord[],
-  matcher: string,
-  passed: boolean,
-  failureMessage: string,
-  details: { operationIds?: readonly string[]; artifacts?: readonly ArtifactReference[] } = {},
-): void {
-  assertions.push({
-    id: crypto.randomUUID(),
-    matcher,
-    status: passed ? "passed" : "failed",
-    operationIds: details.operationIds ?? [],
-    artifacts: details.artifacts ?? [],
-    ...(passed ? {} : { error: { code: "assertion-failed", message: failureMessage } }),
-  });
-}
-
-function buildTestContext(params: {
-  execute: ExecuteOperation;
-  target: TestTargetConfig;
-  directory: string;
-  operations: readonly OperationRecord[];
-  assertions: AssertionRecord[];
-  signal?: AbortSignal;
-}): TvTestContext {
-  const { execute, target, directory, operations, assertions, signal } = params;
-
-  const foreground = async () => {
-    const deadline = Date.now() + (target.foregroundTimeoutMs ?? DEFAULT_FOREGROUND_TIMEOUT_MS);
-    while (true) {
-      const record = await execute({ kind: "app.foreground", appId: target.app.id });
-      if (record.metadata?.foreground === true) return record;
-      if (Date.now() >= deadline) {
-        const message = `${target.app.id} did not become foreground`;
-        recordAssertion(assertions, "foreground", false, message, {
-          operationIds: [record.id],
-          artifacts: record.artifacts,
-        });
-        throw new AssertionFailure(message);
-      }
-      await wait(FOREGROUND_POLL_INTERVAL_MS, signal);
-    }
-  };
-
-  return {
-    tv: {
-      app: {
-        launch: () =>
-          execute({
-            kind: "app.launch",
-            appId: target.app.id,
-            activity: target.app.activity,
-          }),
-        foreground,
-      },
-      async press(key, pressOptions = {}) {
-        const times = pressOptions.times ?? 1;
-        for (let index = 0; index < times; index += 1) {
-          await execute({ kind: "control.press", key });
-          if (pressOptions.intervalMs && index + 1 < times) {
-            await wait(pressOptions.intervalMs, signal);
-          }
-        }
-      },
-      screen: {
-        capture: (name = "actual.png") =>
-          execute({
-            kind: "screen.capture",
-            format: "png",
-            path: resolveContained(directory, safeName(name)),
-          }),
-      },
-    },
-    expect: {
-      foreground(record) {
-        const candidate = record ?? operations.findLast((item) => item.kind === "app.foreground");
-        const passed = candidate?.metadata?.foreground === true;
-        recordAssertion(assertions, "foreground", passed, "Configured app is not foreground", {
-          operationIds: candidate ? [candidate.id] : [],
-          artifacts: candidate?.artifacts ?? [],
-        });
-        if (!passed) throw new AssertionFailure("Configured app is not foreground");
-      },
-      equal(actual, expected, message) {
-        const passed = Object.is(actual, expected);
-        const failureMessage =
-          message ?? `Expected ${String(expected)}, received ${String(actual)}`;
-        recordAssertion(assertions, "equal", passed, failureMessage);
-        if (!passed) throw new AssertionFailure(failureMessage);
-      },
-    },
   };
 }
 
@@ -482,7 +338,7 @@ export async function runTvTest(
   let target: TestTargetConfig | undefined;
   let device: DeviceDescriptor | undefined;
 
-  const leafName = options.file.split("/").at(-1) ?? "tv-test";
+  const leafName = basename(options.file) ?? "tv-test";
   try {
     let runDirectory = resolve(options.artifactDirectory ?? "artifacts", runId);
     directory = testLeafDirectory(runDirectory, options.targetAlias, leafName);

@@ -4,6 +4,7 @@ import {
   type OperationRecord,
   type RemoteKey,
 } from "@couch/device";
+import { isRecord } from "./guards";
 
 export interface TvTestContext {
   tv: {
@@ -24,10 +25,6 @@ export interface TvTestDefinition {
   name: string;
   requires: readonly OperationKind[];
   run(context: TvTestContext): Promise<void> | void;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // Single source of truth for the test-definition contract. Runs both at authoring time
