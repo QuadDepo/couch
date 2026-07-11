@@ -1,6 +1,5 @@
 import * as crypto from "node:crypto";
 import forge from "node-forge";
-import { hexToBytes } from "./hex";
 
 interface GeneratedCertificate {
   certificate: string;
@@ -58,41 +57,24 @@ interface RsaKeyComponents {
 const UNSUPPORTED_KEY_ERROR =
   "Unsupported certificate: pairing requires an RSA public key, non-RSA keys are not supported";
 
-// The RSA public key carries the modulus (n) and exponent (e); other key types
-// (EC, ed25519) lack them and cannot participate in the pairing secret.
-function isRsaPublicKey(key: forge.pki.PublicKey): key is forge.pki.rsa.PublicKey {
-  return "n" in key && "e" in key;
+function base64UrlToBytes(value: string): Uint8Array {
+  return new Uint8Array(Buffer.from(value, "base64url"));
 }
 
 // Peer certificates arrive at the pairing trust boundary, so a non-RSA key must
-// fail with a domain-specific error rather than a node-forge internal message.
+// fail with a domain-specific error. The JWK export exposes the RSA modulus (n)
+// and exponent (e) as base64url; other key types (EC, ed25519) report a
+// non-"RSA" kty and lack the components needed for the pairing secret.
 function extractRsaModulusAndExponent(certificatePem: string): RsaKeyComponents {
-  let cert: forge.pki.Certificate;
-  try {
-    cert = forge.pki.certificateFromPem(certificatePem);
-  } catch (error) {
-    // node-forge rejects non-RSA public keys during parse ("OID is not RSA").
-    const message = error instanceof Error ? error.message : String(error);
-    if (/not\s+rsa/i.test(message)) {
-      throw new Error(UNSUPPORTED_KEY_ERROR);
-    }
-    throw error;
-  }
+  const jwk = new crypto.X509Certificate(certificatePem).publicKey.export({ format: "jwk" });
 
-  const publicKey = cert.publicKey;
-  if (!isRsaPublicKey(publicKey)) {
+  if (jwk.kty !== "RSA" || jwk.n === undefined || jwk.e === undefined) {
     throw new Error(UNSUPPORTED_KEY_ERROR);
   }
 
-  const modulusHex = publicKey.n.toString(16);
-  const exponentHex = publicKey.e.toString(16);
-
-  const modulusPadded = modulusHex.length % 2 ? `0${modulusHex}` : modulusHex;
-  const exponentPadded = exponentHex.length % 2 ? `0${exponentHex}` : exponentHex;
-
   return {
-    modulus: hexToBytes(modulusPadded),
-    exponent: hexToBytes(exponentPadded),
+    modulus: base64UrlToBytes(jwk.n),
+    exponent: base64UrlToBytes(jwk.e),
   };
 }
 
