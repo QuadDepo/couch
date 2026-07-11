@@ -3,10 +3,12 @@ import { jsonSafeRecord } from "../diagnostics/redact";
 import type { DriverReceipt } from "../drivers/types";
 import { DeviceInventoryError } from "../inventory/types";
 import type {
+  Confirmation,
   DeviceOperation,
   DriverId,
   OperationError,
   OperationRecord,
+  OperationStatus,
 } from "../operations/types";
 
 function operationInput(operation: DeviceOperation): Record<string, unknown> {
@@ -15,12 +17,13 @@ function operationInput(operation: DeviceOperation): Record<string, unknown> {
 }
 
 function cancelledError(reason?: unknown): OperationError {
-  return {
-    code: "cancelled",
-    category: "cancelled",
-    message: reason instanceof Error ? reason.message : "Operation cancelled",
-    retryable: false,
-  };
+  const message =
+    reason instanceof Error
+      ? reason.message
+      : typeof reason === "string"
+        ? reason
+        : "Operation cancelled";
+  return { code: "cancelled", category: "cancelled", message, retryable: false };
 }
 
 function operationError(error: unknown): OperationError {
@@ -50,42 +53,59 @@ interface RecordFields {
   timeoutMs?: number;
 }
 
+interface OperationOutcome {
+  status: OperationStatus;
+  error?: OperationError;
+  confirmation?: Confirmation;
+}
+
+function resolveOutcome(fields: RecordFields): OperationOutcome {
+  if (fields.timeoutMs !== undefined) {
+    return {
+      status: "failed",
+      error: {
+        code: "operation-timeout",
+        category: "infrastructure",
+        message: `Operation timed out after ${fields.timeoutMs}ms`,
+        retryable: false,
+      },
+    };
+  }
+
+  if (fields.cancelled !== undefined) {
+    return { status: "cancelled", error: cancelledError(fields.cancelled) };
+  }
+
+  if (fields.error) {
+    return { status: "failed", error: operationError(fields.error) };
+  }
+
+  const confirmation = fields.receipt?.confirmation;
+  return confirmation ? { status: "succeeded", confirmation } : { status: "succeeded" };
+}
+
 export function createOperationRecord(fields: RecordFields): OperationRecord {
   const { receipt } = fields;
-  const timedOut = fields.timeoutMs !== undefined;
-  const cancelled = fields.cancelled !== undefined;
+  const outcome = resolveOutcome(fields);
+
   return {
     id: crypto.randomUUID(),
     ordinal: fields.ordinal,
     kind: fields.operation.kind,
     adapterId: fields.adapterId,
-    status: timedOut ? "failed" : cancelled ? "cancelled" : fields.error ? "failed" : "succeeded",
-    ...(!timedOut && !cancelled && receipt?.confirmation
-      ? { confirmation: receipt.confirmation }
-      : {}),
+    status: outcome.status,
+    ...(outcome.confirmation ? { confirmation: outcome.confirmation } : {}),
     startedAt: fields.startedAt,
     completedAt: fields.completedAt,
     input: operationInput(fields.operation),
-    ...(timedOut
-      ? {
-          error: {
-            code: "operation-timeout",
-            category: "infrastructure" as const,
-            message: `Operation timed out after ${fields.timeoutMs}ms`,
-            retryable: false,
-          },
-        }
-      : cancelled
-        ? { error: cancelledError(fields.cancelled) }
-        : fields.error
-          ? { error: operationError(fields.error) }
-          : {}),
+    ...(outcome.error ? { error: outcome.error } : {}),
     artifacts: [...(receipt?.artifacts ?? [])],
     ...(receipt?.metadata ? { metadata: jsonSafeRecord(receipt.metadata) } : {}),
   };
 }
 
-export function createUnsupportedRecord(
+// Covers both unsupported operations and experimental ops the session disallows.
+export function createBlockedRecord(
   fields: Omit<RecordFields, "startedAt" | "completedAt"> & {
     message: string;
     experimental: boolean;

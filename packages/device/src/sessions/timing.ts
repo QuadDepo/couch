@@ -2,16 +2,19 @@ export function now(): string {
   return new Date().toISOString();
 }
 
-export async function settlesWithin(task: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+// Races `entrant` against a timer; on timeout the winning value comes from `onTimeout`,
+// whose side effects (aborting, flagging) also run before the race resolves.
+async function raceTimeout<T>(
+  entrant: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => T,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      task.then(
-        () => true,
-        () => true,
-      ),
-      new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(false), timeoutMs);
+      entrant,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(onTimeout()), timeoutMs);
       }),
     ]);
   } finally {
@@ -19,42 +22,32 @@ export async function settlesWithin(task: Promise<unknown>, timeoutMs: number): 
   }
 }
 
-export async function succeedsWithin(task: Promise<unknown>, timeoutMs: number): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      task.then(
-        () => true,
-        () => false,
-      ),
-      new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(false), timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+export function settlesWithin(task: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  const settled = task.then(
+    () => true,
+    () => true,
+  );
+  return raceTimeout(settled, timeoutMs, () => false);
 }
 
-export async function awaitTimeout(
+export function succeedsWithin(task: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  const succeeded = task.then(
+    () => true,
+    () => false,
+  );
+  return raceTimeout(succeeded, timeoutMs, () => false);
+}
+
+export function awaitTimeout(
   task: Promise<unknown>,
   timeoutMs: number,
   onTimeout: () => void,
 ): Promise<void> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      task,
-      new Promise<void>((resolve) => {
-        timer = setTimeout(() => {
-          onTimeout();
-          resolve();
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  return raceTimeout(
+    task.then(() => undefined),
+    timeoutMs,
+    onTimeout,
+  );
 }
 
 function abortError(signal: AbortSignal): Error {

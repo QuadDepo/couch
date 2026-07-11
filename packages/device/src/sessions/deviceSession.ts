@@ -72,6 +72,9 @@ export class DeviceSessionImpl implements DeviceSession {
           if (this.driverCloseDone === task) this.driverCloseDone = undefined;
         });
       }
+      // Release the device lock only once both the in-flight operation has settled and the
+      // driver has torn down; freeing it early would let another session grab a device the
+      // previous driver is still talking to.
       const [activeSettled, driverClosed] = await Promise.all([
         this.queue.settlesWithin(this.dependencies.closeTimeoutMs),
         succeedsWithin(this.driverCloseDone, this.dependencies.closeTimeoutMs),

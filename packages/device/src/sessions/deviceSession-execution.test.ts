@@ -1,25 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import type { DriverReceipt } from "../drivers/types";
-import { createDeviceInventory } from "../inventory/deviceInventory";
-import { fakeDriver, registration, testDevice } from "./testSupport";
+import { fakeDriver, openSession } from "./testSupport";
 
 const directories: string[] = [];
 
 async function open(driver = fakeDriver()) {
-  const directory = await mkdtemp(join(tmpdir(), "couch-session-"));
-  directories.push(directory);
-  const inventory = createDeviceInventory({
-    inventoryLoader: () => [testDevice],
-    registry: { getRegistration: () => registration(driver) },
-    lockDirectory: directory,
-  });
-  return {
-    driver,
-    session: await inventory.openSession(testDevice.id, { require: ["control.press"] }),
-  };
+  const harness = await openSession(driver);
+  directories.push(harness.directory);
+  return harness;
 }
 
 afterEach(async () => {

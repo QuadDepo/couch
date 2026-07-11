@@ -1,27 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import type { DeviceDriver, DriverReceipt } from "../drivers/types";
-import { createDeviceInventory } from "../inventory/deviceInventory";
 import { createDeviceLock } from "../locks/deviceLock";
-import { fakeDriver, registration, testDevice } from "./testSupport";
+import { fakeDriver, openSession, testDevice } from "./testSupport";
 
 const directories: string[] = [];
 
 async function setup(driver: DeviceDriver, closeTimeoutMs: number) {
-  const directory = await mkdtemp(join(tmpdir(), "couch-session-close-"));
-  directories.push(directory);
-  const inventory = createDeviceInventory({
-    inventoryLoader: () => [testDevice],
-    registry: { getRegistration: () => registration(driver) },
-    lockDirectory: directory,
-    closeTimeoutMs,
-  });
-  return {
-    directory,
-    session: await inventory.openSession(testDevice.id, { require: ["control.press"] }),
-  };
+  const harness = await openSession(driver, closeTimeoutMs);
+  directories.push(harness.directory);
+  return { directory: harness.directory, session: harness.session };
 }
 
 async function expectLocked(directory: string) {

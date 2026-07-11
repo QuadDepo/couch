@@ -4,20 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DeviceDriver } from "../drivers/types";
 import { createDeviceInventory } from "../inventory/deviceInventory";
-import { registration, testDevice } from "./testSupport";
+import { openSession, registration, testDevice } from "./testSupport";
 
 const directories: string[] = [];
 
 async function open(driver: DeviceDriver, closeTimeoutMs = 20) {
-  const directory = await mkdtemp(join(tmpdir(), "couch-session-cancel-"));
-  directories.push(directory);
-  const inventory = createDeviceInventory({
-    inventoryLoader: () => [testDevice],
-    registry: { getRegistration: () => registration(driver) },
-    lockDirectory: directory,
-    closeTimeoutMs,
-  });
-  return inventory.openSession(testDevice.id, { require: ["control.press"] });
+  const harness = await openSession(driver, closeTimeoutMs);
+  directories.push(harness.directory);
+  return harness.session;
 }
 
 afterEach(async () => {
@@ -27,7 +21,7 @@ afterEach(async () => {
 describe("DeviceSession cancellation", () => {
   test("turns caller cancellation into a cancelled record", async () => {
     const driver: DeviceDriver = {
-      adapterId: "test-driver",
+      driverId: "test-driver",
       open: () => undefined,
       isReady: () => true,
       execute: (_operation, options) =>
@@ -54,7 +48,7 @@ describe("DeviceSession cancellation", () => {
 
   test("reports timeout as infrastructure failure", async () => {
     const driver: DeviceDriver = {
-      adapterId: "test-driver",
+      driverId: "test-driver",
       open: () => undefined,
       isReady: () => true,
       execute: () => new Promise(() => undefined),
@@ -77,7 +71,7 @@ describe("DeviceSession cancellation", () => {
       settle = resolve;
     });
     const driver: DeviceDriver = {
-      adapterId: "test-driver",
+      driverId: "test-driver",
       open: () => undefined,
       isReady: () => true,
       execute: () => active.then(() => ({ confirmation: "transport-write" })),
