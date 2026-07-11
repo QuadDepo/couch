@@ -1,7 +1,10 @@
-import type { DeviceInventory, DeviceSession, OperationRecord } from "@couch/device";
+import type { DeviceInventory, OperationRecord } from "@couch/device";
 import { isRemoteKey } from "@couch/device";
+import { cancelledFields, failedFields } from "../commandOutput";
 import type { CommandError } from "../errors";
-import { errorDetails, FAILURE_EXIT, UsageError } from "../errors";
+import { FAILURE_EXIT, UsageError } from "../errors";
+import { runSession } from "../operationRunner";
+import { parseOptions } from "../parseOptions";
 import type { SignalControl } from "../processSignals";
 import type { ParsedPress, PressResult } from "./types";
 
@@ -13,23 +16,11 @@ export function parsePress(args: readonly string[]): ParsedPress {
   }
   if (!isRemoteKey(keyValue)) throw new UsageError(`unknown remote key: ${keyValue}`);
 
-  let requestedTimes = 1;
-  let json = false;
-  for (let index = 2; index < args.length; index += 1) {
-    const argument = args[index];
-    if (argument === "--json" && !json) {
-      json = true;
-      continue;
-    }
-    if (argument === "--json") throw new UsageError("--json may only be specified once");
-    if (argument === "--times") {
-      const value = args[++index];
-      if (value === undefined) throw new UsageError("--times expects a positive integer");
-      requestedTimes = parseTimes(value);
-      continue;
-    }
-    throw new UsageError(`unknown option: ${argument}`);
-  }
+  const { json, values } = parseOptions(args, 2, [
+    { flag: "--times", message: "--times expects a positive integer" },
+  ]);
+  const requestedTimes = values["--times"] !== undefined ? parseTimes(values["--times"]) : 1;
+
   return { command: "remote.press", targetId, key: keyValue, requestedTimes, json };
 }
 
@@ -47,37 +38,42 @@ export async function runPress(
   getInventory: () => Promise<DeviceInventory>,
   signals: SignalControl,
 ): Promise<PressResult> {
-  const operations: OperationRecord[] = [];
-  let session: DeviceSession | undefined;
-  let caught: unknown;
-  let cleanupError: CommandError | undefined;
-  try {
-    const inventory = await getInventory();
-    session = await inventory.openSession(command.targetId, {
-      require: ["control.press"],
-      signal: signals.signal,
-    });
-    signals.setCleanup(() => session?.close() ?? Promise.resolve());
-    for (let ordinal = 0; ordinal < command.requestedTimes; ordinal += 1) {
-      const operation = await session.execute(
-        { kind: "control.press", key: command.key },
-        { signal: signals.signal },
-      );
-      operations.push(operation);
-      if (operation.status !== "succeeded") break;
-    }
-  } catch (error) {
-    caught = error;
-  } finally {
-    if (session) cleanupError = await signals.cleanup();
+  const outcome = await runSession(
+    signals,
+    async () => {
+      const inventory = await getInventory();
+      const session = await inventory.openSession(command.targetId, {
+        require: ["control.press"],
+        signal: signals.signal,
+      });
+      return { session, context: undefined };
+    },
+    async (session) => {
+      const records: OperationRecord[] = [];
+      for (let ordinal = 0; ordinal < command.requestedTimes; ordinal += 1) {
+        const operation = await session.execute(
+          { kind: "control.press", key: command.key },
+          { signal: signals.signal },
+        );
+        records.push(operation);
+        if (operation.status !== "succeeded") break;
+      }
+      return records;
+    },
+  );
+
+  if (signals.exitCode) {
+    return cancelledPress(command, signals, outcome.operations, outcome.cleanupError);
+  }
+  if (outcome.caughtError) {
+    return failedPress(command, outcome.operations, outcome.caughtError, outcome.cleanupError);
+  }
+  if (outcome.cleanupError) {
+    return failedPress(command, outcome.operations, undefined, outcome.cleanupError);
   }
 
-  if (signals.exitCode) return cancelledPress(command, signals, operations, cleanupError);
-  if (caught) return failedPress(command, operations, errorDetails(caught), cleanupError);
-  if (cleanupError) return failedPress(command, operations, cleanupError);
-
-  const operationError = operations.at(-1)?.error;
-  const status = operations.at(-1)?.status ?? "failed";
+  const last = outcome.operations.at(-1);
+  const status = last?.status ?? "failed";
   return {
     resultVersion: 1,
     command: "remote.press",
@@ -86,18 +82,16 @@ export async function runPress(
     requestedTimes: command.requestedTimes,
     status,
     exitCode: status === "succeeded" ? 0 : FAILURE_EXIT,
-    operations,
-    ...(operationError
-      ? { error: { code: operationError.code, message: operationError.message } }
-      : {}),
+    operations: outcome.operations,
+    ...(last?.error ? { error: { code: last.error.code, message: last.error.message } } : {}),
   };
 }
 
 function failedPress(
   command: ParsedPress,
   operations: readonly OperationRecord[],
-  error: { code: string; message: string },
-  cleanupError?: { code: string; message: string },
+  error?: CommandError,
+  cleanupError?: CommandError,
 ): PressResult {
   return {
     resultVersion: 1,
@@ -105,11 +99,8 @@ function failedPress(
     targetId: command.targetId,
     key: command.key,
     requestedTimes: command.requestedTimes,
-    status: "failed",
-    exitCode: FAILURE_EXIT,
     operations,
-    error,
-    ...(cleanupError ? { cleanupError } : {}),
+    ...failedFields(error, cleanupError),
   };
 }
 
@@ -117,7 +108,7 @@ function cancelledPress(
   command: ParsedPress,
   signals: SignalControl,
   operations: readonly OperationRecord[],
-  cleanupError?: { code: string; message: string },
+  cleanupError?: CommandError,
 ): PressResult {
   return {
     resultVersion: 1,
@@ -125,15 +116,12 @@ function cancelledPress(
     targetId: command.targetId,
     key: command.key,
     requestedTimes: command.requestedTimes,
-    status: "cancelled",
-    exitCode: signals.exitCode ?? 130,
     operations,
-    error: { code: "cancelled", message: signals.message ?? "Interrupted" },
-    ...(cleanupError ? { cleanupError } : {}),
+    ...cancelledFields(signals, cleanupError),
   };
 }
 
-export function humanPress(result: PressResult): string {
+export function formatPressResult(result: PressResult): string {
   const operations = result.operations.map((operation) => {
     const confirmation = operation.confirmation ? ` (${operation.confirmation})` : "";
     return `${operation.ordinal}/${result.requestedTimes} ${result.key} ${operation.status}${confirmation}`;

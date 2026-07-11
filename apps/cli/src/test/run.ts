@@ -1,5 +1,6 @@
 import type { DeviceInventory } from "@couch/device";
 import { runTvTest } from "@couch/runner/runner";
+import { cancellationError } from "../commandOutput";
 import { errorDetails, UsageError } from "../errors";
 import type { SignalControl } from "../processSignals";
 import type { ParsedTest, TestCommandResult } from "./types";
@@ -48,9 +49,7 @@ export async function runTest(
       targetAlias: command.targetAlias,
       status: signals.exitCode ? "cancelled" : "infrastructure-failed",
       exitCode: signals.exitCode ?? 2,
-      error: signals.exitCode
-        ? { code: "cancelled", message: signals.message ?? "Interrupted" }
-        : errorDetails(error),
+      error: signals.exitCode ? cancellationError(signals) : errorDetails(error),
     };
   }
   return {
@@ -66,6 +65,6 @@ export async function runTest(
     ...(outcome.result.cleanupError ? { cleanupError: outcome.result.cleanupError } : {}),
   };
 }
-export function humanTest(result: TestCommandResult): string {
+export function formatTestResult(result: TestCommandResult): string {
   return `test ${result.targetAlias} ${result.file}: ${result.status}${result.artifactDirectory ? ` (${result.artifactDirectory})` : ""}\n`;
 }

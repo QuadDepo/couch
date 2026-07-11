@@ -12,10 +12,11 @@ export class UsageError extends Error {
 }
 
 export function errorDetails(error: unknown): CommandError {
-  if (error instanceof Error && "code" in error) {
-    const code = (error as { code?: unknown }).code;
-    if (typeof code === "string") return { code, message: error.message };
+  if (error instanceof Error) {
+    if ("code" in error && typeof error.code === "string") {
+      return { code: error.code, message: error.message };
+    }
+    return { code: "runtime-failed", message: error.message };
   }
-  if (error instanceof Error) return { code: "runtime-failed", message: error.message };
   return { code: "runtime-failed", message: String(error) };
 }

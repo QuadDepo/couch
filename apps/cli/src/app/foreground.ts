@@ -1,80 +1,73 @@
-import type { DeviceInventory, DeviceSession, OperationRecord } from "@couch/device";
-import {
-  type CouchTestConfig,
-  loadConfig,
-  resolveTarget,
-  type TestTargetConfig,
-} from "@couch/runner/config";
-import type { CommandError } from "../errors";
-import { errorDetails, FAILURE_EXIT } from "../errors";
+import type { DeviceInventory } from "@couch/device";
+import { type CouchTestConfig, loadConfig } from "@couch/runner/config";
+import { FAILURE_EXIT } from "../errors";
+import { operationError, runTargetSession } from "../operationRunner";
 import type { SignalControl } from "../processSignals";
-import { cancelled, failed, parseApp } from "./launch";
+import { cancelledAppResult, failedAppResult, parseApp } from "./shared";
 import type { AppCommandResult, ParsedAppCommand } from "./types";
 
-export function parseForeground(args: readonly string[]): ParsedAppCommand {
+export function parseForeground(args: readonly string[]): ParsedAppCommand<"app.foreground"> {
   return parseApp(args, "app.foreground");
 }
 
 export async function runForeground(
-  command: ParsedAppCommand,
+  command: ParsedAppCommand<"app.foreground">,
   getInventory: () => Promise<DeviceInventory>,
   signals: SignalControl,
   loadProjectConfig: () => Promise<CouchTestConfig> = loadConfig,
 ): Promise<AppCommandResult> {
-  const operations: OperationRecord[] = [];
-  let target: TestTargetConfig | undefined;
-  let session: DeviceSession | undefined;
-  let caught: unknown;
-  let cleanupError: CommandError | undefined;
-  try {
-    target = resolveTarget(await loadProjectConfig(), command.targetAlias);
-    session = await (await getInventory()).openSession(target.deviceId, {
-      require: ["app.foreground"],
-      signal: signals.signal,
-    });
-    signals.setCleanup(() => session?.close() ?? Promise.resolve());
-    operations.push(
-      await session.execute(
-        { kind: "app.foreground", appId: target.app.id },
-        { signal: signals.signal, timeoutMs: target.operationTimeoutMs },
-      ),
-    );
-  } catch (error) {
-    caught = error;
-  } finally {
-    if (session) cleanupError = await signals.cleanup();
-  }
-  const operation = operations[0];
+  const outcome = await runTargetSession({
+    targetAlias: command.targetAlias,
+    require: ["app.foreground"],
+    getInventory,
+    signals,
+    loadProjectConfig,
+    operationFor: (target) => ({ kind: "app.foreground", appId: target.app.id }),
+  });
+
+  const operation = outcome.operations[0];
+  const target = outcome.context;
   const deviceId = target?.deviceId;
+
   if (signals.exitCode || operation?.status === "cancelled") {
-    return cancelled(command, deviceId, operations, signals, cleanupError);
+    return cancelledAppResult(command, outcome.operations, deviceId, signals, outcome.cleanupError);
   }
-  if (caught) return failed(command, operations, errorDetails(caught), deviceId, cleanupError);
-  if (cleanupError) return failed(command, operations, cleanupError, deviceId, cleanupError);
-  if (!target) {
-    return failed(command, operations, { code: "target-not-found", message: "Target unavailable" });
+  if (outcome.caughtError) {
+    return failedAppResult(
+      command,
+      outcome.operations,
+      deviceId,
+      outcome.caughtError,
+      outcome.cleanupError,
+    );
+  }
+  if (outcome.cleanupError) {
+    return failedAppResult(command, outcome.operations, deviceId, undefined, outcome.cleanupError);
   }
   if (operation?.status !== "succeeded") {
-    return failed(
+    return failedAppResult(
       command,
-      operations,
-      operation?.error
-        ? { code: operation.error.code, message: operation.error.message }
-        : { code: "operation-failed", message: "Foreground observation did not complete" },
+      outcome.operations,
       deviceId,
+      operationError(operation, "Foreground observation did not complete"),
     );
   }
+
+  // A succeeded operation implies the target resolved; guard so reading the app
+  // id is sound and any real invariant violation surfaces as a crash.
+  if (!target) throw new Error("app.foreground succeeded without a resolved target");
+
   const foreground = operation.metadata?.foreground === true;
   return {
     resultVersion: 1,
-    command: "app.foreground",
+    command: command.command,
     targetAlias: command.targetAlias,
-    deviceId: target.deviceId,
+    ...(deviceId ? { deviceId } : {}),
     status: foreground ? "succeeded" : "failed",
     exitCode: foreground ? 0 : FAILURE_EXIT,
-    operations,
-    ...(!foreground
-      ? { error: { code: "app-not-foreground", message: `${target.app.id} is not foreground` } }
-      : {}),
+    operations: outcome.operations,
+    ...(foreground
+      ? {}
+      : { error: { code: "app-not-foreground", message: `${target.app.id} is not foreground` } }),
   };
 }

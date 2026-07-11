@@ -1,19 +1,20 @@
 import type { DeviceInventory, DeviceInventoryOptions } from "@couch/device";
 import type { CouchTestConfig } from "@couch/runner/config";
 import { parseForeground, runForeground } from "./app/foreground";
-import { humanApp, parseLaunch, runLaunch } from "./app/launch";
+import { parseLaunch, runLaunch } from "./app/launch";
+import { formatAppResult } from "./app/shared";
 import type { ParsedAppCommand } from "./app/types";
 import { writeResult } from "./commandOutput";
-import { humanDoctor, parseDoctor, runDoctor } from "./device/doctor";
-import { humanList, parseList, runList } from "./device/list";
+import { formatDoctorResult, parseDoctor, runDoctor } from "./device/doctor";
+import { formatListResult, parseList, runList } from "./device/list";
 import type { ParsedDoctor, ParsedList } from "./device/types";
 import { USAGE_EXIT, UsageError } from "./errors";
 import { type CliSignalTarget, installSignalControl } from "./processSignals";
-import { humanPress, parsePress, runPress } from "./remote/press";
+import { formatPressResult, parsePress, runPress } from "./remote/press";
 import type { ParsedPress } from "./remote/types";
-import { humanScreenshot, parseScreenshot, runScreenshot } from "./screenshot/capture";
+import { formatScreenshotResult, parseScreenshot, runScreenshot } from "./screenshot/capture";
 import type { ParsedScreenshot } from "./screenshot/types";
-import { humanTest, parseTest, runTest } from "./test/run";
+import { formatTestResult, parseTest, runTest } from "./test/run";
 import type { ParsedTest } from "./test/types";
 
 const HELP = `Usage:
@@ -35,7 +36,8 @@ type ParsedCommand =
   | ParsedList
   | ParsedDoctor
   | ParsedPress
-  | ParsedAppCommand
+  | ParsedAppCommand<"app.launch">
+  | ParsedAppCommand<"app.foreground">
   | ParsedScreenshot
   | ParsedTest;
 
@@ -83,8 +85,8 @@ export async function runCli(
   try {
     command = parseCommand(args);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    stderr(`usage: ${message}\n\n${HELP}`);
+    if (!(error instanceof UsageError)) throw error;
+    stderr(`usage: ${error.message}\n\n${HELP}`);
     return USAGE_EXIT;
   }
 
@@ -109,32 +111,32 @@ export async function runCli(
     switch (command.command) {
       case "device.list": {
         const result = await runList(getInventory, signals);
-        writeResult(result, command.json, humanList(result), stdout, stderr);
+        writeResult(result, command.json, formatListResult(result), stdout, stderr);
         return result.exitCode;
       }
       case "device.doctor": {
         const result = await runDoctor(command, getInventory, signals);
-        writeResult(result, command.json, humanDoctor(result), stdout, stderr);
+        writeResult(result, command.json, formatDoctorResult(result), stdout, stderr);
         return result.exitCode;
       }
       case "remote.press": {
         const result = await runPress(command, getInventory, signals);
-        writeResult(result, command.json, humanPress(result), stdout, stderr);
+        writeResult(result, command.json, formatPressResult(result), stdout, stderr);
         return result.exitCode;
       }
       case "app.launch": {
         const result = await runLaunch(command, getInventory, signals, dependencies.loadConfig);
-        writeResult(result, command.json, humanApp(result), stdout, stderr);
+        writeResult(result, command.json, formatAppResult(result), stdout, stderr);
         return result.exitCode;
       }
       case "app.foreground": {
         const result = await runForeground(command, getInventory, signals, dependencies.loadConfig);
-        writeResult(result, command.json, humanApp(result), stdout, stderr);
+        writeResult(result, command.json, formatAppResult(result), stdout, stderr);
         return result.exitCode;
       }
       case "screenshot": {
         const result = await runScreenshot(command, getInventory, signals, dependencies.loadConfig);
-        writeResult(result, command.json, humanScreenshot(result), stdout, stderr);
+        writeResult(result, command.json, formatScreenshotResult(result), stdout, stderr);
         return result.exitCode;
       }
       case "test": {
@@ -145,7 +147,7 @@ export async function runCli(
           diagnostics,
           dependencies.runTvTest,
         );
-        writeResult(result, command.json, humanTest(result), stdout, stderr);
+        writeResult(result, command.json, formatTestResult(result), stdout, stderr);
         return result.exitCode;
       }
     }

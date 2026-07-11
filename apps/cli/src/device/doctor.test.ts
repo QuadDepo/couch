@@ -86,7 +86,7 @@ describe("device doctor", () => {
     expect(result.stderr[0]).toContain("target-not-ready");
   });
 
-  test("keeps experimental eligibility aligned", async () => {
+  test("flags experimental capabilities as not-ready", async () => {
     const result = output();
     const exit = await runCli(["device", "doctor", "lab", "--json"], {
       createInventory: () =>

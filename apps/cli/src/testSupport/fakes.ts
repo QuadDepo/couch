@@ -1,4 +1,39 @@
-import type { DeviceInventory, DeviceSession, OperationRecord } from "@couch/device";
+import type {
+  DeviceInventory,
+  DeviceOperation,
+  DeviceSession,
+  OperationRecord,
+} from "@couch/device";
+
+export function operationRecord(
+  operation: DeviceOperation,
+  status: OperationRecord["status"],
+  metadata?: Record<string, unknown>,
+): OperationRecord {
+  return {
+    id: crypto.randomUUID(),
+    ordinal: 1,
+    kind: operation.kind,
+    adapterId: "adb",
+    status,
+    ...(status === "succeeded" ? { confirmation: "process-exit" as const } : {}),
+    startedAt: "2026-01-01T00:00:00.000Z",
+    completedAt: "2026-01-01T00:00:00.100Z",
+    input: operation,
+    artifacts: [],
+    ...(metadata ? { metadata } : {}),
+    ...(status !== "succeeded"
+      ? {
+          error: {
+            code: status === "cancelled" ? "cancelled" : "adb-failed",
+            category: status === "cancelled" ? ("cancelled" as const) : ("infrastructure" as const),
+            message: status === "cancelled" ? "cancelled" : "ADB transport failed",
+            retryable: false,
+          },
+        }
+      : {}),
+  };
+}
 
 export function record(
   ordinal: number,

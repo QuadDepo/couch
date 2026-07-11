@@ -1,13 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  DeviceInventory,
-  DeviceOperation,
-  DeviceSession,
-  OperationRecord,
-} from "@couch/device";
+import type { DeviceSession } from "@couch/device";
 import type { CouchTestConfig } from "@couch/runner/config";
 import { runCli } from "./cli";
-import { output, signalTarget } from "./testSupport/fakes";
+import { inventoryWithSession, operationRecord, output, signalTarget } from "./testSupport/fakes";
 
 const config: CouchTestConfig = {
   configVersion: 1,
@@ -19,57 +14,13 @@ const config: CouchTestConfig = {
   },
 };
 
-function operationRecord(
-  operation: DeviceOperation,
-  status: OperationRecord["status"],
-  metadata?: Record<string, unknown>,
-): OperationRecord {
-  return {
-    id: crypto.randomUUID(),
-    ordinal: 1,
-    kind: operation.kind,
-    adapterId: "adb",
-    status,
-    ...(status === "succeeded" ? { confirmation: "process-exit" as const } : {}),
-    startedAt: "2026-01-01T00:00:00.000Z",
-    completedAt: "2026-01-01T00:00:00.100Z",
-    input: operation,
-    artifacts: [],
-    ...(metadata ? { metadata } : {}),
-    ...(status !== "succeeded"
-      ? {
-          error: {
-            code: status === "cancelled" ? "cancelled" : "adb-failed",
-            category: status === "cancelled" ? ("cancelled" as const) : ("infrastructure" as const),
-            message: status === "cancelled" ? "cancelled" : "ADB transport failed",
-            retryable: false,
-          },
-        }
-      : {}),
-  };
-}
-
-function inventoryFor(session: DeviceSession): DeviceInventory {
-  return {
-    listDevices: async () => [],
-    getDevice: async () => ({
-      id: "android-1",
-      name: "Lab",
-      platform: "android-tv",
-      ip: "192.0.2.1",
-    }),
-    getCapabilities: async () => new Map(),
-    openSession: async () => session,
-  };
-}
-
 const commands = [
   ["launch", ["app", "launch", "lab", "--json"]],
   ["foreground", ["app", "foreground", "lab", "--json"]],
   ["screenshot", ["screenshot", "lab", "--out", "actual.png", "--json"]],
 ] as const;
 
-describe("Phase 3 CLI cancellation", () => {
+describe("CLI command cancellation", () => {
   test.each(
     commands,
   )("%s maps cancelled records to SIGINT and SIGTERM exits", async (_name, args) => {
@@ -88,7 +39,7 @@ describe("Phase 3 CLI cancellation", () => {
         close: async () => undefined,
       };
       const exitCode = await runCli(args, {
-        createInventory: () => inventoryFor(session),
+        createInventory: () => inventoryWithSession(session),
         loadConfig: async () => config,
         signalTarget: target,
         stdout: io.writeOut,
@@ -119,7 +70,7 @@ describe("Phase 3 CLI cancellation", () => {
     };
     expect(
       await runCli(["app", "launch", "lab", "--json"], {
-        createInventory: () => inventoryFor(session),
+        createInventory: () => inventoryWithSession(session),
         loadConfig: async () => config,
         signalTarget: target,
         stdout: io.writeOut,
@@ -131,7 +82,7 @@ describe("Phase 3 CLI cancellation", () => {
   });
 });
 
-describe("Phase 3 CLI failures", () => {
+describe("CLI command failures", () => {
   test.each(commands)("%s fails a successful operation when close fails", async (_name, args) => {
     const io = output();
     const session: DeviceSession = {
@@ -147,7 +98,7 @@ describe("Phase 3 CLI failures", () => {
       },
     };
     const exitCode = await runCli(args, {
-      createInventory: () => inventoryFor(session),
+      createInventory: () => inventoryWithSession(session),
       loadConfig: async () => config,
       signalTarget: signalTarget(),
       stdout: io.writeOut,
@@ -174,7 +125,7 @@ describe("Phase 3 CLI failures", () => {
     };
     expect(
       await runCli(args, {
-        createInventory: () => inventoryFor(session),
+        createInventory: () => inventoryWithSession(session),
         loadConfig: async () => config,
         signalTarget: signalTarget(),
         stdout: io.writeOut,
@@ -216,7 +167,7 @@ describe("Phase 3 CLI failures", () => {
     };
     expect(
       await runCli(["test", "smoke.tv.ts", "--target", "lab", "--json"], {
-        createInventory: () => inventoryFor(session),
+        createInventory: () => inventoryWithSession(session),
         runTvTest: async () => ({
           result: {
             resultVersion: 1,

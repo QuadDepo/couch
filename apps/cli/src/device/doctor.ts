@@ -4,7 +4,10 @@ import type {
   OperationCapability,
   OperationKind,
 } from "@couch/device";
+import { cancelledFields, failedFields } from "../commandOutput";
+import type { CommandError } from "../errors";
 import { errorDetails, FAILURE_EXIT, UsageError } from "../errors";
+import { parseOptions } from "../parseOptions";
 import type { SignalControl } from "../processSignals";
 import type { DeviceDoctorResult, DoctorCapability, ParsedDoctor } from "./types";
 
@@ -13,15 +16,7 @@ export function parseDoctor(args: readonly string[]): ParsedDoctor {
   if (!targetId || targetId.startsWith("-")) {
     throw new UsageError("expected: couch device doctor <target>");
   }
-  let json = false;
-  for (const argument of args.slice(1)) {
-    if (argument === "--json" && !json) {
-      json = true;
-      continue;
-    }
-    if (argument === "--json") throw new UsageError("--json may only be specified once");
-    throw new UsageError(`unknown option: ${argument}`);
-  }
+  const { json } = parseOptions(args, 1);
   return { command: "device.doctor", targetId, json };
 }
 
@@ -39,12 +34,9 @@ export async function runDoctor(
       await inventory.getCapabilities(command.targetId, { signal: signals.signal }),
     );
     if (signals.exitCode) return cancelledDoctor(command, signals, target);
-    const stable =
-      capabilities.length > 0 &&
-      capabilities.every((item) => item.readiness === "ready" && item.support === "stable");
     const scope = readinessScope(capabilities);
-    const status = !stable ? "not-ready" : scope === "configuration-only" ? "unverified" : "ready";
-    const error = doctorError(command.targetId, capabilities.length, status);
+    const status = doctorStatus(capabilities, scope);
+    const error = doctorError(command.targetId, capabilities, status);
     return {
       resultVersion: 1,
       command: "device.doctor",
@@ -63,13 +55,24 @@ export async function runDoctor(
       command: "device.doctor",
       targetId: command.targetId,
       ...(target ? { target } : {}),
-      status: "failed",
-      exitCode: FAILURE_EXIT,
       readinessScope: "unknown",
       capabilities: [],
-      error: errorDetails(error),
+      ...failedFields(errorDetails(error)),
     };
   }
+}
+
+function doctorStatus(
+  capabilities: readonly DoctorCapability[],
+  scope: DeviceDoctorResult["readinessScope"],
+): DeviceDoctorResult["status"] {
+  const allReadyAndStable =
+    capabilities.length > 0 &&
+    capabilities.every((item) => item.readiness === "ready" && item.support === "stable");
+
+  if (!allReadyAndStable) return "not-ready";
+  if (scope === "configuration-only") return "unverified";
+  return "ready";
 }
 
 function cancelledDoctor(
@@ -82,11 +85,9 @@ function cancelledDoctor(
     command: "device.doctor",
     targetId: command.targetId,
     ...(target ? { target } : {}),
-    status: "cancelled",
-    exitCode: signals.exitCode ?? 130,
     readinessScope: "unknown",
     capabilities: [],
-    error: { code: "cancelled", message: signals.message ?? "Interrupted" },
+    ...cancelledFields(signals),
   };
 }
 
@@ -116,8 +117,12 @@ function readinessScope(items: readonly DoctorCapability[]): DeviceDoctorResult[
   return "unknown";
 }
 
-function doctorError(targetId: string, count: number, status: DeviceDoctorResult["status"]) {
-  if (count === 0) {
+function doctorError(
+  targetId: string,
+  capabilities: readonly DoctorCapability[],
+  status: DeviceDoctorResult["status"],
+): CommandError | undefined {
+  if (capabilities.length === 0) {
     return {
       code: "no-capabilities",
       message: "No executable capabilities were reported for this target",
@@ -130,11 +135,17 @@ function doctorError(targetId: string, count: number, status: DeviceDoctorResult
     };
   }
   if (status === "not-ready") {
+    const unready = capabilities.filter(
+      (item) => item.readiness !== "ready" || item.support !== "stable",
+    );
+    const detail = unready.map((item) => item.kind).join(", ");
     return {
       code: "target-not-ready",
-      message: `One or more capabilities are not ready for ${targetId}`,
+      message: `Not ready for ${targetId}: ${detail}`,
     };
   }
+
+  return undefined;
 }
 
 function remediationFor(targetId: string, capability: OperationCapability): string {
@@ -163,7 +174,7 @@ function constraintText(constraints: DoctorCapability["constraints"]): string | 
     .join(", ");
 }
 
-export function humanDoctor(result: DeviceDoctorResult): string {
+export function formatDoctorResult(result: DeviceDoctorResult): string {
   const lines = [`device.doctor ${result.targetId}: ${result.status}`];
   if (result.target)
     lines.push(

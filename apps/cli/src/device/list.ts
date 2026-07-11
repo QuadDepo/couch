@@ -1,18 +1,12 @@
 import type { DeviceInventory } from "@couch/device";
-import { errorDetails, FAILURE_EXIT, UsageError } from "../errors";
+import { cancelledFields, failedFields } from "../commandOutput";
+import { errorDetails } from "../errors";
+import { parseOptions } from "../parseOptions";
 import type { SignalControl } from "../processSignals";
 import type { DeviceListResult, ParsedList } from "./types";
 
 export function parseList(args: readonly string[]): ParsedList {
-  let json = false;
-  for (const argument of args) {
-    if (argument === "--json" && !json) {
-      json = true;
-      continue;
-    }
-    if (argument === "--json") throw new UsageError("--json may only be specified once");
-    throw new UsageError(`unknown option: ${argument}`);
-  }
+  const { json } = parseOptions(args, 0);
   return { command: "device.list", json };
 }
 
@@ -32,10 +26,8 @@ export async function runList(
     return {
       resultVersion: 1,
       command: "device.list",
-      status: "failed",
-      exitCode: FAILURE_EXIT,
-      error: errorDetails(error),
       devices: [],
+      ...failedFields(errorDetails(error)),
     };
   }
 }
@@ -44,14 +36,12 @@ function cancelledList(signals: SignalControl): DeviceListResult {
   return {
     resultVersion: 1,
     command: "device.list",
-    status: "cancelled",
-    exitCode: signals.exitCode ?? 130,
-    error: { code: "cancelled", message: signals.message ?? "Interrupted" },
     devices: [],
+    ...cancelledFields(signals),
   };
 }
 
-export function humanList(result: DeviceListResult): string {
+export function formatListResult(result: DeviceListResult): string {
   if (result.status !== "succeeded") return `device.list: ${result.status}\n`;
   if (result.devices.length === 0) return "No devices found.\n";
   const rows = result.devices.map((device) =>
