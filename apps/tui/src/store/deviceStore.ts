@@ -1,15 +1,14 @@
 import {
   type DeviceActor,
-  type ImplementedPlatform,
   loadDevices as loadFromStorage,
   logger,
-  platformRegistry,
   type StoredDeviceActor,
   saveDevices,
   type TVDevice,
 } from "@couch/device";
 import { create } from "zustand";
 import { inspector } from "../utils/inspector.ts";
+import { lookupPlatformRegistration } from "../utils/platformRegistry.ts";
 
 interface DeviceState {
   devices: TVDevice[];
@@ -26,7 +25,7 @@ interface DeviceState {
 }
 
 const createPlatformActor = (device: TVDevice): DeviceActor => {
-  const registration = platformRegistry[device.platform as ImplementedPlatform];
+  const registration = lookupPlatformRegistration(device.platform);
   if (!registration) {
     throw new Error(`Unsupported platform: ${device.platform}`);
   }
@@ -39,11 +38,7 @@ function logPersistenceFailure(error: unknown): void {
 }
 
 function persistDevices(devices: TVDevice[]): void {
-  try {
-    void saveDevices(devices).catch(logPersistenceFailure);
-  } catch (error) {
-    logPersistenceFailure(error);
-  }
+  void saveDevices(devices).catch(logPersistenceFailure);
 }
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({
@@ -67,7 +62,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   },
 
   addDevice: (device, existingActor) => {
-    // Use existing actor or create a new one
     const actor = existingActor ?? createPlatformActor(device);
     const stored: StoredDeviceActor = { platform: device.platform, actor };
 

@@ -1,4 +1,4 @@
-import { type TVDevice, tizenDeviceMachine, wrapPlatformCredentials } from "@couch/device";
+import { tizenDeviceMachine } from "@couch/device";
 import {
   isComplete,
   isPairing,
@@ -8,15 +8,15 @@ import {
   selectError,
 } from "@couch/device/samsung-tizen/selectors";
 import { useActorRef, useSelector } from "@xstate/react";
-import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
 import type { PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
 import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
+import { useDeviceInfoFields } from "../../../components/shared/DeviceInfoFields.tsx";
 import {
-  DeviceInfoFields,
-  useDeviceInfoFields,
-} from "../../../components/shared/DeviceInfoFields.tsx";
+  PairingCompleteStage,
+  PairingSetupStage,
+} from "../../../components/shared/pairing/stages.tsx";
+import { usePairingFlow } from "../../../components/shared/pairing/usePairingFlow.ts";
 import { inspector } from "../../../utils/inspector.ts";
-import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { TizenPairingStep } from "./steps.tsx";
 
 export function TizenPairingFlow({
@@ -40,71 +40,22 @@ export function TizenPairingFlow({
   const deviceName = useSelector(actorRef, selectDeviceName);
   const error = useSelector(actorRef, selectError);
 
-  useDialogKeyboard((event) => {
-    if (event.name === "escape") {
-      actorRef.stop();
-      onCancel();
-      return;
-    }
-
-    if (event.name === "backspace" && event.ctrl) {
-      if (isPairingState) {
-        actorRef.send({ type: "RESET_TO_SETUP" });
-        deviceInfo.reset();
-      } else if (isSetupState) {
-        onBackToPlatformSelection();
-      }
-      return;
-    }
-
-    switch (event.name) {
-      case "return":
-        if (isSetupState && deviceInfo.isValid) {
-          actorRef.send({ type: "SET_DEVICE_INFO", name: deviceInfo.name, ip: deviceInfo.ip });
-        } else if (isErrorState) {
-          actorRef.send({ type: "START_PAIRING" });
-        } else if (isCompleteState) {
-          const {
-            deviceId,
-            deviceName: name,
-            deviceIp,
-            credentials,
-          } = actorRef.getSnapshot().context;
-          if (!deviceId) return;
-          const device: TVDevice = {
-            id: deviceId,
-            name,
-            ip: deviceIp,
-            platform: "samsung-tizen",
-            config: wrapPlatformCredentials("samsung-tizen", credentials),
-          };
-          onComplete({ device, actor: actorRef });
-        }
-        break;
-      case "backspace":
-        if (isSetupState) deviceInfo.handleBackspace();
-        break;
-      case "tab":
-        if (isSetupState) deviceInfo.handleTab();
-        break;
-      default:
-        if (isSetupState && event.sequence?.length === 1) {
-          deviceInfo.handleChar(event.sequence);
-        }
-    }
-  }, dialogId);
+  usePairingFlow({
+    actorRef,
+    platform: "samsung-tizen",
+    dialogId,
+    deviceInfo,
+    isSetupState,
+    isPairingState,
+    isErrorState,
+    isCompleteState,
+    onComplete,
+    onCancel,
+    onBackToPlatformSelection,
+  });
 
   if (isSetupState) {
-    return (
-      <WizardShell stepLabel="Device Info" progress="1/3">
-        <DeviceInfoFields
-          name={deviceInfo.name}
-          ip={deviceInfo.ip}
-          activeField={deviceInfo.activeField}
-          error={error}
-        />
-      </WizardShell>
-    );
+    return <PairingSetupStage progress="1/3" deviceInfo={deviceInfo} error={error} />;
   }
 
   if (isPairingState) {
@@ -117,9 +68,7 @@ export function TizenPairingFlow({
 
   if (isCompleteState) {
     return (
-      <WizardShell stepLabel="Complete" progress="3/3">
-        <CompletionStep deviceName={deviceName || deviceInfo.name || "Device"} />
-      </WizardShell>
+      <PairingCompleteStage progress="3/3" deviceName={deviceName || deviceInfo.name || "Device"} />
     );
   }
 

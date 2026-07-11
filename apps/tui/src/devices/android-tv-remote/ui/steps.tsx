@@ -17,7 +17,7 @@ import {
 } from "../../../components/shared/pairing/hints.ts";
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
-import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
+import { PairingStateView } from "../../../components/shared/pairing/PairingStateView.tsx";
 import { FOCUS_COLOR, TEXT_SECONDARY, WARNING_COLOR } from "../../../constants/colors.ts";
 
 function CodeEntryStep({ code }: { code: string }) {
@@ -51,31 +51,32 @@ export function AndroidTvRemotePairingStep({ actorRef }: Props) {
   const error = useSelector(actorRef, selectPairingError);
   const code = useSelector(actorRef, selectPairingCode);
 
-  const getHints = () => {
-    if (isConnecting || isVerifying) return [HINT_BACK];
-    if (isWaitingForUser && code.length === 6) return [HINT_SUBMIT_CODE, HINT_BACK];
-    if (isWaitingForUser) return [HINT_BACK];
-    if (isError) return [HINT_RETRY, HINT_BACK];
-    return [];
-  };
-
-  const renderStep = () => {
-    if (isConnecting)
-      return (
-        <PairingConnectingStep
-          title="Connecting to TV for pairing..."
-          subtext="Make sure the TV is turned on and on the same network."
-        />
-      );
-    if (isWaitingForUser) return <CodeEntryStep code={code} />;
-    if (isVerifying) return <VerifyingStep />;
-    if (isError) return <PairingErrorStep error={error} />;
-    return null;
-  };
-
   return (
-    <PairingStepLayout title="Android TV Remote Pairing" hints={getHints()}>
-      {renderStep()}
-    </PairingStepLayout>
+    <PairingStateView
+      title="Android TV Remote Pairing"
+      states={[
+        {
+          active: isConnecting,
+          hints: [HINT_BACK],
+          content: (
+            <PairingConnectingStep
+              title="Connecting to TV for pairing..."
+              subtext="Make sure the TV is turned on and on the same network."
+            />
+          ),
+        },
+        {
+          active: isWaitingForUser,
+          hints: code.length === 6 ? [HINT_SUBMIT_CODE, HINT_BACK] : [HINT_BACK],
+          content: <CodeEntryStep code={code} />,
+        },
+        { active: isVerifying, hints: [HINT_BACK], content: <VerifyingStep /> },
+        {
+          active: isError,
+          hints: [HINT_RETRY, HINT_BACK],
+          content: <PairingErrorStep error={error} />,
+        },
+      ]}
+    />
   );
 }

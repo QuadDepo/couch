@@ -12,6 +12,7 @@ import type { ActorRefFrom } from "xstate";
 import { HINT_BACK, HINT_CONTINUE, HINT_RETRY } from "../../../components/shared/pairing/hints.ts";
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
+import { PairingStateView } from "../../../components/shared/pairing/PairingStateView.tsx";
 import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
 import { DIM_COLOR, FOCUS_COLOR, TEXT_PRIMARY, TEXT_SECONDARY } from "../../../constants/colors.ts";
 
@@ -86,28 +87,27 @@ export function AndroidTVPairingStep({ actorRef }: Props) {
   const isError = useSelector(actorRef, isPairingError);
   const error = useSelector(actorRef, selectPairingError);
 
-  const getHints = () => {
-    if (isConnecting || isWaitingForUser) return [HINT_BACK];
-    if (isError) return [HINT_RETRY, HINT_BACK];
-    return [];
-  };
-
-  const renderStep = () => {
-    if (isConnecting)
-      return (
-        <PairingConnectingStep
-          title="Make sure your Android TV is turned on and ADB debugging is enabled."
-          subtext="Connecting via ADB..."
-        />
-      );
-    if (isWaitingForUser) return <WaitingForUserStep />;
-    if (isError) return <PairingErrorStep error={error} />;
-    return null;
-  };
-
   return (
-    <PairingStepLayout title="Android TV Pairing" hints={getHints()}>
-      {renderStep()}
-    </PairingStepLayout>
+    <PairingStateView
+      title="Android TV Pairing"
+      states={[
+        {
+          active: isConnecting,
+          hints: [HINT_BACK],
+          content: (
+            <PairingConnectingStep
+              title="Make sure your Android TV is turned on and ADB debugging is enabled."
+              subtext="Connecting via ADB..."
+            />
+          ),
+        },
+        { active: isWaitingForUser, hints: [HINT_BACK], content: <WaitingForUserStep /> },
+        {
+          active: isError,
+          hints: [HINT_RETRY, HINT_BACK],
+          content: <PairingErrorStep error={error} />,
+        },
+      ]}
+    />
   );
 }

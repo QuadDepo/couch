@@ -12,7 +12,7 @@ import type { ActorRefFrom } from "xstate";
 import { HINT_BACK, HINT_RETRY } from "../../../components/shared/pairing/hints.ts";
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
-import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
+import { PairingStateView } from "../../../components/shared/pairing/PairingStateView.tsx";
 import { FOCUS_COLOR, TEXT_SECONDARY } from "../../../constants/colors.ts";
 
 function WaitingStep() {
@@ -40,22 +40,23 @@ export function TizenPairingStep({ actorRef }: Props) {
   const isError = useSelector(actorRef, isPairingError);
   const error = useSelector(actorRef, selectPairingError);
 
-  const getHints = () => {
-    if (isConnecting) return [HINT_BACK];
-    if (isError) return [HINT_RETRY, HINT_BACK];
-    return [];
-  };
-
-  const renderStep = () => {
-    if (isInitiatingState) return <PairingConnectingStep brandName="Samsung TV" />;
-    if (isWaiting) return <WaitingStep />;
-    if (isError) return <PairingErrorStep error={error} />;
-    return null;
-  };
-
   return (
-    <PairingStepLayout title="Samsung TV Pairing" hints={getHints()}>
-      {renderStep()}
-    </PairingStepLayout>
+    <PairingStateView
+      title="Samsung TV Pairing"
+      states={[
+        {
+          active: isInitiatingState,
+          hints: [],
+          content: <PairingConnectingStep brandName="Samsung TV" />,
+        },
+        { active: isWaiting, hints: [], content: <WaitingStep /> },
+        { active: isConnecting, hints: [HINT_BACK], content: null },
+        {
+          active: isError,
+          hints: [HINT_RETRY, HINT_BACK],
+          content: <PairingErrorStep error={error} />,
+        },
+      ]}
+    />
   );
 }

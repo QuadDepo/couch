@@ -1,8 +1,4 @@
-import {
-  androidTvRemoteDeviceMachine,
-  type TVDevice,
-  wrapPlatformCredentials,
-} from "@couch/device";
+import { androidTvRemoteDeviceMachine } from "@couch/device";
 import {
   isComplete,
   isPairing,
@@ -14,18 +10,19 @@ import {
   selectPairingCode,
 } from "@couch/device/android-tv-remote/selectors";
 import { useActorRef, useSelector } from "@xstate/react";
-import { CompletionStep } from "../../../components/dialogs/wizard/CompletionStep.tsx";
 import type { PairingFlowProps } from "../../../components/dialogs/wizard/types.ts";
 import { WizardShell } from "../../../components/dialogs/wizard/WizardShell.tsx";
+import { useDeviceInfoFields } from "../../../components/shared/DeviceInfoFields.tsx";
 import {
-  DeviceInfoFields,
-  useDeviceInfoFields,
-} from "../../../components/shared/DeviceInfoFields.tsx";
+  PairingCompleteStage,
+  PairingSetupStage,
+} from "../../../components/shared/pairing/stages.tsx";
+import { usePairingFlow } from "../../../components/shared/pairing/usePairingFlow.ts";
 import { inspector } from "../../../utils/inspector.ts";
-import { useDialogKeyboard } from "../../../vendor/dialog/react";
 import { AndroidTvRemotePairingStep } from "./steps.tsx";
 
 const HEX_CHARS = /^[0-9a-fA-F]$/;
+const PAIRING_CODE_LENGTH = 6;
 
 export function AndroidTvRemotePairingFlow({
   dialogId,
@@ -50,84 +47,45 @@ export function AndroidTvRemotePairingFlow({
   const error = useSelector(actorRef, selectError);
   const pairingCode = useSelector(actorRef, selectPairingCode);
 
-  useDialogKeyboard((event) => {
-    if (event.name === "escape") {
-      actorRef.stop();
-      onCancel();
-      return;
-    }
-
-    if (event.name === "backspace" && event.ctrl) {
-      if (isPairingState) {
-        actorRef.send({ type: "RESET_TO_SETUP" });
-        deviceInfo.reset();
-      } else if (isSetupState) {
-        onBackToPlatformSelection();
-      }
-      return;
-    }
-
-    switch (event.name) {
-      case "return":
-        if (isSetupState && deviceInfo.isValid) {
-          actorRef.send({ type: "SET_DEVICE_INFO", name: deviceInfo.name, ip: deviceInfo.ip });
-        } else if (isWaitingForCode && pairingCode.length === 6) {
-          actorRef.send({ type: "SUBMIT_CODE", code: pairingCode });
-        } else if (isErrorState) {
-          actorRef.send({ type: "START_PAIRING" });
-        } else if (isCompleteState) {
-          const {
-            deviceId,
-            deviceName: name,
-            deviceIp,
-            credentials,
-          } = actorRef.getSnapshot().context;
-          if (!deviceId) return;
-          const device: TVDevice = {
-            id: deviceId,
-            name,
-            ip: deviceIp,
-            platform: "android-tv-remote",
-            config: wrapPlatformCredentials("android-tv-remote", credentials),
-          };
-          onComplete({ device, actor: actorRef });
+  usePairingFlow({
+    actorRef,
+    platform: "android-tv-remote",
+    dialogId,
+    deviceInfo,
+    isSetupState,
+    isPairingState,
+    isErrorState,
+    isCompleteState,
+    onComplete,
+    onCancel,
+    onBackToPlatformSelection,
+    protocol: {
+      submit: () => {
+        if (!isWaitingForCode || pairingCode.length !== PAIRING_CODE_LENGTH) return false;
+        actorRef.send({ type: "SUBMIT_CODE", code: pairingCode });
+        return true;
+      },
+      erase: () => {
+        if (!isWaitingForCode || pairingCode.length === 0) return false;
+        actorRef.send({ type: "SET_PAIRING_CODE", code: pairingCode.slice(0, -1) });
+        return true;
+      },
+      type: (char) => {
+        if (
+          !isWaitingForCode ||
+          !HEX_CHARS.test(char) ||
+          pairingCode.length >= PAIRING_CODE_LENGTH
+        ) {
+          return false;
         }
-        break;
-      case "backspace":
-        if (isSetupState) {
-          deviceInfo.handleBackspace();
-        } else if (isWaitingForCode && pairingCode.length > 0) {
-          actorRef.send({ type: "SET_PAIRING_CODE", code: pairingCode.slice(0, -1) });
-        }
-        break;
-      case "tab":
-        if (isSetupState) deviceInfo.handleTab();
-        break;
-      default:
-        if (event.sequence?.length === 1) {
-          if (isSetupState) {
-            deviceInfo.handleChar(event.sequence);
-          } else if (isWaitingForCode && HEX_CHARS.test(event.sequence) && pairingCode.length < 6) {
-            actorRef.send({
-              type: "SET_PAIRING_CODE",
-              code: pairingCode + event.sequence.toUpperCase(),
-            });
-          }
-        }
-    }
-  }, dialogId);
+        actorRef.send({ type: "SET_PAIRING_CODE", code: pairingCode + char.toUpperCase() });
+        return true;
+      },
+    },
+  });
 
   if (isSetupState) {
-    return (
-      <WizardShell stepLabel="Device Info" progress="1/3">
-        <DeviceInfoFields
-          name={deviceInfo.name}
-          ip={deviceInfo.ip}
-          activeField={deviceInfo.activeField}
-          error={error}
-        />
-      </WizardShell>
-    );
+    return <PairingSetupStage progress="1/3" deviceInfo={deviceInfo} error={error} />;
   }
 
   if (isPairingState) {
@@ -140,9 +98,7 @@ export function AndroidTvRemotePairingFlow({
 
   if (isCompleteState) {
     return (
-      <WizardShell stepLabel="Complete" progress="3/3">
-        <CompletionStep deviceName={deviceName || deviceInfo.name || "Device"} />
-      </WizardShell>
+      <PairingCompleteStage progress="3/3" deviceName={deviceName || deviceInfo.name || "Device"} />
     );
   }
 

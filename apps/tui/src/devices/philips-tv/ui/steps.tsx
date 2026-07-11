@@ -12,7 +12,7 @@ import type { ActorRefFrom } from "xstate";
 import { HINT_BACK, HINT_RETRY, HINT_SUBMIT } from "../../../components/shared/pairing/hints.ts";
 import { PairingConnectingStep } from "../../../components/shared/pairing/PairingConnectingStep.tsx";
 import { PairingErrorStep } from "../../../components/shared/pairing/PairingErrorStep.tsx";
-import { PairingStepLayout } from "../../../components/shared/pairing/PairingStepLayout.tsx";
+import { PairingStateView } from "../../../components/shared/pairing/PairingStateView.tsx";
 import { FOCUS_COLOR, TEXT_SECONDARY, WARNING_COLOR } from "../../../constants/colors.ts";
 
 function formatPinDisplay(pin: string): string {
@@ -57,24 +57,27 @@ export function PhilipsPairingStep({ actorRef, pinInput }: Props) {
   const isError = useSelector(actorRef, isPairingError);
   const error = useSelector(actorRef, selectPairingError);
 
-  const getHints = () => {
-    if (isStartingPairing || isConfirmingPairing) return [HINT_BACK];
-    if (isEnteringPin) return pinInput.length === 4 ? [HINT_SUBMIT, HINT_BACK] : [HINT_BACK];
-    if (isError) return [HINT_RETRY, HINT_BACK];
-    return [];
-  };
-
-  const renderStep = () => {
-    if (isStartingPairing) return <PairingConnectingStep brandName="Philips TV" />;
-    if (isEnteringPin) return <EnteringPinStep pinInput={pinInput} />;
-    if (isConfirmingPairing) return <ConfirmingStep />;
-    if (isError) return <PairingErrorStep error={error} />;
-    return null;
-  };
-
   return (
-    <PairingStepLayout title="Philips TV Pairing" hints={getHints()}>
-      {renderStep()}
-    </PairingStepLayout>
+    <PairingStateView
+      title="Philips TV Pairing"
+      states={[
+        {
+          active: isStartingPairing,
+          hints: [HINT_BACK],
+          content: <PairingConnectingStep brandName="Philips TV" />,
+        },
+        {
+          active: isEnteringPin,
+          hints: pinInput.length === 4 ? [HINT_SUBMIT, HINT_BACK] : [HINT_BACK],
+          content: <EnteringPinStep pinInput={pinInput} />,
+        },
+        { active: isConfirmingPairing, hints: [HINT_BACK], content: <ConfirmingStep /> },
+        {
+          active: isError,
+          hints: [HINT_RETRY, HINT_BACK],
+          content: <PairingErrorStep error={error} />,
+        },
+      ]}
+    />
   );
 }

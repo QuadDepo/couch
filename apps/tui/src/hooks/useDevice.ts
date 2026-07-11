@@ -3,9 +3,7 @@ import {
   type ConnectionStatus,
   type DeviceActor,
   type DeviceCapabilities,
-  type ImplementedPlatform,
   isPlatformImplemented,
-  platformRegistry,
   type RemoteKey,
   selectConnectionStatus,
   type TVDevice,
@@ -13,6 +11,7 @@ import {
 import { useSelector } from "@xstate/react";
 import { useCallback, useMemo } from "react";
 import { useDeviceStore, useSelectedDevice } from "../store/deviceStore";
+import { lookupPlatformRegistration } from "../utils/platformRegistry.ts";
 
 interface UseDeviceResult {
   device: TVDevice | null;
@@ -22,7 +21,6 @@ interface UseDeviceResult {
   isImplemented: boolean;
 
   sendKey: (key: RemoteKey) => void;
-  isKeySupported: (key: RemoteKey) => boolean;
   sendText: (text: string) => void;
 
   connect: () => void;
@@ -42,7 +40,7 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
 
   const capabilities = useMemo((): DeviceCapabilities | null => {
     if (!device?.platform) return null;
-    return platformRegistry[device.platform as ImplementedPlatform]?.capabilities ?? null;
+    return lookupPlatformRegistration(device.platform)?.capabilities ?? null;
   }, [device?.platform]);
 
   // Stable identity: recreating send per render caused a re-render regression
@@ -56,13 +54,6 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
       send?.({ type: "SEND_KEY", key });
     },
     [send],
-  );
-
-  const isKeySupported = useCallback(
-    (key: RemoteKey): boolean => {
-      return capabilities?.supportedKeys.has(key) ?? false;
-    },
-    [capabilities],
   );
 
   const sendText = useCallback(
@@ -88,7 +79,6 @@ export function useDevice(deviceOverride?: TVDevice | null): UseDeviceResult {
     capabilities,
     isImplemented,
     sendKey,
-    isKeySupported,
     sendText,
     connect,
     disconnect,

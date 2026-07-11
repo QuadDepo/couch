@@ -1,43 +1,43 @@
+import type { ConnectionStatus, TVDevice } from "@couch/device";
 import { DIM_COLOR, TEXT_DIM, TEXT_PRIMARY, WARNING_COLOR } from "../../constants/colors.ts";
 import { useDevice } from "../../hooks/useDevice.ts";
 import { getStatusIndicator } from "../../utils/statusIndicator.ts";
 import { KeyHint } from "../shared/KeyHint.tsx";
 
-interface StatusBarProps {
-  isScanning?: boolean;
+interface StatusView {
+  icon: string;
+  color: string;
+  text: string;
 }
 
-export function StatusBar({ isScanning = false }: StatusBarProps) {
+function describeConnection(device: TVDevice, status: ConnectionStatus): string {
+  switch (status) {
+    case "connected":
+      return `Connected to ${device.name}`;
+    case "connecting":
+      return `Connecting to ${device.name}...`;
+    case "pairing":
+      return `Pairing with ${device.name}...`;
+    case "error":
+      return `Error connecting to ${device.name}`;
+    default:
+      return `Disconnected from ${device.name}`;
+  }
+}
+
+function getStatusView(device: TVDevice | null, status: ConnectionStatus): StatusView {
+  if (!device) {
+    return { icon: "-", color: TEXT_DIM, text: "No device selected" };
+  }
+
+  const { icon, color } = getStatusIndicator(status);
+  return { icon, color, text: describeConnection(device, status) };
+}
+
+export function StatusBar() {
   const { device, status, isImplemented } = useDevice();
-  const getStatusIcon = () => {
-    if (isScanning) return "...";
-    if (!device) return "-";
-    return getStatusIndicator(status).icon;
-  };
 
-  const getStatusColor = () => {
-    if (!device) return TEXT_DIM;
-    return getStatusIndicator(status).color;
-  };
-
-  const getStatusText = () => {
-    if (isScanning) return "Scanning for devices...";
-    if (!device) return "No device selected";
-    switch (status) {
-      case "connected":
-        return `Connected to ${device.name}`;
-      case "connecting":
-        return `Connecting to ${device.name}...`;
-      case "pairing":
-        return `Pairing with ${device.name}...`;
-      case "error":
-        return `Error connecting to ${device.name}`;
-      default:
-        return `Disconnected from ${device.name}`;
-    }
-  };
-
-  const statusColor = getStatusColor();
+  const statusView = getStatusView(device, status);
 
   return (
     <box
@@ -50,8 +50,8 @@ export function StatusBar({ isScanning = false }: StatusBarProps) {
       paddingLeft={1}
       paddingRight={1}
     >
-      <text fg={statusColor}> {getStatusIcon()} </text>
-      <text fg={TEXT_PRIMARY}>{getStatusText()}</text>
+      <text fg={statusView.color}> {statusView.icon} </text>
+      <text fg={TEXT_PRIMARY}>{statusView.text}</text>
       {status === "connected" && <text fg={TEXT_DIM}> ({device?.ip})</text>}
       {device && !isImplemented && <text fg={WARNING_COLOR}> [Platform not implemented]</text>}
       <box flexGrow={1} />
