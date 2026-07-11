@@ -1,3 +1,8 @@
+import type { AndroidTvRemoteCredentials } from "../devices/android-tv-remote/credentials";
+import type { WebOSCredentials } from "../devices/lg-webos/credentials";
+import type { PhilipsCredentials } from "../devices/philips-tv/credentials";
+import type { TizenCredentials } from "../devices/samsung-tizen/credentials";
+
 export type TVPlatform =
   | "android-tv"
   | "android-tv-remote"
@@ -39,11 +44,6 @@ const REMOTE_KEY_SET: ReadonlySet<string> = new Set(REMOTE_KEYS);
 export function isRemoteKey(value: string): value is RemoteKey {
   return REMOTE_KEY_SET.has(value);
 }
-
-import type { AndroidTvRemoteCredentials } from "../devices/android-tv-remote/credentials";
-import type { WebOSCredentials } from "../devices/lg-webos/credentials";
-import type { PhilipsCredentials } from "../devices/philips-tv/credentials";
-import type { TizenCredentials } from "../devices/samsung-tizen/credentials";
 
 type PlatformConfig<P extends TVPlatform> = P extends "lg-webos"
   ? { webos: WebOSCredentials }

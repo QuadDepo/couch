@@ -2,6 +2,7 @@ import { chmod, mkdir, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { kill } from "node:process";
+import { abortError, throwIfAborted } from "../sessions/timing";
 import { createOwnerRecord, type DeviceLockOwner, readOwner, releaseOwner } from "./ownerRecord";
 import { recoverTemporaryOwners, removeStaleOwner } from "./staleRecovery";
 
@@ -22,13 +23,6 @@ export interface DeviceLock {
   acquire(resourceId: string, options?: DeviceLockOptions): Promise<DeviceLockHandle>;
 }
 
-function cancellationError(signal?: AbortSignal): Error | undefined {
-  if (!signal?.aborted) return undefined;
-  return signal.reason instanceof Error
-    ? signal.reason
-    : new DOMException("The operation was aborted", "AbortError");
-}
-
 function processIsAlive(pid: number): boolean {
   if (pid === process.pid) return true;
   try {
@@ -42,8 +36,7 @@ function processIsAlive(pid: number): boolean {
 export function createDeviceLock(lockDirectory: string): DeviceLock {
   return {
     async acquire(resourceId, options = {}) {
-      const cancelled = cancellationError(options.signal);
-      if (cancelled) throw cancelled;
+      throwIfAborted(options.signal);
       await mkdir(lockDirectory, { recursive: true, mode: 0o700 });
       await chmod(lockDirectory, 0o700);
       const resourcePath = join(lockDirectory, `${encodeURIComponent(resourceId)}.lock`);
@@ -61,8 +54,7 @@ export function createDeviceLock(lockDirectory: string): DeviceLock {
       await recoverTemporaryOwners(lockDirectory, resourceId, isProcessAlive);
 
       for (;;) {
-        const beforeAttempt = cancellationError(options.signal);
-        if (beforeAttempt) throw beforeAttempt;
+        throwIfAborted(options.signal);
         const temporaryDirectory = join(
           lockDirectory,
           `.${encodeURIComponent(resourceId)}.lock.${owner.token}.tmp`,
@@ -80,10 +72,9 @@ export function createDeviceLock(lockDirectory: string): DeviceLock {
 
         const acquired = await readOwner(ownerDirectory, resourceId);
         if (sameOwner(acquired, owner)) {
-          const afterCreate = cancellationError(options.signal);
-          if (afterCreate) {
+          if (options.signal?.aborted) {
             await releaseOwner(ownerDirectory, owner);
-            throw afterCreate;
+            throw abortError(options.signal);
           }
           let released = false;
           return {

@@ -2,6 +2,7 @@ import { chmod, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { TVDevice } from "../types";
+import { atomicWrite } from "../utils/atomicWrite";
 import { logger } from "../utils/logger";
 import { InventoryError, parseStorage, serializeDevice } from "./inventorySchema";
 import type { PersistedDevice } from "./types";
@@ -34,8 +35,7 @@ export async function saveDevicesToFile(filePath: string, devices: TVDevice[]): 
   try {
     await mkdir(dirname(filePath), { recursive: true });
     await chmod(dirname(filePath), 0o700);
-    await Bun.write(filePath, JSON.stringify(data, null, 2));
-    await chmod(filePath, 0o600);
+    await atomicWrite(filePath, new TextEncoder().encode(JSON.stringify(data, null, 2)));
   } catch (error) {
     throw new InventoryError("IO_ERROR", `Failed to save inventory file: ${filePath}`, {
       cause: error,

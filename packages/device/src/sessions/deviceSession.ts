@@ -41,56 +41,55 @@ interface SessionDependencies {
   allowExperimental: readonly OperationKind[];
 }
 
-export class DeviceSessionImpl implements DeviceSession {
-  readonly capabilities: ReadonlyMap<OperationKind, OperationCapability>;
-  private readonly queue: OperationQueue;
-  private closePromise: Promise<void> | undefined;
-  private driverCloseDone: Promise<void> | undefined;
+export function createDeviceSession(dependencies: SessionDependencies): DeviceSession {
+  let closePromise: Promise<void> | undefined;
+  let driverCloseDone: Promise<void> | undefined;
 
-  constructor(private readonly dependencies: SessionDependencies) {
-    this.capabilities = dependencies.capabilities;
-    this.queue = new OperationQueue({
-      ...dependencies,
-      requestClose: () => void this.close().catch(() => undefined),
-    });
-  }
+  const queue = new OperationQueue({
+    ...dependencies,
+    requestClose: () => void close().catch(() => undefined),
+  });
 
-  execute(operation: DeviceOperation, options: ExecuteOptions = {}): Promise<OperationRecord> {
-    return this.queue.execute(operation, options);
-  }
-
-  close(): Promise<void> {
-    if (this.closePromise) return this.closePromise;
-    this.queue.close();
+  function close(): Promise<void> {
+    if (closePromise) return closePromise;
+    queue.close();
     const attempt = (async () => {
-      if (!this.driverCloseDone) {
+      if (!driverCloseDone) {
         const task = Promise.resolve()
-          .then(() => this.dependencies.driver.close())
+          .then(() => dependencies.driver.close())
           .then(() => undefined);
-        this.driverCloseDone = task;
+        driverCloseDone = task;
         void task.catch(() => {
-          if (this.driverCloseDone === task) this.driverCloseDone = undefined;
+          if (driverCloseDone === task) driverCloseDone = undefined;
         });
       }
       // Release the device lock only once both the in-flight operation has settled and the
       // driver has torn down; freeing it early would let another session grab a device the
       // previous driver is still talking to.
       const [activeSettled, driverClosed] = await Promise.all([
-        this.queue.settlesWithin(this.dependencies.closeTimeoutMs),
-        succeedsWithin(this.driverCloseDone, this.dependencies.closeTimeoutMs),
+        queue.settlesWithin(dependencies.closeTimeoutMs),
+        succeedsWithin(driverCloseDone, dependencies.closeTimeoutMs),
       ]);
       if (!activeSettled || !driverClosed) {
         throw new DeviceSessionError(
           "close-timeout",
-          `Device ${this.dependencies.deviceId} did not quiesce within ${this.dependencies.closeTimeoutMs}ms`,
+          `Device ${dependencies.deviceId} did not quiesce within ${dependencies.closeTimeoutMs}ms`,
         );
       }
-      await this.dependencies.lock.release();
+      await dependencies.lock.release();
     })();
-    this.closePromise = attempt.catch((error) => {
-      this.closePromise = undefined;
+    closePromise = attempt.catch((error) => {
+      closePromise = undefined;
       throw error;
     });
-    return this.closePromise;
+    return closePromise;
   }
+
+  return {
+    capabilities: dependencies.capabilities,
+    execute(operation: DeviceOperation, options: ExecuteOptions = {}): Promise<OperationRecord> {
+      return queue.execute(operation, options);
+    },
+    close,
+  };
 }

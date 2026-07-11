@@ -63,14 +63,14 @@ function configRecord(platform: ImplementedPlatform, config: unknown): Record<st
   if (!isRecord(config)) {
     throw invalidSchema(`Config for platform ${platform} must be an object`);
   }
-  return Object.fromEntries(Object.entries(config));
+  return config;
 }
 
 function credentialValue(platform: ImplementedPlatform, config: unknown, key: string): unknown {
   const record = configRecord(platform, config);
   const keys = Object.keys(record);
   if (keys.length !== 1 || keys[0] !== key) {
-    const found = keys.length === 0 ? "no keys" : keys.map((k) => `"${k}"`).join(", ");
+    const found = keys.length === 0 ? "no keys" : keys.map((key) => `"${key}"`).join(", ");
     throw invalidSchema(
       `Config for platform ${platform} must contain only "${key}", but found: ${found}`,
     );

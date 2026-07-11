@@ -1,5 +1,6 @@
 import { readdir, readFile, rmdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
+import { throwIfAborted } from "../sessions/timing";
 import type { DeviceLockOwner } from "./ownerRecord";
 import { parseOwner } from "./ownerRecord";
 
@@ -43,7 +44,7 @@ export async function removeStaleOwner(
   owner: DeviceLockOwner,
   signal?: AbortSignal,
 ): Promise<void> {
-  if (signal?.aborted) throw abortReason(signal);
+  throwIfAborted(signal);
   await unlink(join(ownerDirectory, owner.token)).catch((error) => {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   });
@@ -51,11 +52,5 @@ export async function removeStaleOwner(
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "ENOENT" && code !== "ENOTEMPTY") throw error;
   });
-  if (signal?.aborted) throw abortReason(signal);
-}
-
-function abortReason(signal: AbortSignal): unknown {
-  return signal.reason instanceof Error
-    ? signal.reason
-    : new DOMException("The operation was aborted", "AbortError");
+  throwIfAborted(signal);
 }

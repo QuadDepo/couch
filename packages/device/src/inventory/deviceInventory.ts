@@ -5,7 +5,7 @@ import type { DeviceDriver, DriverRegistration } from "../drivers/types";
 import { createDeviceLock, DEFAULT_DEVICE_LOCK_DIRECTORY } from "../locks/deviceLock";
 import { evaluateRequirement } from "../operations/requirements";
 import type { OperationCapability, OperationKind } from "../operations/types";
-import { DeviceSessionImpl } from "../sessions/deviceSession";
+import { createDeviceSession } from "../sessions/deviceSession";
 import { awaitWithAbort, throwIfAborted } from "../sessions/timing";
 import { loadDevices } from "./loadInventory";
 import { describeDevice, normalizeDevice } from "./normalizeDevice";
@@ -150,7 +150,7 @@ export function createDeviceInventory(options: DeviceInventoryOptions = {}): Dev
           options.diagnosticSink,
           createDiagnosticEvent("info", "Device opened", { deviceId: id }),
         ).catch(() => undefined);
-        return new DeviceSessionImpl({
+        return createDeviceSession({
           driver,
           lock: lockHandle,
           capabilities,
