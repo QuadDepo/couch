@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "build": "bun run build:js && bun run build:types",
-    "build:js": "bun build src/defineTvTest.ts src/config.ts src/preflight.ts src/artifacts.ts src/runner.ts --outdir dist --root src --target bun --format esm",
+    "build:js": "bun build src/defineTvTest.ts src/config.ts src/runner.ts --outdir dist --root src --target bun --format esm",
     "build:types": "tsc -b tsconfig.json --force"
   },
   "exports": {
