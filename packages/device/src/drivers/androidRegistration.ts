@@ -8,13 +8,19 @@ const capabilities = new Map<OperationKind, OperationCapability>([
   ["control.press", stableCapability()],
   ["control.text", stableCapability()],
   ["device.wake", stableCapability()],
+  ["app.launch", stableCapability({ activityRequired: true })],
+  ["app.stop", stableCapability()],
+  ["app.foreground", stableCapability()],
+  ["screen.capture", stableCapability({ format: "png", transport: "adb-exec-out" })],
 ]);
 
-function stableCapability(): OperationCapability {
+function stableCapability(
+  constraints: Record<string, string | number | boolean> = {},
+): OperationCapability {
   return {
     support: "stable",
     readiness: "ready",
-    constraints: { readinessCheck: "live-adb-probe" },
+    constraints: { readinessCheck: "live-adb-probe", ...constraints },
   };
 }
 

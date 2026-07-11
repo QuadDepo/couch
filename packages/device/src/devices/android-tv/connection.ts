@@ -8,6 +8,10 @@ export interface ADBConnection {
   pair(port: string, code: string, options?: ADBCommandOptions): Promise<void>;
   isConnected(options?: ADBCommandOptions): Promise<boolean>;
   getReadiness?(options?: ADBCommandOptions): Promise<ADBReadiness>;
+  stopApp(appId: string, options?: ADBCommandOptions): Promise<void>;
+  launchApp(appId: string, activity: string, options?: ADBCommandOptions): Promise<void>;
+  getForegroundApp(options?: ADBCommandOptions): Promise<string | undefined>;
+  captureScreen(options?: ADBCommandOptions): Promise<Uint8Array>;
 }
 
 export interface ADBCommandOptions {
@@ -18,9 +22,14 @@ export interface ADBCommandOptions {
 export type ADBReadiness = "ready" | "missing-tool" | "unauthorized" | "offline";
 
 export type ADBCommandRunner = (args: string[], options?: ADBCommandOptions) => Promise<string>;
+export type ADBBinaryCommandRunner = (
+  args: string[],
+  options?: ADBCommandOptions,
+) => Promise<Uint8Array>;
 
 export interface ADBConnectionDependencies {
   runCommand?: ADBCommandRunner;
+  runBinaryCommand?: ADBBinaryCommandRunner;
 }
 
 const DEFAULT_PORT = 5555;
@@ -48,45 +57,44 @@ export function createADBConnection(
   ip: string,
   dependencies: ADBConnectionDependencies = {},
 ): ADBConnection {
+  async function spawnAdb(
+    args: string[],
+    options: ADBCommandOptions,
+  ): Promise<{ stdout: Uint8Array; stderr: string }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(new Error("ADB command timeout")),
+      options.timeoutMs ?? TIMEOUT_MS,
+    );
+    const abort = () => controller.abort(options.signal?.reason);
+    if (options.signal?.aborted) abort();
+    else options.signal?.addEventListener("abort", abort, { once: true });
+    try {
+      const proc = Bun.spawn(["adb", ...args], {
+        signal: controller.signal,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).bytes(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      if (exitCode !== 0) throw new Error(stderr || "ADB command failed");
+      return { stdout, stderr };
+    } finally {
+      clearTimeout(timeout);
+      options.signal?.removeEventListener("abort", abort);
+    }
+  }
+
   const runAdb: ADBCommandRunner =
     dependencies.runCommand ??
-    (async (args, options = {}) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(
-        () => controller.abort(new Error("ADB command timeout")),
-        options.timeoutMs ?? TIMEOUT_MS,
-      );
-      const abort = () => controller.abort(options.signal?.reason);
-      if (options.signal?.aborted) {
-        abort();
-      } else {
-        options.signal?.addEventListener("abort", abort, { once: true });
-      }
-
-      try {
-        const proc = Bun.spawn(["adb", ...args], {
-          signal: controller.signal,
-          stdout: "pipe",
-          stderr: "pipe",
-        });
-
-        const [stdout, stderr, exitCode] = await Promise.all([
-          new Response(proc.stdout).text(),
-          new Response(proc.stderr).text(),
-          proc.exited,
-        ]);
-
-        if (exitCode !== 0) {
-          const error = stderr || `ADB command failed`;
-          throw new Error(error);
-        }
-
-        return stdout.trim();
-      } finally {
-        clearTimeout(timeout);
-        options.signal?.removeEventListener("abort", abort);
-      }
-    });
+    (async (args, options = {}) =>
+      new TextDecoder().decode((await spawnAdb(args, options)).stdout).trim());
+  const runBinaryAdb: ADBBinaryCommandRunner =
+    dependencies.runBinaryCommand ??
+    (async (args, options = {}) => (await spawnAdb(args, options)).stdout);
 
   const target = `${ip}:${DEFAULT_PORT}`;
 
@@ -189,6 +197,28 @@ export function createADBConnection(
         if (options?.signal?.aborted) throw error;
         return classifyAdbReadiness(error);
       }
+    },
+    async stopApp(appId, options) {
+      await runAdb(["-s", target, "shell", "am", "force-stop", appId], options);
+    },
+    async launchApp(appId, activity, options) {
+      await runAdb(["-s", target, "shell", "am", "start", "-n", `${appId}/${activity}`], options);
+    },
+    async getForegroundApp(options) {
+      const output = await runAdb(
+        ["-s", target, "shell", "dumpsys", "activity", "activities"],
+        options,
+      );
+      return [
+        /mResumedActivity[^\n]*\s([\w.]+)\//,
+        /mCurrentFocus[^\n]*\s([\w.]+)\//,
+        /mFocusedApp[^\n]*\s([\w.]+)\//,
+      ]
+        .map((pattern) => output.match(pattern)?.[1])
+        .find(Boolean);
+    },
+    captureScreen(options) {
+      return runBinaryAdb(["-s", target, "exec-out", "screencap", "-p"], options);
     },
   };
 }

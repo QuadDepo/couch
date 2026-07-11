@@ -1,7 +1,10 @@
+import { chmod, mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { DeviceDriver, DriverReceipt } from "../../drivers/types";
 import type { DeviceOperation } from "../../operations/types";
 import type { RemoteKey } from "../../types";
 import {
+  type ADBBinaryCommandRunner,
   type ADBCommandOptions,
   type ADBCommandRunner,
   type ADBConnection,
@@ -18,6 +21,7 @@ export interface AndroidTvDriverConfig {
 export interface AndroidTvDriverDependencies {
   connection?: ADBConnection;
   runCommand?: ADBCommandRunner;
+  runBinaryCommand?: ADBBinaryCommandRunner;
 }
 
 export async function probeAndroidTv(
@@ -27,7 +31,10 @@ export async function probeAndroidTv(
 ): Promise<ADBReadiness> {
   const adb =
     dependencies.connection ??
-    createADBConnection(config.ip, { runCommand: dependencies.runCommand });
+    createADBConnection(config.ip, {
+      runCommand: dependencies.runCommand,
+      runBinaryCommand: dependencies.runBinaryCommand,
+    });
   if (adb.getReadiness) {
     try {
       return await adb.getReadiness(options);
@@ -58,7 +65,10 @@ export function createAndroidTvDriver(
 ): DeviceDriver {
   const adb =
     dependencies.connection ??
-    createADBConnection(config.ip, { runCommand: dependencies.runCommand });
+    createADBConnection(config.ip, {
+      runCommand: dependencies.runCommand,
+      runBinaryCommand: dependencies.runBinaryCommand,
+    });
   let ready = false;
   let openAttempted = false;
   let generation = 0;
@@ -104,6 +114,56 @@ export function createAndroidTvDriver(
         case "device.wake":
           await adb.sendKeyEvent("KEYCODE_WAKEUP", commandOptions);
           return { confirmation: "process-exit" };
+        case "app.stop":
+          await adb.stopApp(operation.appId, commandOptions);
+          return { confirmation: "process-exit" };
+        case "app.launch":
+          if (!operation.activity) {
+            throw new Error("Android app.launch requires an explicit activity");
+          }
+          await adb.launchApp(operation.appId, operation.activity, commandOptions);
+          return { confirmation: "process-exit" };
+        case "app.foreground": {
+          const foregroundAppId = await adb.getForegroundApp(commandOptions);
+          return {
+            confirmation: "process-exit",
+            metadata: {
+              expectedAppId: operation.appId,
+              foregroundAppId: foregroundAppId ?? "",
+              foreground: foregroundAppId === operation.appId,
+            },
+          };
+        }
+        case "screen.capture": {
+          if (operation.format && operation.format !== "png") {
+            throw new Error(`Unsupported Android capture format: ${operation.format}`);
+          }
+          if (!operation.path) throw new Error("screen.capture requires an output path");
+          const bytes = await adb.captureScreen(commandOptions);
+          commandOptions.signal?.throwIfAborted();
+          await mkdir(dirname(operation.path), { recursive: true, mode: 0o700 });
+          const temporary = join(dirname(operation.path), `.${crypto.randomUUID()}.tmp`);
+          try {
+            await writeFile(temporary, bytes, { mode: 0o600 });
+            commandOptions.signal?.throwIfAborted();
+            await rename(temporary, operation.path);
+            await chmod(operation.path, 0o600).catch(() => undefined);
+          } catch (error) {
+            await unlink(temporary).catch(() => undefined);
+            throw error;
+          }
+          return {
+            confirmation: "process-exit",
+            artifacts: [
+              {
+                path: operation.path,
+                type: "screenshot",
+                mimeType: "image/png",
+                metadata: { byteLength: bytes.byteLength, format: "png" },
+              },
+            ],
+          };
+        }
         default:
           throw unsupported(operation.kind);
       }

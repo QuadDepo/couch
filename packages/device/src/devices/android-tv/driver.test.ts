@@ -11,6 +11,10 @@ function fakeAdb() {
     sendText: async (text) => calls.push(`text:${text}`),
     pair: async () => undefined,
     isConnected: async () => true,
+    stopApp: async (appId) => calls.push(`stop:${appId}`),
+    launchApp: async (appId, activity) => calls.push(`launch:${appId}/${activity}`),
+    getForegroundApp: async () => "com.example.app",
+    captureScreen: async () => new Uint8Array([137, 80, 78, 71]),
   };
   return { adb, calls };
 }
@@ -60,5 +64,37 @@ describe("Android TV driver", () => {
     await driver.open();
 
     expect(await driver.isReady()).toBe(false);
+  });
+
+  test("launches the explicit activity and reports foreground state", async () => {
+    const { adb, calls } = fakeAdb();
+    const driver = createAndroidTvDriver({ ip: "192.0.2.10" }, { connection: adb });
+    await driver.open();
+    const launch = await driver.execute({
+      kind: "app.launch",
+      appId: "com.example.app",
+      activity: ".MainActivity",
+    });
+    const foreground = await driver.execute({ kind: "app.foreground", appId: "com.example.app" });
+    expect(calls).toEqual(["connect", "launch:com.example.app/.MainActivity"]);
+    expect(launch).toEqual({ confirmation: "process-exit" });
+    expect(foreground.metadata?.foreground).toBe(true);
+  });
+
+  test("writes capture bytes and returns artifact metadata", async () => {
+    const { adb } = fakeAdb();
+    const driver = createAndroidTvDriver({ ip: "192.0.2.10" }, { connection: adb });
+    const path = `/tmp/couch-driver-${crypto.randomUUID()}.png`;
+    await driver.open();
+    const receipt = await driver.execute({ kind: "screen.capture", path });
+    expect(new Uint8Array(await Bun.file(path).arrayBuffer())).toEqual(
+      new Uint8Array([137, 80, 78, 71]),
+    );
+    expect(receipt.artifacts?.[0]).toMatchObject({
+      path,
+      type: "screenshot",
+      mimeType: "image/png",
+      metadata: { byteLength: 4, format: "png" },
+    });
   });
 });

@@ -95,6 +95,7 @@ export type {
   Readiness,
   Support,
 } from "./operations/types";
+export { isOperationKind } from "./operations/types";
 // SDK availability check
 export { checkSDKAvailability, type SDKAvailability } from "./sdk-check";
 export type { DeviceSession, ExecuteOptions } from "./sessions/deviceSession";
