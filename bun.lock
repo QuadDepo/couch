@@ -16,8 +16,12 @@
     "apps/cli": {
       "name": "@couch/cli",
       "version": "0.0.1",
+      "bin": {
+        "couch": "src/index.ts",
+      },
       "dependencies": {
         "@couch/device": "workspace:*",
+        "@couch/runner": "workspace:*",
       },
     },
     "apps/inspector": {

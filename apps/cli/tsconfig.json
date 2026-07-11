@@ -3,6 +3,6 @@
   "compilerOptions": {
     "composite": true
   },
-  "references": [{ "path": "../../packages/device" }],
+  "references": [{ "path": "../../packages/device" }, { "path": "../../packages/runner" }],
   "include": ["src/**/*"]
 }

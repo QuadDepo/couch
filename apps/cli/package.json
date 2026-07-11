@@ -12,6 +12,7 @@
     "build": "bun build src/index.ts --outdir dist --target bun --format esm"
   },
   "dependencies": {
-    "@couch/device": "workspace:*"
+    "@couch/device": "workspace:*",
+    "@couch/runner": "workspace:*"
   }
 }
