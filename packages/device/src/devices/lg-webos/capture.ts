@@ -29,18 +29,23 @@ export async function downloadWebosCapture(
 
   const timeout = AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
-  const response = await (options.fetch ?? fetch)(url, { redirect: "error", signal }).catch(
-    (error) => {
-      if (options.signal?.aborted) throw options.signal.reason ?? error;
-      if (timeout.aborted) throw new Error("LG webOS capture download timed out");
-      throw new Error("LG webOS capture download failed");
-    },
-  );
+  const request: BunFetchRequestInit = {
+    redirect: "error",
+    signal,
+    ...(url.protocol === "https:" ? { tls: { rejectUnauthorized: false } } : {}),
+  };
+  const response = await (options.fetch ?? fetch)(url, request).catch((error) => {
+    if (options.signal?.aborted) throw options.signal.reason ?? error;
+    if (timeout.aborted) throw new Error("LG webOS capture download timed out");
+    throw new Error("LG webOS capture download failed");
+  });
   if (!response.ok)
     throw new Error(`LG webOS capture download failed with HTTP ${response.status}`);
 
   const mimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-  if (mimeType !== "image/jpeg") throw new Error("LG webOS capture response is not a JPEG");
+  if (mimeType && mimeType !== "image/jpeg") {
+    throw new Error("LG webOS capture response is not a JPEG");
+  }
 
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const declaredLength = Number(response.headers.get("content-length"));

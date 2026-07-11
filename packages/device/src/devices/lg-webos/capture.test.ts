@@ -112,4 +112,31 @@ describe("LG webOS capture download", () => {
     ).rejects.toThrow("byte limit");
     expect(await readdir(directory)).toEqual([]);
   });
+
+  test("accepts the TV's locally issued HTTPS capture certificate", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "couch-webos-capture-"));
+    const path = join(directory, "capture.jpg");
+    let rejectUnauthorized: boolean | undefined;
+
+    await downloadWebosCapture("https://192.0.2.20:3001/capture.jpg", path, "192.0.2.20", {
+      fetch: async (_url, init) => {
+        rejectUnauthorized = (init as RequestInit & { tls?: { rejectUnauthorized?: boolean } }).tls
+          ?.rejectUnauthorized;
+        return response();
+      },
+    });
+
+    expect(rejectUnauthorized).toBe(false);
+  });
+
+  test("accepts a signature-valid JPEG when the TV omits Content-Type", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "couch-webos-capture-"));
+    const path = join(directory, "capture.jpg");
+
+    await downloadWebosCapture("http://192.0.2.20/capture.jpg", path, "192.0.2.20", {
+      fetch: async () => new Response(jpeg),
+    });
+
+    expect(new Uint8Array(await readFile(path))).toEqual(jpeg);
+  });
 });
