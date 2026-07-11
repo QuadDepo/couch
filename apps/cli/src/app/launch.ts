@@ -1,6 +1,6 @@
 import type { DeviceInventory } from "@couch/device";
 import { type CouchTestConfig, loadConfig } from "@couch/runner/config";
-import { operationError, runTargetSession } from "../operationRunner";
+import { classifyOutcome, runTargetSession } from "../operationRunner";
 import type { SignalControl } from "../processSignals";
 import { cancelledAppResult, failedAppResult, parseApp } from "./shared";
 import type { AppCommandResult, ParsedAppCommand } from "./types";
@@ -28,30 +28,19 @@ export async function runLaunch(
     }),
   });
 
-  const operation = outcome.operations[0];
   const deviceId = outcome.context?.deviceId;
 
-  if (signals.exitCode || operation?.status === "cancelled") {
+  const classification = classifyOutcome(signals, outcome, "App launch did not complete");
+  if (classification.kind === "cancelled") {
     return cancelledAppResult(command, outcome.operations, deviceId, signals, outcome.cleanupError);
   }
-  if (outcome.caughtError) {
+  if (classification.kind === "failed") {
     return failedAppResult(
       command,
       outcome.operations,
       deviceId,
-      outcome.caughtError,
-      outcome.cleanupError,
-    );
-  }
-  if (outcome.cleanupError) {
-    return failedAppResult(command, outcome.operations, deviceId, undefined, outcome.cleanupError);
-  }
-  if (operation?.status !== "succeeded") {
-    return failedAppResult(
-      command,
-      outcome.operations,
-      deviceId,
-      operationError(operation, "App launch did not complete"),
+      classification.error,
+      classification.cleanupError,
     );
   }
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { DeviceInventory, DeviceSession } from "@couch/device";
 import { runCli } from "../cli";
-import { output, record, signalTarget } from "../testSupport/fakes";
+import { output, record, signalTarget, waitForAbort } from "../testSupport/fakes";
 
 describe("remote press cancellation", () => {
   test.each([
@@ -58,11 +58,7 @@ describe("remote press cancellation", () => {
       getCapabilities: async () => new Map(),
       openSession: async (_id, options) => {
         started();
-        return await new Promise<never>((_resolve, reject) => {
-          const abort = () => reject(options.signal?.reason);
-          if (options.signal?.aborted) abort();
-          else options.signal?.addEventListener("abort", abort, { once: true });
-        });
+        return await waitForAbort(options.signal);
       },
     };
     const command = runCli(["remote", "press", "lab", "LEFT", "--json"], {

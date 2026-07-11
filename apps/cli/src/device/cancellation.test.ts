@@ -1,15 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { DeviceInventory } from "@couch/device";
 import { runCli } from "../cli";
-import { output, signalTarget } from "../testSupport/fakes";
-
-function waitForAbort(signal: AbortSignal | undefined): Promise<never> {
-  return new Promise((_resolve, reject) => {
-    const abort = () => reject(signal?.reason);
-    if (signal?.aborted) abort();
-    else signal?.addEventListener("abort", abort, { once: true });
-  });
-}
+import { output, signalTarget, waitForAbort } from "../testSupport/fakes";
 
 describe("device command cancellation", () => {
   test.each([

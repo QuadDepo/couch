@@ -1,7 +1,7 @@
 import type { DeviceInventory } from "@couch/device";
 import { type CouchTestConfig, loadConfig } from "@couch/runner/config";
 import { FAILURE_EXIT } from "../errors";
-import { operationError, runTargetSession } from "../operationRunner";
+import { classifyOutcome, runTargetSession } from "../operationRunner";
 import type { SignalControl } from "../processSignals";
 import { cancelledAppResult, failedAppResult, parseApp } from "./shared";
 import type { AppCommandResult, ParsedAppCommand } from "./types";
@@ -29,27 +29,21 @@ export async function runForeground(
   const target = outcome.context;
   const deviceId = target?.deviceId;
 
-  if (signals.exitCode || operation?.status === "cancelled") {
+  const classification = classifyOutcome(
+    signals,
+    outcome,
+    "Foreground observation did not complete",
+  );
+  if (classification.kind === "cancelled") {
     return cancelledAppResult(command, outcome.operations, deviceId, signals, outcome.cleanupError);
   }
-  if (outcome.caughtError) {
+  if (classification.kind === "failed") {
     return failedAppResult(
       command,
       outcome.operations,
       deviceId,
-      outcome.caughtError,
-      outcome.cleanupError,
-    );
-  }
-  if (outcome.cleanupError) {
-    return failedAppResult(command, outcome.operations, deviceId, undefined, outcome.cleanupError);
-  }
-  if (operation?.status !== "succeeded") {
-    return failedAppResult(
-      command,
-      outcome.operations,
-      deviceId,
-      operationError(operation, "Foreground observation did not complete"),
+      classification.error,
+      classification.cleanupError,
     );
   }
 
@@ -57,7 +51,7 @@ export async function runForeground(
   // id is sound and any real invariant violation surfaces as a crash.
   if (!target) throw new Error("app.foreground succeeded without a resolved target");
 
-  const foreground = operation.metadata?.foreground === true;
+  const foreground = operation?.metadata?.foreground === true;
   return {
     resultVersion: 1,
     command: command.command,

@@ -17,9 +17,6 @@ export interface SessionOutcome<TContext> {
   cleanupError: CommandError | undefined;
 }
 
-// Runs the open -> register-cleanup -> execute -> cleanup lifecycle shared by
-// every session-backed command. `open` produces the session plus whatever the
-// command needs afterward (its `context`); `execute` issues the operations.
 // Thrown values are normalized to a CommandError so callers branch on a typed
 // error rather than the raw thrown value's truthiness.
 export async function runSession<TContext>(
@@ -78,9 +75,34 @@ export async function runTargetSession(params: {
   );
 }
 
+export type OutcomeClassification =
+  | { kind: "cancelled" }
+  | { kind: "failed"; error?: CommandError; cleanupError?: CommandError }
+  | { kind: "succeeded" };
+
+// Collapses the cancel -> caughtError -> cleanupError -> operation-not-succeeded
+// cascade shared by the single-operation target commands into one verdict, so
+// each command keeps only its success builder and genuine special cases.
+export function classifyOutcome(
+  signals: SignalControl,
+  outcome: SessionOutcome<unknown>,
+  notSucceededMessage: string,
+): OutcomeClassification {
+  const operation = outcome.operations[0];
+  if (signals.exitCode || operation?.status === "cancelled") return { kind: "cancelled" };
+  if (outcome.caughtError) {
+    return { kind: "failed", error: outcome.caughtError, cleanupError: outcome.cleanupError };
+  }
+  if (outcome.cleanupError) return { kind: "failed", cleanupError: outcome.cleanupError };
+  if (operation?.status !== "succeeded") {
+    return { kind: "failed", error: operationError(operation, notSucceededMessage) };
+  }
+  return { kind: "succeeded" };
+}
+
 // Maps a completed (but non-successful) operation to a CommandError, falling
 // back to a generic message when the operation carries no error of its own.
-export function operationError(
+function operationError(
   operation: OperationRecord | undefined,
   fallbackMessage: string,
 ): CommandError {

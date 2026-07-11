@@ -1,7 +1,8 @@
 import type { DeviceInventory } from "@couch/device";
 import { runTvTest } from "@couch/runner/runner";
 import { cancellationError } from "../commandOutput";
-import { errorDetails, UsageError } from "../errors";
+import { errorDetails, FAILURE_EXIT, UsageError } from "../errors";
+import { parseOptions } from "../parseOptions";
 import type { SignalControl } from "../processSignals";
 import type { ParsedTest, TestCommandResult } from "./types";
 
@@ -9,17 +10,10 @@ export function parseTest(args: readonly string[]): ParsedTest {
   const file = args[0];
   if (!file || file.startsWith("-"))
     throw new UsageError("expected: couch test <file> --target <alias>");
-  let targetAlias: string | undefined;
-  let json = false;
-  for (let index = 1; index < args.length; index += 1) {
-    const argument = args[index];
-    if (argument === "--json" && !json) json = true;
-    else if (argument === "--target" && !targetAlias) {
-      const value = args[++index];
-      if (!value || value.startsWith("-")) throw new UsageError("--target expects an alias");
-      targetAlias = value;
-    } else throw new UsageError(`unknown or duplicate option: ${argument}`);
-  }
+  const { json, values } = parseOptions(args, 1, [
+    { flag: "--target", message: "--target expects an alias" },
+  ]);
+  const targetAlias = values["--target"];
   if (!targetAlias) throw new UsageError("--target expects an alias");
   return { command: "test", file, targetAlias, json };
 }
@@ -48,7 +42,7 @@ export async function runTest(
       file: command.file,
       targetAlias: command.targetAlias,
       status: signals.exitCode ? "cancelled" : "infrastructure-failed",
-      exitCode: signals.exitCode ?? 2,
+      exitCode: signals.exitCode ?? FAILURE_EXIT,
       error: signals.exitCode ? cancellationError(signals) : errorDetails(error),
     };
   }

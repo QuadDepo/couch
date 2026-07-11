@@ -1,5 +1,5 @@
 import type { CommandError } from "./errors";
-import { errorDetails } from "./errors";
+import { errorDetails, SIGINT_EXIT, SIGTERM_EXIT } from "./errors";
 
 export interface CliSignalTarget {
   on(signal: "SIGINT" | "SIGTERM", listener: () => void): unknown;
@@ -9,7 +9,7 @@ export interface CliSignalTarget {
 
 export interface SignalControl {
   readonly signal: AbortSignal;
-  readonly exitCode: 130 | 143 | undefined;
+  readonly exitCode: typeof SIGINT_EXIT | typeof SIGTERM_EXIT | undefined;
   readonly message: string | undefined;
   setCleanup(cleanup: () => Promise<void>): void;
   cleanup(): Promise<CommandError | undefined>;
@@ -18,7 +18,7 @@ export interface SignalControl {
 
 export function installSignalControl(target: CliSignalTarget): SignalControl {
   const controller = new AbortController();
-  let exitCode: 130 | 143 | undefined;
+  let exitCode: typeof SIGINT_EXIT | typeof SIGTERM_EXIT | undefined;
   let message: string | undefined;
   let cleanupTask: (() => Promise<void>) | undefined;
   let cleanupPromise: Promise<void> | undefined;
@@ -34,7 +34,7 @@ export function installSignalControl(target: CliSignalTarget): SignalControl {
     }
   };
   const cancel = (signal: "SIGINT" | "SIGTERM") => {
-    exitCode ??= signal === "SIGINT" ? 130 : 143;
+    exitCode ??= signal === "SIGINT" ? SIGINT_EXIT : SIGTERM_EXIT;
     message ??= signal === "SIGINT" ? "Interrupted" : "Terminated";
     controller.abort(new DOMException(message, "AbortError"));
     void cleanup();

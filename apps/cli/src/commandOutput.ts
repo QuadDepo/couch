@@ -1,7 +1,7 @@
 import type { AppCommandResult } from "./app/types";
 import type { DeviceDoctorResult, DeviceListResult } from "./device/types";
 import type { CommandError, CommandExitCode } from "./errors";
-import { FAILURE_EXIT } from "./errors";
+import { FAILURE_EXIT, SIGINT_EXIT, type SIGTERM_EXIT } from "./errors";
 import type { SignalControl } from "./processSignals";
 import type { PressResult } from "./remote/types";
 import type { ScreenshotResult } from "./screenshot/types";
@@ -25,10 +25,15 @@ export function cancellationError(signals: SignalControl): CommandError {
 export function cancelledFields(
   signals: SignalControl,
   cleanupError?: CommandError,
-): { status: "cancelled"; exitCode: 130 | 143; error: CommandError; cleanupError?: CommandError } {
+): {
+  status: "cancelled";
+  exitCode: typeof SIGINT_EXIT | typeof SIGTERM_EXIT;
+  error: CommandError;
+  cleanupError?: CommandError;
+} {
   return {
     status: "cancelled",
-    exitCode: signals.exitCode ?? 130,
+    exitCode: signals.exitCode ?? SIGINT_EXIT,
     error: cancellationError(signals),
     ...(cleanupError ? { cleanupError } : {}),
   };

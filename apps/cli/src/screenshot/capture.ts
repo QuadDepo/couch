@@ -3,7 +3,7 @@ import { type CouchTestConfig, loadConfig } from "@couch/runner/config";
 import { cancelledFields, failedFields } from "../commandOutput";
 import type { CommandError } from "../errors";
 import { UsageError } from "../errors";
-import { operationError, runTargetSession } from "../operationRunner";
+import { classifyOutcome, runTargetSession } from "../operationRunner";
 import { parseOptions } from "../parseOptions";
 import type { SignalControl } from "../processSignals";
 import type { ParsedScreenshot, ScreenshotResult } from "./types";
@@ -36,9 +36,8 @@ export async function runScreenshot(
     operationFor: () => ({ kind: "screen.capture", format: "png", path: command.out }),
   });
 
-  const operation = outcome.operations[0];
-
-  if (signals.exitCode || operation?.status === "cancelled") {
+  const classification = classifyOutcome(signals, outcome, "Screenshot capture did not complete");
+  if (classification.kind === "cancelled") {
     return {
       resultVersion: 1,
       command: "screenshot",
@@ -48,17 +47,12 @@ export async function runScreenshot(
       ...cancelledFields(signals, outcome.cleanupError),
     };
   }
-  if (outcome.caughtError) {
-    return screenshotFailed(command, outcome.operations, outcome.caughtError, outcome.cleanupError);
-  }
-  if (outcome.cleanupError) {
-    return screenshotFailed(command, outcome.operations, undefined, outcome.cleanupError);
-  }
-  if (operation?.status !== "succeeded") {
+  if (classification.kind === "failed") {
     return screenshotFailed(
       command,
       outcome.operations,
-      operationError(operation, "Screenshot capture did not complete"),
+      classification.error,
+      classification.cleanupError,
     );
   }
 

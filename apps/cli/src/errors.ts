@@ -1,5 +1,8 @@
 export const USAGE_EXIT = 64;
 export const FAILURE_EXIT = 2;
+// 128 + signal number, the POSIX convention for a process killed by a signal.
+export const SIGINT_EXIT = 130;
+export const SIGTERM_EXIT = 143;
 
 export type CommandExitCode = 0 | 1 | 2 | 130 | 143;
 export type CommandError = { code: string; message: string };

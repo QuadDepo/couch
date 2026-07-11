@@ -77,7 +77,20 @@ export function inventoryWithSession(session: DeviceSession): DeviceInventory {
   };
 }
 
-export function output() {
+export function waitForAbort(signal: AbortSignal | undefined): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const abort = () => reject(signal?.reason);
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+export function output(): {
+  stdout: string[];
+  stderr: string[];
+  writeOut: (text: string) => void;
+  writeErr: (text: string) => void;
+} {
   const stdout: string[] = [];
   const stderr: string[] = [];
   return {
