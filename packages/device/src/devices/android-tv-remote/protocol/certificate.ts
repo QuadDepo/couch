@@ -1,5 +1,6 @@
 import * as crypto from "node:crypto";
 import forge from "node-forge";
+import { hexToBytes } from "./hex";
 
 interface GeneratedCertificate {
   certificate: string;
@@ -65,8 +66,8 @@ function extractRsaModulusAndExponent(certificatePem: string): RsaKeyComponents 
   const exponentPadded = exponentHex.length % 2 ? `0${exponentHex}` : exponentHex;
 
   return {
-    modulus: hexToUint8Array(modulusPadded),
-    exponent: hexToUint8Array(exponentPadded),
+    modulus: hexToBytes(modulusPadded),
+    exponent: hexToBytes(exponentPadded),
   };
 }
 
@@ -88,12 +89,4 @@ export function computePairingSecret(
   hash.update(codeBytes);
 
   return new Uint8Array(hash.digest());
-}
-
-function hexToUint8Array(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = Number.parseInt(hex.slice(i, i + 2), 16);
-  }
-  return bytes;
 }

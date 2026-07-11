@@ -74,6 +74,7 @@ export { InventoryError, loadDevices, saveDevices } from "./inventory/loadInvent
 export type {
   DeviceDescriptor,
   DeviceInventory,
+  DeviceInventoryErrorCode,
   DeviceInventoryOptions,
   InventoryLoader,
   OpenSessionOptions,
@@ -108,5 +109,6 @@ export type {
 } from "./types/index";
 export { isRemoteKey, REMOTE_KEYS } from "./types/index";
 // Utils
+export { atomicWrite } from "./utils/atomicWrite";
 export { logger } from "./utils/logger";
 export { isValidIp } from "./utils/network";

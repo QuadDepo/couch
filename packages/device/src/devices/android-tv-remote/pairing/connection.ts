@@ -3,6 +3,7 @@ import { logger } from "../../../utils/logger";
 import type { AndroidTvRemoteCredentials } from "../credentials";
 import { computePairingSecret, generateClientCertificate } from "../protocol/certificate";
 import { createFrameReader, frameMessage } from "../protocol/framing";
+import { hexToBytes } from "../protocol/hex";
 import {
   buildConfiguration,
   buildOptions,
@@ -345,14 +346,6 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
     submitCode,
     getPhase,
   };
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = Number.parseInt(hex.slice(i, i + 2), 16);
-  }
-  return bytes;
 }
 
 function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {

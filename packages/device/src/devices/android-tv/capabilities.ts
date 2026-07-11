@@ -1,43 +1,9 @@
-import type { DeviceCapabilities, DeviceFeature, RemoteKey } from "../types";
+import type { RemoteKey } from "../../types";
+import { createCapabilities } from "../shared/capabilities";
+import { keymap } from "./keymap";
 
-const supportedFeatures: DeviceFeature[] = [
-  "power",
-  "volume",
-  "mute",
-  "channels",
-  "navigation",
-  "playback",
-  "input_select",
-  "text_input",
-];
-
-const supportedKeys: RemoteKey[] = [
-  "UP",
-  "DOWN",
-  "LEFT",
-  "RIGHT",
-  "OK",
-  "BACK",
-  "HOME",
-  "MENU",
-  "POWER",
-  "VOLUME_UP",
-  "VOLUME_DOWN",
-  "MUTE",
-  "CHANNEL_UP",
-  "CHANNEL_DOWN",
-  "INPUT",
-  "PLAY",
-  "PAUSE",
-  "STOP",
-  "REWIND",
-  "FAST_FORWARD",
-];
-
-export const capabilities: DeviceCapabilities = {
-  supportedFeatures: new Set(supportedFeatures),
-  supportedKeys: new Set(supportedKeys),
-  supportsWakeOnLan: false,
-  textInputSupported: true,
+export const capabilities = createCapabilities({
+  supportedKeys: Object.keys(keymap) as RemoteKey[],
+  textInput: true,
   textQuickActions: ["enter", "space", "backspace"],
-};
+});

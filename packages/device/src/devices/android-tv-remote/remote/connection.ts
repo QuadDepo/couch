@@ -1,5 +1,7 @@
 import * as tls from "node:tls";
 import { logger } from "../../../utils/logger";
+import { cappedExponentialBackoff } from "../../constants";
+import { createConnectionEvents } from "../../shared/connectionEvents";
 import type { AndroidTvRemoteCredentials } from "../credentials";
 import { createFrameReader, frameMessage } from "../protocol/framing";
 import {
@@ -55,21 +57,7 @@ export function createAndroidTvRemoteConnection(
 
   const frameReader = createFrameReader();
 
-  const listeners: Map<ConnectionEvent, Set<(...args: unknown[]) => void>> = new Map([
-    ["connect", new Set()],
-    ["close", new Set()],
-    ["error", new Set()],
-    ["message", new Set()],
-  ]);
-
-  function emit(event: ConnectionEvent, ...args: unknown[]) {
-    const callbacks = listeners.get(event);
-    if (callbacks) {
-      for (const cb of callbacks) {
-        cb(...args);
-      }
-    }
-  }
+  const events = createConnectionEvents<ConnectionEvent>(["connect", "close", "error", "message"]);
 
   function handleMessage(data: Uint8Array) {
     const message = parseMessage(data);
@@ -90,7 +78,7 @@ export function createAndroidTvRemoteConnection(
       const configMsg = buildRemoteConfiguration("Couch Remote", "Couch", "com.couch.remote");
       sendRaw(configMsg);
       startPingInterval();
-      emit("connect");
+      events.emit("connect");
       return;
     }
 
@@ -110,7 +98,7 @@ export function createAndroidTvRemoteConnection(
       }
     }
 
-    emit("message", message);
+    events.emit("message", message);
   }
 
   function sendRaw(data: Uint8Array): boolean {
@@ -181,7 +169,7 @@ export function createAndroidTvRemoteConnection(
       conn.on("error", (error: Error) => {
         clearTimeout(timeoutId);
         logger.error("AndroidTVRemote", `Connection error: ${error.message}`);
-        emit("error", error);
+        events.emit("error", error);
         if (!connected) {
           reject(error);
         }
@@ -199,7 +187,7 @@ export function createAndroidTvRemoteConnection(
         imeFieldCounter = 0;
         stopPingInterval();
         frameReader.clear();
-        emit("close");
+        events.emit("close");
         logger.info("AndroidTVRemote", `Connection closed (hadError=${hadError})`);
 
         if (
@@ -208,10 +196,11 @@ export function createAndroidTvRemoteConnection(
           baseReconnectDelay > 0 &&
           reconnectAttempts < MAX_RECONNECT_ATTEMPTS
         ) {
-          const delay = Math.min(
-            baseReconnectDelay * 2 ** reconnectAttempts,
-            MAX_RECONNECT_DELAY_MS,
-          );
+          const delay = cappedExponentialBackoff({
+            attempt: reconnectAttempts,
+            baseDelayMs: baseReconnectDelay,
+            maxDelayMs: MAX_RECONNECT_DELAY_MS,
+          });
           reconnectAttempts++;
           logger.info(
             "AndroidTVRemote",
@@ -302,19 +291,12 @@ export function createAndroidTvRemoteConnection(
     }
   }
 
-  function on(event: ConnectionEvent, callback: (...args: unknown[]) => void): () => void {
-    listeners.get(event)?.add(callback);
-    return () => {
-      listeners.get(event)?.delete(callback);
-    };
-  }
-
   return {
     connect,
     disconnect,
     sendKey,
     sendText,
-    on,
+    on: events.on,
     isConnected: () => connected && configReceived,
   };
 }
