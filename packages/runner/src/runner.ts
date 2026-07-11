@@ -8,7 +8,6 @@ import type {
   OperationKind,
   OperationRecord,
 } from "@couch/device";
-import { isOperationKind } from "@couch/device";
 import {
   assertRealContained,
   prepareArtifactDirectory,
@@ -164,104 +163,9 @@ function publicDevice(device: DeviceDescriptor): Record<string, string> {
   };
 }
 
-// --- Schema validation --------------------------------------------------------
-// A tiny typed-guard combinator: every check reports the exact failing field path
-// (e.g. "operations[3].startedAt is not an ISO timestamp") so validators cannot drift
-// silently from the interfaces above.
-
-class SchemaError extends Error {}
-
-function withSchemaScope<T>(label: string, run: () => T): T {
-  try {
-    return run();
-  } catch (error) {
-    if (error instanceof SchemaError) throw new Error(`${label}: ${error.message}`);
-    throw error;
-  }
-}
-
-function requireRecord(value: unknown, path: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new SchemaError(`${path} is not an object`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function requireArray(value: unknown, path: string): unknown[] {
-  if (!Array.isArray(value)) throw new SchemaError(`${path} is not an array`);
-  return value;
-}
-
-function requireString(value: unknown, path: string): string {
-  if (typeof value !== "string") throw new SchemaError(`${path} is not a string`);
-  return value;
-}
-
-function requireNonEmptyString(value: unknown, path: string): string {
-  const text = requireString(value, path);
-  if (!text) throw new SchemaError(`${path} must not be empty`);
-  return text;
-}
-
-function requireNumber(value: unknown, path: string): number {
-  if (typeof value !== "number") throw new SchemaError(`${path} is not a number`);
-  return value;
-}
-
-function requirePositiveInteger(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-    throw new SchemaError(`${path} is not a positive integer`);
-  }
-  return value;
-}
-
-function requireEnum<const T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  path: string,
-): T {
-  if (typeof value !== "string" || !(allowed as readonly string[]).includes(value)) {
-    throw new SchemaError(`${path} must be one of ${allowed.join(", ")}`);
-  }
-  return value as T;
-}
-
-function requireIsoTimestamp(value: unknown, path: string): string {
-  const text = requireString(value, path);
-  if (!Number.isFinite(Date.parse(text))) {
-    throw new SchemaError(`${path} is not an ISO timestamp`);
-  }
-  return text;
-}
-
-function requireErrorObject(value: unknown, path: string): void {
-  const record = requireRecord(value, path);
-  requireString(record.code, `${path}.code`);
-  requireString(record.message, `${path}.message`);
-}
-
-function requireArtifacts(value: unknown, path: string): void {
-  requireArray(value, path).forEach((artifact, index) => {
-    const itemPath = `${path}[${index}]`;
-    const record = requireRecord(artifact, itemPath);
-    requireString(record.path, `${itemPath}.path`);
-    if (record.id !== undefined) requireString(record.id, `${itemPath}.id`);
-    if (record.type !== undefined) requireString(record.type, `${itemPath}.type`);
-    if (record.mimeType !== undefined) requireString(record.mimeType, `${itemPath}.mimeType`);
-    if (record.metadata !== undefined) requireRecord(record.metadata, `${itemPath}.metadata`);
-  });
-}
-
-const RESULT_STATUSES = ["passed", "failed", "infrastructure-failed", "cancelled"] as const;
-const ASSERTION_STATUSES = ["passed", "failed"] as const;
-const OPERATION_STATUSES = ["succeeded", "failed", "cancelled"] as const;
-const CONFIRMATIONS = ["process-exit", "protocol-response", "transport-write"] as const;
-const OPERATION_ERROR_CATEGORIES = [
-  "assertion",
-  "infrastructure",
-  "unsupported",
-  "cancelled",
-] as const;
+// --- Result / exit-code invariant ---------------------------------------------
+// status and exitCode are independent literal unions on TestResult, so TypeScript
+// cannot prove they agree. Assert the mapping at publish time.
 
 const EXPECTED_EXIT: Record<TestResult["status"], number | readonly number[]> = {
   passed: 0,
@@ -275,89 +179,12 @@ function exitCodeAligns(status: TestResult["status"], exitCode: number): boolean
   return Array.isArray(expected) ? expected.includes(exitCode) : exitCode === expected;
 }
 
-function assertAssertionRecord(value: unknown, path: string): void {
-  const record = requireRecord(value, path);
-  requireNonEmptyString(record.id, `${path}.id`);
-  requireNonEmptyString(record.matcher, `${path}.matcher`);
-  requireEnum(record.status, ASSERTION_STATUSES, `${path}.status`);
-  requireArray(record.operationIds, `${path}.operationIds`).forEach((id, index) => {
-    requireString(id, `${path}.operationIds[${index}]`);
-  });
-  requireArtifacts(record.artifacts, `${path}.artifacts`);
-  if (record.error !== undefined) requireErrorObject(record.error, `${path}.error`);
-}
-
-function assertOperationError(value: unknown, path: string): void {
-  const record = requireRecord(value, path);
-  requireString(record.code, `${path}.code`);
-  requireString(record.message, `${path}.message`);
-  requireEnum(record.category, OPERATION_ERROR_CATEGORIES, `${path}.category`);
-  if (typeof record.retryable !== "boolean") {
-    throw new SchemaError(`${path}.retryable is not a boolean`);
-  }
-}
-
-function assertOperationRecord(value: unknown, path: string): void {
-  const record = requireRecord(value, path);
-  requireNonEmptyString(record.id, `${path}.id`);
-  requirePositiveInteger(record.ordinal, `${path}.ordinal`);
-  if (typeof record.kind !== "string" || !isOperationKind(record.kind)) {
-    throw new SchemaError(`${path}.kind is not a known operation kind`);
-  }
-  requireString(record.adapterId, `${path}.adapterId`);
-  requireEnum(record.status, OPERATION_STATUSES, `${path}.status`);
-  requireIsoTimestamp(record.startedAt, `${path}.startedAt`);
-  requireIsoTimestamp(record.completedAt, `${path}.completedAt`);
-  requireRecord(record.input, `${path}.input`);
-  requireArtifacts(record.artifacts, `${path}.artifacts`);
-  if (record.confirmation !== undefined) {
-    requireEnum(record.confirmation, CONFIRMATIONS, `${path}.confirmation`);
-  }
-  if (record.error !== undefined) assertOperationError(record.error, `${path}.error`);
-  if (record.metadata !== undefined) requireRecord(record.metadata, `${path}.metadata`);
-}
-
-export function validateTestResult(value: unknown): asserts value is TestResult {
-  const { status, exitCode, assertions } = withSchemaScope("Invalid result schema", () => {
-    const record = requireRecord(value, "result");
-    if (record.resultVersion !== 1) throw new SchemaError("resultVersion must be 1");
-    const status = requireEnum(record.status, RESULT_STATUSES, "status");
-    const exitCode = requireNumber(record.exitCode, "exitCode");
-    if (record.error !== undefined) requireErrorObject(record.error, "error");
-    if (record.cleanupError !== undefined) requireErrorObject(record.cleanupError, "cleanupError");
-    const assertions = requireArray(record.assertions, "assertions");
-    return { status, exitCode, assertions };
-  });
-
-  if (!exitCodeAligns(status, exitCode)) {
-    throw new Error(`Result status "${status}" and exitCode ${exitCode} do not align`);
-  }
-
-  assertions.forEach((assertion, index) => {
-    withSchemaScope("Invalid assertion schema", () =>
-      assertAssertionRecord(assertion, `assertions[${index}]`),
+function assertExitCodeAligns(result: TestResult): void {
+  if (!exitCodeAligns(result.status, result.exitCode)) {
+    throw new Error(
+      `Result status "${result.status}" and exitCode ${result.exitCode} do not align`,
     );
-  });
-}
-
-export function validateTestTrace(value: unknown): asserts value is TestTrace {
-  const operations = withSchemaScope("Invalid trace schema", () => {
-    const record = requireRecord(value, "trace");
-    if (record.traceVersion !== 1) throw new SchemaError("traceVersion must be 1");
-    requireNonEmptyString(record.runId, "runId");
-    requireNonEmptyString(record.targetAlias, "targetAlias");
-    requireIsoTimestamp(record.startedAt, "startedAt");
-    requireIsoTimestamp(record.completedAt, "completedAt");
-    const operations = requireArray(record.operations, "operations");
-    requireArtifacts(record.artifacts, "artifacts");
-    return operations;
-  });
-
-  operations.forEach((operation, index) => {
-    withSchemaScope("Invalid operation record schema", () =>
-      assertOperationRecord(operation, `operations[${index}]`),
-    );
-  });
+  }
 }
 
 // --- Execution ----------------------------------------------------------------
@@ -563,8 +390,9 @@ async function runSessionCleanup(params: {
   return result;
 }
 
-// Publication treats an active SIGINT/SIGTERM as authoritative: every write is followed by
-// applyCancellationPrecedence so a signal that arrives mid-write wins in the persisted result.
+// A publication failure downgrades the result to infrastructure-failed, but an active
+// SIGINT/SIGTERM stays authoritative: reapply cancellation precedence first so a cancelled
+// run is never masked by a write failure.
 function markArtifactPublicationFailure(
   result: TestResult,
   error: unknown,
@@ -591,7 +419,6 @@ async function finalizeAndPublish(params: {
   options: RunTvTestOptions;
 }): Promise<{ result: TestResult; trace: TestTrace }> {
   const { directory, runId, startedAt, operations, artifacts, device, options } = params;
-  let result = params.result;
 
   const trace: TestTrace = {
     traceVersion: 1,
@@ -602,41 +429,33 @@ async function finalizeAndPublish(params: {
     operations,
     artifacts,
   };
-  validateTestTrace(trace);
-  result = applyCancellationPrecedence(result, options);
-  validateTestResult(result);
+
+  // runSessionCleanup already resolved any cancellation active at entry, so publish that verdict
+  // directly. The only remaining race is a SIGINT/SIGTERM landing while these writes are in
+  // flight: re-resolve precedence once after the writes and rewrite result.json if it changed.
+  let result = params.result;
+  assertExitCodeAligns(result);
+  const resultPath = resolveContained(directory, "result.json");
 
   try {
     await publishJson(resolveContained(directory, "trace.json"), trace);
-    result = applyCancellationPrecedence(result, options);
     if (device) {
       await publishJson(resolveContained(directory, "device.json"), publicDevice(device));
-      result = applyCancellationPrecedence(result, options);
     }
     await publishText(
       resolveContained(directory, "diagnostics.log"),
       `${(options.diagnostics ?? []).join("\n")}\n`,
     );
-    result = applyCancellationPrecedence(result, options);
-  } catch (error) {
-    result = markArtifactPublicationFailure(result, error, options);
-    validateTestResult(result);
-  }
-
-  const resultPath = resolveContained(directory, "result.json");
-  result = applyCancellationPrecedence(result, options);
-  validateTestResult(result);
-  try {
     await publishJson(resultPath, result);
-    const publishedResult = result;
-    result = applyCancellationPrecedence(result, options);
-    if (result !== publishedResult) {
-      validateTestResult(result);
-      await publishJson(resultPath, result);
+    const guarded = applyCancellationPrecedence(result, options);
+    if (guarded !== result) {
+      assertExitCodeAligns(guarded);
+      await publishJson(resultPath, guarded);
+      result = guarded;
     }
   } catch (error) {
     result = markArtifactPublicationFailure(result, error, options);
-    validateTestResult(result);
+    assertExitCodeAligns(result);
     await publishJson(resultPath, result).catch(() => undefined);
   }
 

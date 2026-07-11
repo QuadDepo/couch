@@ -12,7 +12,7 @@ import type {
   OperationRecord,
 } from "@couch/device";
 import { createDeviceInventory } from "@couch/device";
-import { runTvTest, validateTestResult, validateTestTrace } from "./runner";
+import { runTvTest } from "./runner";
 
 const ready = { support: "stable", readiness: "ready" } as const;
 const kinds: OperationKind[] = [
@@ -595,60 +595,5 @@ describe("runner artifacts and schema", () => {
     });
     expect(outcome.result.exitCode).toBe(2);
     expect(probed).toBe(false);
-  });
-
-  test("validates result and trace shapes rather than JSON serializability", () => {
-    expect(() =>
-      validateTestResult({
-        resultVersion: 1,
-        status: "passed",
-        exitCode: 2,
-        assertions: [],
-      }),
-    ).toThrow("do not align");
-    expect(() =>
-      validateTestResult({
-        resultVersion: 1,
-        status: "failed",
-        exitCode: 1,
-        assertions: [
-          { id: "a", matcher: "equal", status: "failed", operationIds: [1], artifacts: [] },
-        ],
-      }),
-    ).toThrow("Invalid assertion schema");
-    expect(() =>
-      validateTestTrace({
-        traceVersion: 1,
-        runId: "run",
-        targetAlias: "lab",
-        startedAt: "invalid",
-        completedAt: "invalid",
-        operations: [],
-        artifacts: [],
-      }),
-    ).toThrow("Invalid trace schema");
-    expect(() =>
-      validateTestTrace({
-        traceVersion: 1,
-        runId: "run",
-        targetAlias: "lab",
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        operations: [
-          {
-            id: "operation",
-            ordinal: 1,
-            kind: "control.press",
-            adapterId: "adb",
-            status: "succeeded",
-            startedAt: "invalid",
-            completedAt: "invalid",
-            input: {},
-            artifacts: [],
-          },
-        ],
-        artifacts: [],
-      }),
-    ).toThrow("Invalid operation record schema");
   });
 });
