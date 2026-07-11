@@ -1,11 +1,13 @@
-// Client tracking
-let nodeClient: unknown = null;
-let bridgeClient: unknown = null;
+import type { ServerWebSocket } from "bun";
 
-// Read bridge HTML
+type Client = ServerWebSocket<undefined>;
+
+let nodeClient: Client | null = null;
+let bridgeClient: Client | null = null;
+
 const bridgeHtml = await Bun.file(new URL("./bridge.html", import.meta.url)).text();
 
-function identifyClient(ws: unknown): string {
+function identifyClient(ws: Client): string {
   if (ws === bridgeClient) return "bridge";
   if (ws === nodeClient) return "node";
   return "unknown";
@@ -16,12 +18,10 @@ Bun.serve({
   fetch(req, server) {
     const url = new URL(req.url);
 
-    // WebSocket upgrade
     if (server.upgrade(req)) {
       return undefined;
     }
 
-    // Serve bridge HTML
     if (url.pathname === "/" || url.pathname === "/bridge") {
       return new Response(bridgeHtml, {
         headers: { "Content-Type": "text/html" },
@@ -36,67 +36,58 @@ Bun.serve({
     },
     message(ws, message) {
       const msg = String(message);
-      let data: { type?: string };
 
+      // Network boundary: JSON.parse can yield any valid JSON (including null),
+      // so validate the shape before routing on `type`.
+      let parsed: unknown;
       try {
-        data = JSON.parse(msg);
+        parsed = JSON.parse(msg);
       } catch {
         console.warn(`[!] Non-JSON message from ${identifyClient(ws)}, closing`);
         ws.close(1003, "Unsupported format");
         return;
       }
 
-      // Bridge client identifying itself
-      if (data.type === "BRIDGE_CONNECT") {
+      if (typeof parsed !== "object" || parsed === null) {
+        console.warn(`[!] Non-object message from ${identifyClient(ws)}, closing`);
+        ws.close(1003, "Unsupported format");
+        return;
+      }
+
+      const rawType = (parsed as Record<string, unknown>).type;
+      if (rawType !== undefined && typeof rawType !== "string") {
+        console.warn(`[!] Message with non-string "type" from ${identifyClient(ws)}, closing`);
+        ws.close(1003, "Unsupported format");
+        return;
+      }
+      const type = rawType;
+
+      if (type === "BRIDGE_CONNECT") {
         if (bridgeClient && bridgeClient !== ws) {
           console.log(`[~] Replacing previous bridge connection`);
-          (bridgeClient as { close: (code: number, reason: string) => void }).close(
-            1001,
-            "New bridge connected",
-          );
+          bridgeClient.close(1001, "New bridge connected");
         }
         bridgeClient = ws;
         console.log(`[+] Bridge connected`);
         return;
       }
 
-      // Messages from node client -> forward to bridge
+      // Node -> bridge relay; messages coming back from the bridge are ignored.
       if (ws === nodeClient) {
-        if (bridgeClient) {
-          (bridgeClient as { send: (m: string) => void }).send(msg);
-        }
+        bridgeClient?.send(msg);
         return;
       }
-
-      // Messages from bridge (ignore)
       if (ws === bridgeClient) {
         return;
       }
 
-      // New node client
-      if (!nodeClient) {
-        nodeClient = ws;
-        console.log(`[+] Node client connected`);
-
-        // Log event type
-        if (data.type) {
-          console.log(`[>] ${data.type}`);
-        }
-
-        // Forward to bridge if connected
-        if (bridgeClient) {
-          (bridgeClient as { send: (m: string) => void }).send(msg);
-        }
-      } else if (ws !== nodeClient) {
-        // Forward subsequent messages from node client
-        nodeClient = ws;
-        if (data.type) {
-          console.log(`[>] ${data.type}`);
-        }
-        if (bridgeClient) {
-          (bridgeClient as { send: (m: string) => void }).send(msg);
-        }
+      // Any other client becomes the node client; the most recent one wins.
+      console.log(nodeClient ? `[~] Replacing node client` : `[+] Node client connected`);
+      nodeClient = ws;
+      if (type) {
+        console.log(`[>] ${type}`);
       }
+      bridgeClient?.send(msg);
     },
     close(ws) {
       const clientType = identifyClient(ws);
