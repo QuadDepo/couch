@@ -32,7 +32,12 @@
       },
       "complexity": {
         "noForEach": "off",
-        "useLiteralKeys": "off"
+        "useLiteralKeys": "off",
+        "noExcessiveLinesPerFunction": "warn",
+        "noExcessiveCognitiveComplexity": "warn"
+      },
+      "nursery": {
+        "noExcessiveNestedCallbacks": "warn"
       },
       "correctness": {
         "noUnusedVariables": "error",
