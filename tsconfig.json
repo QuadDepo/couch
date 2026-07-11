@@ -1,8 +1,10 @@
 {
-  "extends": "./tsconfig.base.json",
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "@opentui/react"
-  },
-  "include": ["packages/*/src/**/*", "apps/*/src/**/*"]
+  "files": [],
+  "references": [
+    { "path": "./packages/device" },
+    { "path": "./packages/runner" },
+    { "path": "./apps/cli" },
+    { "path": "./apps/inspector" },
+    { "path": "./apps/tui" }
+  ]
 }
