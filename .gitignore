@@ -16,3 +16,7 @@ dist
 *.tsbuildinfo
 
 artifacts/
+
+# local research/planning scratch (untracked, not for commit)
+/plans/tv-e2e-automation/
+/docs/research/real-tv-e2e-automation.md
