@@ -89,4 +89,12 @@ describe("runner config", () => {
       cleanupTimeoutMs: 5_000,
     });
   });
+
+  test("accepts a webOS application without an Android activity", () => {
+    const config = validateConfig({
+      configVersion: 1,
+      targets: { webos: { deviceId: "webos-1", app: { id: "com.example.app" } } },
+    });
+    expect(config.targets.webos?.app).toEqual({ id: "com.example.app" });
+  });
 });

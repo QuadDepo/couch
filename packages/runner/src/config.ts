@@ -5,7 +5,7 @@ import { isRecord } from "./guards";
 
 export interface TestTargetConfig {
   deviceId: string;
-  app: { id: string; activity: string; artifact?: string };
+  app: { id: string; activity?: string; artifact?: string };
   allowExperimental?: readonly OperationKind[];
   cleanup?: "stop" | "leave-running";
   artifactDirectory?: string;
@@ -96,7 +96,7 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
   if (!isRecord(rawTarget.app)) throw new Error(`targets.${alias}.app must be an object`);
   assertKnownKeys(rawTarget.app, ["id", "activity", "artifact"], `targets.${alias}.app`);
   const appId = requiredString(rawTarget.app.id, `targets.${alias}.app.id`);
-  const appActivity = requiredString(rawTarget.app.activity, `targets.${alias}.app.activity`);
+  const appActivity = optionalString(rawTarget.app.activity, `targets.${alias}.app.activity`);
   const appArtifact = optionalString(rawTarget.app.artifact, `targets.${alias}.app.artifact`);
 
   const cleanup = rawTarget.cleanup;
@@ -131,7 +131,7 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
     deviceId,
     app: {
       id: appId,
-      activity: appActivity,
+      ...(appActivity !== undefined ? { activity: appActivity } : {}),
       ...(appArtifact !== undefined ? { artifact: appArtifact } : {}),
     },
     ...(allowExperimental !== undefined ? { allowExperimental } : {}),

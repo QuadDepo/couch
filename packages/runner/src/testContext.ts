@@ -1,3 +1,4 @@
+import { extname } from "node:path";
 import type { ArtifactReference, DeviceSession, OperationRecord } from "@couch/device";
 import { resolveContained, safeArtifactSegment } from "./artifacts";
 import type { TestTargetConfig } from "./config";
@@ -16,6 +17,16 @@ export type ExecuteOperation = (
 
 function safeName(name: string): string {
   return safeArtifactSegment(name, "tv-test");
+}
+
+function captureName(name: string, format: "png" | "jpg"): string {
+  const safe = safeName(name);
+  const extension = extname(safe).toLowerCase();
+  if (!extension) return `${safe}.${format}`;
+  const valid =
+    format === "png" ? extension === ".png" : extension === ".jpg" || extension === ".jpeg";
+  if (!valid) throw new Error(`screen.capture filename must use a .${format} extension`);
+  return safe;
 }
 
 function wait(ms: number, signal?: AbortSignal): Promise<void> {
@@ -58,9 +69,18 @@ export function buildTestContext(params: {
   directory: string;
   operations: readonly OperationRecord[];
   assertions: AssertionRecord[];
+  captureFormat?: "png" | "jpg";
   signal?: AbortSignal;
 }): TvTestContext {
-  const { execute, target, directory, operations, assertions, signal } = params;
+  const {
+    execute,
+    target,
+    directory,
+    operations,
+    assertions,
+    signal,
+    captureFormat = "png",
+  } = params;
 
   const foreground = async () => {
     const deadline = Date.now() + (target.foregroundTimeoutMs ?? DEFAULT_FOREGROUND_TIMEOUT_MS);
@@ -86,7 +106,7 @@ export function buildTestContext(params: {
           execute({
             kind: "app.launch",
             appId: target.app.id,
-            activity: target.app.activity,
+            ...(target.app.activity ? { activity: target.app.activity } : {}),
           }),
         foreground,
       },
@@ -100,11 +120,11 @@ export function buildTestContext(params: {
         }
       },
       screen: {
-        capture: (name = "actual.png") =>
+        capture: (name = `actual.${captureFormat}`) =>
           execute({
             kind: "screen.capture",
-            format: "png",
-            path: resolveContained(directory, safeName(name)),
+            format: captureFormat,
+            path: resolveContained(directory, captureName(name, captureFormat)),
           }),
       },
     },

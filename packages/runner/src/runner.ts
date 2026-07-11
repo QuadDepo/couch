@@ -77,8 +77,17 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function requiredOperations(test: TvTestDefinition): OperationKind[] {
-  return [...new Set<OperationKind>(["app.stop", ...test.requires])];
+function requiredOperations(
+  test: TvTestDefinition,
+  platform: DeviceDescriptor["platform"],
+  cleanup: TestTargetConfig["cleanup"],
+): OperationKind[] {
+  return [
+    ...new Set<OperationKind>([
+      ...(platform === "android-tv" || cleanup === "stop" ? (["app.stop"] as const) : []),
+      ...test.requires,
+    ]),
+  ];
 }
 
 function withTimeout<T>(task: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -357,13 +366,13 @@ export async function runTvTest(
 
     const inventory =
       typeof options.inventory === "function" ? await options.inventory() : options.inventory;
-    const requires = requiredOperations(test);
     const allowExperimental = target.allowExperimental ?? [];
 
     device = await inventory.getDevice(target.deviceId, { signal: options.signal });
-    if (device.platform !== "android-tv") {
-      throw new Error("Phase 3 supports Android TV targets only");
+    if (device.platform !== "android-tv" && device.platform !== "webos") {
+      throw new Error("TV tests support Android TV and LG webOS targets only");
     }
+    const requires = requiredOperations(test, device.platform, target.cleanup);
     session = await inventory.openSession(target.deviceId, {
       require: requires,
       allowExperimental,
@@ -378,7 +387,9 @@ export async function runTvTest(
       artifacts,
       signal: options.signal,
     });
-    await execute({ kind: "app.stop", appId: target.app.id }, true);
+    if (device.platform === "android-tv") {
+      await execute({ kind: "app.stop", appId: target.app.id }, true);
+    }
 
     const context = buildTestContext({
       execute,
@@ -386,6 +397,7 @@ export async function runTvTest(
       directory,
       operations,
       assertions,
+      captureFormat: device.platform === "webos" ? "jpg" : "png",
       signal: options.signal,
     });
     await test.run(context);

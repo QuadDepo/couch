@@ -565,7 +565,7 @@ describe("runner artifacts and schema", () => {
     expect((await stat(dirname(dirname(directory)))).mode & 0o777).toBe(0o700);
   });
 
-  test("rejects non-Android devices before capability probing", async () => {
+  test("rejects unsupported TV platforms before capability probing", async () => {
     const paths = await createRunnerFixture(
       `export default { name: "webos", requires: [], async run() {} }`,
     );
@@ -582,7 +582,7 @@ describe("runner artifacts and schema", () => {
         getDevice: async () => ({
           id: "android-1",
           name: "WebOS",
-          platform: "webos",
+          platform: "tizen",
           ip: "192.0.2.2",
         }),
         getCapabilities: async () => {
