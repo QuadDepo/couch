@@ -1,3 +1,4 @@
+import { logger } from "../../../utils/logger";
 import { decodeVarint, encodeVarint } from "./framing";
 import {
   EncodingType,
@@ -171,10 +172,36 @@ export interface ParsedMessage {
   payload: Uint8Array;
 }
 
-export function parseMessage(data: Uint8Array): ParsedMessage | null {
+// Envelope field numbers (see wrapMessage). Present on the pairing envelope
+// (PairingMessage), which carries protocol_version in field 1 and status in
+// field 2. The remote envelope (RemoteMessage) has no such fields: its field 1/2
+// are the remote_configure / remote_set_active submessages, so a bare remote
+// frame legitimately carries neither.
+const FIELD_PROTOCOL_VERSION = 1;
+const FIELD_STATUS = 2;
+// Message-type payloads occupy field numbers 1..100 (length-delimited).
+const MAX_MESSAGE_FIELD_NUMBER = 100;
+
+export interface ParseMessageOptions {
+  // Require protocol_version (field 1) and status (field 2) to be present.
+  // The pairing envelope always carries both, so a frame missing either is
+  // under-specified and rejected. The remote envelope carries neither, so
+  // remote callers must pass false or every real remote frame is rejected.
+  requireEnvelope?: boolean;
+}
+
+// This runs at a network trust boundary: reject truncated or malformed frames
+// with a named reason instead of returning a payload shorter than its declared
+// length. When requireEnvelope is set, also reject frames that omit the pairing
+// envelope's protocol_version/status rather than silently defaulting them to 0.
+export function parseMessage(
+  data: Uint8Array,
+  options: ParseMessageOptions = {},
+): ParsedMessage | null {
+  const { requireEnvelope = true } = options;
   let offset = 0;
-  let protocolVersion = 0;
-  let status = 0;
+  let protocolVersion: number | null = null;
+  let status: number | null = null;
   let type = 0;
   let payload = new Uint8Array(0);
 
@@ -191,16 +218,36 @@ export function parseMessage(data: Uint8Array): ParsedMessage | null {
         const { value, bytesRead } = decodeVarint(data, offset);
         offset += bytesRead;
 
-        if (fieldNumber === 1) protocolVersion = value;
-        else if (fieldNumber === 2) status = value;
+        if (fieldNumber === FIELD_PROTOCOL_VERSION) protocolVersion = value;
+        else if (fieldNumber === FIELD_STATUS) status = value;
       } else if (wireType === WIRE_LENGTH_DELIMITED) {
         const { value: length, bytesRead: lengthBytes } = decodeVarint(data, offset);
         offset += lengthBytes;
 
+        // A 5-byte length varint with bit 31 set decodes to a negative 32-bit
+        // int (JS << is signed). Left unchecked it slips past the bounds test
+        // below, drives offset backward, and wedges the parse loop for ~1e8
+        // iterations -- a DoS from an untrusted peer. Reject it outright.
+        if (length < 0) {
+          logger.warn(
+            "AndroidTVRemote",
+            `parseMessage: field ${fieldNumber} declares a negative length (${length})`,
+          );
+          return null;
+        }
+
+        if (offset + length > data.length) {
+          logger.warn(
+            "AndroidTVRemote",
+            `parseMessage: field ${fieldNumber} declares ${length} bytes but only ${data.length - offset} remain`,
+          );
+          return null;
+        }
+
         const fieldData = data.slice(offset, offset + length);
         offset += length;
 
-        if (fieldNumber >= 1 && fieldNumber <= 100) {
+        if (fieldNumber >= 1 && fieldNumber <= MAX_MESSAGE_FIELD_NUMBER) {
           type = fieldNumber;
           payload = fieldData;
         }
@@ -212,7 +259,18 @@ export function parseMessage(data: Uint8Array): ParsedMessage | null {
     return null;
   }
 
-  return { protocolVersion, status, type, payload };
+  if (requireEnvelope) {
+    if (protocolVersion === null) {
+      logger.warn("AndroidTVRemote", "parseMessage: missing required protocolVersion field");
+      return null;
+    }
+    if (status === null) {
+      logger.warn("AndroidTVRemote", "parseMessage: missing required status field");
+      return null;
+    }
+  }
+
+  return { protocolVersion: protocolVersion ?? 0, status: status ?? 0, type, payload };
 }
 
 export function parseSecretPayload(payload: Uint8Array): Uint8Array | null {

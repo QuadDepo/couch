@@ -1,3 +1,12 @@
+// Thrown when a varint's bytes are all present but the value is malformed
+// (continuation bit never clears within the legal width). More input can never
+// make it valid, so callers must surface/discard rather than wait.
+export class InvalidVarintError extends Error {}
+
+// Thrown when a varint is cut off mid-encoding: the bytes seen so far are valid
+// but the terminating byte has not arrived. Callers should wait for more data.
+export class IncompleteVarintError extends Error {}
+
 // Protobuf varint encoding: each byte uses 7 bits for data + 1 continuation bit (MSB).
 // If MSB is set, more bytes follow. Final byte has MSB unset.
 export function encodeVarint(input: number): Uint8Array {
@@ -29,11 +38,11 @@ export function decodeVarint(data: Uint8Array, offset = 0): { value: number; byt
 
     shift += 7;
     if (shift > 35) {
-      throw new Error("Varint too long");
+      throw new InvalidVarintError("Varint too long");
     }
   }
 
-  throw new Error("Incomplete varint");
+  throw new IncompleteVarintError("Incomplete varint");
 }
 
 // Wire format: varint-encoded length prefix followed by the message bytes
@@ -50,26 +59,36 @@ export interface FrameReaderResult {
   remainingBuffer: Uint8Array;
 }
 
+// Returns null (keep buffering) for merely-incomplete input; throws
+// InvalidVarintError for definitively-invalid framing that no future bytes can
+// fix. The two must not be conflated or invalid data wedges the buffer forever.
 function readFramedMessage(buffer: Uint8Array): FrameReaderResult {
   if (buffer.length === 0) {
     return { message: null, remainingBuffer: buffer };
   }
 
+  let messageLength: number;
+  let headerLength: number;
   try {
-    const { value: messageLength, bytesRead: headerLength } = decodeVarint(buffer);
-    const totalLength = headerLength + messageLength;
-
-    if (buffer.length < totalLength) {
+    const header = decodeVarint(buffer);
+    messageLength = header.value;
+    headerLength = header.bytesRead;
+  } catch (error) {
+    if (error instanceof IncompleteVarintError) {
       return { message: null, remainingBuffer: buffer };
     }
+    throw error;
+  }
 
-    const message = buffer.slice(headerLength, totalLength);
-    const remainingBuffer = buffer.slice(totalLength);
-
-    return { message, remainingBuffer };
-  } catch {
+  const totalLength = headerLength + messageLength;
+  if (buffer.length < totalLength) {
     return { message: null, remainingBuffer: buffer };
   }
+
+  const message = buffer.slice(headerLength, totalLength);
+  const remainingBuffer = buffer.slice(totalLength);
+
+  return { message, remainingBuffer };
 }
 
 export function createFrameReader() {
@@ -84,7 +103,15 @@ export function createFrameReader() {
     },
 
     read(): Uint8Array | null {
-      const result = readFramedMessage(buffer);
+      let result: FrameReaderResult;
+      try {
+        result = readFramedMessage(buffer);
+      } catch (error) {
+        // Invalid framing desyncs the stream; discard the buffer so a later
+        // valid frame is not wedged behind the unrecoverable bytes.
+        buffer = new Uint8Array(0);
+        throw error;
+      }
       buffer = new Uint8Array(result.remainingBuffer);
       return result.message;
     },

@@ -88,7 +88,9 @@ export const androidTvRemoteDeviceMachine = createDeviceMachine<
     logic: sessionActor,
     input: (context) => ({
       ip: context.deviceIp,
-      credentials: context.credentials as AndroidTvRemoteCredentials,
+      // The session is only entered behind the hasCredentials guard; validate
+      // here so the session actor receives well-formed credentials, never a cast.
+      credentials: validateAndroidTvRemoteCredentials(context.credentials),
       deviceName: context.deviceName,
     }),
   },

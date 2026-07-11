@@ -53,6 +53,19 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
       sendBack({ type: "CONNECTION_LOST", error: String(error) });
     });
 
+    // Relays a remote command, treating a not-connected state or a send failure
+    // as a lost connection so the machine can retry.
+    const sendCommand = (action: string, send: () => Promise<void>) => {
+      if (!connection.isConnected()) {
+        logger.warn("AndroidTVRemote", `Cannot ${action}: not connected`);
+        return;
+      }
+      send().catch((error) => {
+        logger.error("AndroidTVRemote", `${action} failed: ${error}`);
+        sendBack({ type: "CONNECTION_LOST", error: `${action} failed: ${error}` });
+      });
+    };
+
     receive((event) => {
       if (event.type === "CHECK_HEARTBEAT") {
         if (isConnected && connection.isConnected()) {
@@ -70,28 +83,13 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
           logger.warn("AndroidTVRemote", `Unsupported key: ${event.key}`);
           return;
         }
-
-        if (!connection.isConnected()) {
-          logger.warn("AndroidTVRemote", "Cannot send key: not connected");
-          return;
-        }
-
-        connection.sendKey(Number(keyCode)).catch((error) => {
-          logger.error("AndroidTVRemote", `Key send failed: ${error}`);
-          sendBack({ type: "CONNECTION_LOST", error: `Key command failed: ${error}` });
-        });
+        sendCommand("send key", () => connection.sendKey(Number(keyCode)));
+        return;
       }
 
       if (event.type === "SEND_TEXT") {
-        if (!connection.isConnected()) {
-          logger.warn("AndroidTVRemote", "Cannot send text: not connected");
-          return;
-        }
-
-        connection.sendText(event.text).catch((error) => {
-          logger.error("AndroidTVRemote", `Text send failed: ${error}`);
-          sendBack({ type: "CONNECTION_LOST", error: `Text command failed: ${error}` });
-        });
+        sendCommand("send text", () => connection.sendText(event.text));
+        return;
       }
     });
 

@@ -46,13 +46,24 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
 
   let socket: tls.TLSSocket | null = null;
   let phase: PairingPhase = "connecting";
-  let state: PairingState;
+  // Certificates are generated asynchronously on connect; state is the single
+  // source of truth for both client and server PEMs.
+  const state: PairingState = {
+    clientCertPem: "",
+    clientKeyPem: "",
+    serverCertPem: null,
+    code: null,
+  };
   let pairingTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   const frameReader = createFrameReader();
   let onCodeReady: (() => void) | null = null;
   let resolveResult: ((result: PairingResult) => void) | null = null;
-  let rejectPairing: ((error: Error) => void) | null = null;
+  // Exactly one pairing operation (connect / waitForCode / submitCode) is in
+  // flight at a time. Its rejection lives here so connection-level events
+  // (timeout, socket error, close) settle the awaited operation through one
+  // path. Success paths call operationResolved() to clear it.
+  let rejectActiveOperation: ((error: Error) => void) | null = null;
 
   function clearPairingTimeout() {
     if (pairingTimeoutId) {
@@ -61,28 +72,33 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
     }
   }
 
-  function startPairingTimeout(reject: (error: Error) => void, operation: string) {
+  function beginOperation(operation: string, reject: (error: Error) => void) {
+    rejectActiveOperation = reject;
     clearPairingTimeout();
     pairingTimeoutId = setTimeout(() => {
       logger.error("AndroidTVRemote", `Pairing timeout during ${operation} (${timeout}ms)`);
-      phase = "error";
-      const error = new Error(`Pairing timeout: TV did not respond during ${operation}`);
-      rejectPairing?.(error);
-      reject(error);
+      failActiveOperation(new Error(`Pairing timeout: TV did not respond during ${operation}`));
       disconnect();
     }, timeout);
   }
 
-  // Initialize state without certificates (they'll be generated asynchronously on connect)
-  let clientCertPem: string;
-  let clientKeyPem: string;
+  // Reject the in-flight operation exactly once and stop its timeout.
+  function failActiveOperation(error: Error) {
+    clearPairingTimeout();
+    const reject = rejectActiveOperation;
+    rejectActiveOperation = null;
+    if (reject) {
+      phase = "error";
+      reject(error);
+    }
+  }
 
-  state = {
-    clientCertPem: "",
-    clientKeyPem: "",
-    serverCertPem: null,
-    code: null,
-  };
+  // The in-flight operation resolved on its own success event; stop treating
+  // later connection events as a failure for it.
+  function operationResolved() {
+    clearPairingTimeout();
+    rejectActiveOperation = null;
+  }
 
   function handleMessage(data: Uint8Array) {
     logger.debug("AndroidTVRemote", `Received ${data.length} bytes, phase=${phase}`);
@@ -139,52 +155,65 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
     }
 
     logger.debug("AndroidTVRemote", `Received server secret: ${toHex(serverSecret)}`);
+    verifyServerSecret(serverSecret);
+  }
 
-    if (phase === "waitingForSecretAck" && state.code && state.serverCertPem) {
-      // Server computes its secret with certs in opposite order (server, client)
-      const codeSuffix = state.code.slice(2);
-      const codeBytes = hexToBytes(codeSuffix);
-      const expectedSecret = computePairingSecret(
-        state.serverCertPem,
-        state.clientCertPem,
-        codeBytes,
+  function verifyServerSecret(serverSecret: Uint8Array) {
+    if (phase !== "waitingForSecretAck") return;
+    if (!state.code) return;
+    if (!state.serverCertPem) return;
+
+    // Server derives its secret with the certs in the opposite order (server, client).
+    const codeBytes = hexToBytes(state.code.slice(2));
+    const expectedSecret = computePairingSecret(
+      state.serverCertPem,
+      state.clientCertPem,
+      codeBytes,
+    );
+    logger.debug("AndroidTVRemote", `Expected server secret: ${toHex(expectedSecret)}`);
+
+    if (!arraysEqual(serverSecret, expectedSecret)) {
+      logger.warn(
+        "AndroidTVRemote",
+        "Server secret mismatch - continuing anyway (some TVs don't match exactly)",
       );
-
-      logger.debug("AndroidTVRemote", `Expected server secret: ${toHex(expectedSecret)}`);
-
-      if (!arraysEqual(serverSecret, expectedSecret)) {
-        logger.warn(
-          "AndroidTVRemote",
-          "Server secret mismatch - continuing anyway (some TVs don't match exactly)",
-        );
-      } else {
-        logger.info("AndroidTVRemote", "Server secret verified successfully");
-      }
+      return;
     }
+    logger.info("AndroidTVRemote", "Server secret verified successfully");
   }
 
   function handleSecretAck() {
-    clearPairingTimeout();
-    phase = "complete";
-    if (state.serverCertPem) {
-      resolveResult?.({
-        credentials: {
-          certificate: state.clientCertPem,
-          privateKey: state.clientKeyPem,
-          serverCertificate: state.serverCertPem,
-          lastUpdated: new Date().toISOString(),
-        },
-      });
+    if (!state.serverCertPem) {
+      // Credentials cannot be built without the server cert; fail the pending
+      // submitCode rather than silently completing with no result.
+      failActiveOperation(
+        new Error("Pairing failed: server certificate unavailable at pairing confirmation"),
+      );
+      disconnect();
+      return;
     }
+
+    operationResolved();
+    phase = "complete";
+    resolveResult?.({
+      credentials: {
+        certificate: state.clientCertPem,
+        privateKey: state.clientKeyPem,
+        serverCertificate: state.serverCertPem,
+        lastUpdated: new Date().toISOString(),
+      },
+    });
+    resolveResult = null;
     disconnect();
   }
 
   function sendMessage(data: Uint8Array) {
-    if (socket?.writable) {
-      const framed = frameMessage(data);
-      logger.debug("AndroidTVRemote", `Sending ${framed.length} bytes: ${toHex(framed)}`);
-      socket.write(framed);
+    if (!socket?.writable) {
+      throw new Error(`Pairing send failed: socket not writable during ${phase}`);
     }
+    const framed = frameMessage(data);
+    logger.debug("AndroidTVRemote", `Sending ${framed.length} bytes: ${toHex(framed)}`);
+    socket.write(framed);
   }
 
   function toHex(data: Uint8Array): string {
@@ -199,22 +228,19 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
     // Generate client certificate asynchronously (avoids blocking event loop for 100-500ms)
     logger.debug("AndroidTVRemote", "Generating client certificate...");
     const certData = await generateClientCertificate();
-    clientCertPem = certData.certificate;
-    clientKeyPem = certData.privateKey;
-    state.clientCertPem = clientCertPem;
-    state.clientKeyPem = clientKeyPem;
+    state.clientCertPem = certData.certificate;
+    state.clientKeyPem = certData.privateKey;
     logger.debug("AndroidTVRemote", "Client certificate generated");
 
     return new Promise((resolve, reject) => {
-      // Start timeout for initial connection
-      startPairingTimeout(reject, "connection");
+      beginOperation("connection", reject);
 
       const conn = tls.connect(
         {
           host: ip,
           port: PAIRING_PORT,
-          cert: clientCertPem,
-          key: clientKeyPem,
+          cert: state.clientCertPem,
+          key: state.clientKeyPem,
           rejectUnauthorized: false,
         },
         () => {
@@ -231,7 +257,7 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
           logger.info("AndroidTVRemote", "Sending PAIRING_REQUEST");
           sendMessage(buildPairingRequest("Couch Remote", "androidtvremote2"));
 
-          clearPairingTimeout();
+          operationResolved();
           resolve();
         },
       );
@@ -240,25 +266,31 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
       conn.on("data", (data: Buffer) => {
         const bytes = new Uint8Array(data);
         logger.debug("AndroidTVRemote", `Received raw data: ${data.length} bytes: ${toHex(bytes)}`);
-        frameReader.append(bytes);
-        for (let message = frameReader.read(); message; message = frameReader.read()) {
-          handleMessage(message);
+        try {
+          frameReader.append(bytes);
+          for (let message = frameReader.read(); message; message = frameReader.read()) {
+            handleMessage(message);
+          }
+        } catch (error) {
+          // Invalid framing or a failed send desyncs pairing; fail the pending
+          // operation with a specific error instead of throwing out of the
+          // socket's data listener.
+          const err = error instanceof Error ? error : new Error(String(error));
+          logger.error("AndroidTVRemote", `Pairing message handling failed: ${err.message}`);
+          failActiveOperation(err);
+          disconnect();
         }
       });
 
       conn.on("error", (error: Error) => {
-        clearPairingTimeout();
         logger.error("AndroidTVRemote", `Pairing connection error: ${error.message}`);
-        phase = "error";
-        rejectPairing?.(error);
-        reject(error);
+        failActiveOperation(error);
       });
 
       conn.on("close", () => {
-        clearPairingTimeout();
         logger.info("AndroidTVRemote", `Pairing connection closed, phase=${phase}`);
         if (phase !== "complete") {
-          rejectPairing?.(new Error("Connection closed unexpectedly"));
+          failActiveOperation(new Error("Pairing connection closed unexpectedly"));
         }
       });
     });
@@ -278,11 +310,10 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
         return;
       }
 
-      // Start timeout for waiting for TV to show code
-      startPairingTimeout(reject, "waiting for TV to display code");
+      beginOperation("waiting for TV to display code", reject);
 
       onCodeReady = () => {
-        clearPairingTimeout();
+        operationResolved();
         resolve();
       };
     });
@@ -296,8 +327,6 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
       }
 
       state.code = code.toUpperCase();
-      resolveResult = resolve;
-      rejectPairing = reject;
 
       if (!state.serverCertPem) {
         reject(new Error("Server certificate not available"));
@@ -327,11 +356,12 @@ export function createPairingConnection(ip: string, options: PairingConnectionOp
 
       logger.info("AndroidTVRemote", `Sending SECRET with code suffix: ${codeSuffix}`);
       logger.debug("AndroidTVRemote", `Client secret: ${toHex(clientSecret)}`);
+      // handleSecretAck resolves this once the TV confirms the pairing.
+      resolveResult = resolve;
       sendMessage(buildSecret(clientSecret));
       phase = "waitingForSecretAck";
 
-      // Start timeout for SECRET_ACK response
-      startPairingTimeout(reject, "waiting for pairing confirmation");
+      beginOperation("waiting for pairing confirmation", reject);
     });
   }
 

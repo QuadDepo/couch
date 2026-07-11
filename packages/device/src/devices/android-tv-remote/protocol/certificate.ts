@@ -55,9 +55,34 @@ interface RsaKeyComponents {
   exponent: Uint8Array;
 }
 
+const UNSUPPORTED_KEY_ERROR =
+  "Unsupported certificate: pairing requires an RSA public key, non-RSA keys are not supported";
+
+// The RSA public key carries the modulus (n) and exponent (e); other key types
+// (EC, ed25519) lack them and cannot participate in the pairing secret.
+function isRsaPublicKey(key: forge.pki.PublicKey): key is forge.pki.rsa.PublicKey {
+  return "n" in key && "e" in key;
+}
+
+// Peer certificates arrive at the pairing trust boundary, so a non-RSA key must
+// fail with a domain-specific error rather than a node-forge internal message.
 function extractRsaModulusAndExponent(certificatePem: string): RsaKeyComponents {
-  const cert = forge.pki.certificateFromPem(certificatePem);
-  const publicKey = cert.publicKey as forge.pki.rsa.PublicKey;
+  let cert: forge.pki.Certificate;
+  try {
+    cert = forge.pki.certificateFromPem(certificatePem);
+  } catch (error) {
+    // node-forge rejects non-RSA public keys during parse ("OID is not RSA").
+    const message = error instanceof Error ? error.message : String(error);
+    if (/not\s+rsa/i.test(message)) {
+      throw new Error(UNSUPPORTED_KEY_ERROR);
+    }
+    throw error;
+  }
+
+  const publicKey = cert.publicKey;
+  if (!isRsaPublicKey(publicKey)) {
+    throw new Error(UNSUPPORTED_KEY_ERROR);
+  }
 
   const modulusHex = publicKey.n.toString(16);
   const exponentHex = publicKey.e.toString(16);
