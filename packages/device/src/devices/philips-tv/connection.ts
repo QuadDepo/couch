@@ -14,6 +14,8 @@ const fetchOptions = {
   tls: { rejectUnauthorized: false },
 } as RequestInit;
 
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
 interface DigestChallenge {
   realm: string;
   nonce: string;
@@ -32,8 +34,6 @@ export interface PhilipsConnection {
     deviceId: string,
     deviceName: string,
   ): Promise<PhilipsCredentials>;
-  setCredentials(credentials: PhilipsCredentials): void;
-  hasCredentials(): boolean;
 }
 
 export function createPhilipsConnection(
@@ -86,54 +86,60 @@ export function createPhilipsConnection(
     );
   }
 
-  async function request<T>(method: string, endpoint: string, body?: object): Promise<T> {
-    const uri = `/${API_VERSION}${endpoint}`;
+  function finishPairing(deviceId: string, authKey: string): PhilipsCredentials {
+    const validated = validatePhilipsCredentials({ deviceId, authKey });
+    credentials = validated;
+    return validated;
+  }
+
+  // Philips answers an unauthenticated call with a 401 digest challenge, then
+  // accepts the same call replayed with a signed Authorization header.
+  async function digestFetch(
+    method: string,
+    endpoint: string,
+    username: string,
+    password: string,
+    body?: string,
+  ): Promise<Response> {
     const url = `${baseUrl}${endpoint}`;
+    const uri = `/${API_VERSION}${endpoint}`;
 
-    const options: RequestInit = {
-      ...fetchOptions,
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    };
+    const initial = await fetch(url, { ...fetchOptions, method, headers: JSON_HEADERS, body });
+    if (initial.status !== 401) return initial;
 
-    const initialResponse = await fetch(url, options);
-
-    if (initialResponse.status !== 401 || !credentials) {
-      if (!initialResponse.ok) {
-        throw new Error(`Request failed: ${initialResponse.status}`);
-      }
-      const text = await initialResponse.text();
-      return text ? JSON.parse(text) : ({} as T);
-    }
-
-    const wwwAuth = initialResponse.headers.get("www-authenticate");
+    const wwwAuth = initial.headers.get("www-authenticate");
     if (!wwwAuth) throw new Error("No WWW-Authenticate header");
 
     const challenge = parseDigestChallenge(wwwAuth);
-    if (!credentials) throw new Error("No credentials available");
-    const authHeader = createDigestHeader(
+    const authHeader = createDigestHeader(method, uri, challenge, username, password);
+    return fetch(url, {
+      ...fetchOptions,
       method,
-      uri,
-      challenge,
-      credentials.deviceId,
-      credentials.authKey,
-    );
-
-    const authResponse = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
+      headers: { ...JSON_HEADERS, Authorization: authHeader },
+      body,
     });
+  }
 
-    if (!authResponse.ok) {
-      throw new Error(`Authenticated request failed: ${authResponse.status}`);
+  async function request<T>(method: string, endpoint: string, body?: object): Promise<T> {
+    const url = `${baseUrl}${endpoint}`;
+    const serializedBody = body ? JSON.stringify(body) : undefined;
+
+    const response = credentials
+      ? await digestFetch(
+          method,
+          endpoint,
+          credentials.deviceId,
+          credentials.authKey,
+          serializedBody,
+        )
+      : await fetch(url, { ...fetchOptions, method, headers: JSON_HEADERS, body: serializedBody });
+
+    if (!response.ok) {
+      throw new Error(`${method} ${endpoint} failed: ${response.status}`);
     }
 
-    const text = await authResponse.text();
-    return text ? JSON.parse(text) : ({} as T);
+    const text = await response.text();
+    return JSON.parse(text || "{}");
   }
 
   async function startPairing(deviceName: string): Promise<{
@@ -190,10 +196,8 @@ export function createPhilipsConnection(
     const hexDigest = crypto.createHmac("sha1", secretKeyBytes).update(signData).digest("hex");
     const signature = Buffer.from(hexDigest).toString("base64");
 
-    logger.info("Philips", "Sending pairing grant request", { timestamp, deviceId, signature });
+    logger.info("Philips", "Sending pairing grant request", { timestamp, deviceId });
 
-    const grantUrl = `${baseUrl}/pair/grant`;
-    const uri = `/${API_VERSION}/pair/grant`;
     const grantBody = JSON.stringify({
       auth: {
         auth_AppId: "1",
@@ -211,75 +215,20 @@ export function createPhilipsConnection(
       },
     });
 
-    // First request to get digest challenge (will return 401)
-    const initialResponse = await fetch(grantUrl, {
-      ...fetchOptions,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: grantBody,
-    });
+    const response = await digestFetch("POST", "/pair/grant", deviceId, authKey, grantBody);
+    const text = await response.text();
 
-    logger.info("Philips", "Initial grant response", { status: initialResponse.status });
-
-    if (initialResponse.status !== 401) {
-      // Unexpected - should require auth
-      const text = await initialResponse.text();
-      logger.info("Philips", "Unexpected response (expected 401)", { body: text });
-      if (initialResponse.ok) {
-        const validated = validatePhilipsCredentials({ deviceId, authKey });
-        credentials = validated;
-        return validated;
-      }
-      throw new Error(`Pairing failed: unexpected status ${initialResponse.status}`);
-    }
-
-    // Get digest challenge and create auth header
-    const wwwAuth = initialResponse.headers.get("www-authenticate");
-    if (!wwwAuth) throw new Error("No WWW-Authenticate header in grant response");
-
-    const challenge = parseDigestChallenge(wwwAuth);
-    const authHeader = createDigestHeader("POST", uri, challenge, deviceId, authKey);
-
-    logger.info("Philips", "Sending authenticated grant request");
-
-    // Make authenticated request
-    const authResponse = await fetch(grantUrl, {
-      ...fetchOptions,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
-      body: grantBody,
-    });
-
-    logger.info("Philips", "Grant response", { status: authResponse.status, ok: authResponse.ok });
-
-    const text = await authResponse.text();
-    logger.info("Philips", "Grant response body", { body: text });
-
-    // Handle empty response as success (some TVs do this)
-    if (!text || text.trim() === "") {
-      if (authResponse.ok) {
-        logger.info("Philips", "Empty response with OK status, treating as success");
-        const validated = validatePhilipsCredentials({ deviceId, authKey });
-        credentials = validated;
-        return validated;
-      }
-      throw new Error(`Pairing failed with status ${authResponse.status}`);
+    // Some TVs confirm with an empty or non-JSON body; an OK status is the signal.
+    if (!text.trim()) {
+      if (response.ok) return finishPairing(deviceId, authKey);
+      throw new Error(`Pairing failed with status ${response.status}`);
     }
 
     let data: { error_id?: string };
     try {
       data = JSON.parse(text);
     } catch {
-      // If we can't parse but response was OK, assume success
-      if (authResponse.ok) {
-        logger.info("Philips", "Non-JSON response with OK status, treating as success");
-        const validated = validatePhilipsCredentials({ deviceId, authKey });
-        credentials = validated;
-        return validated;
-      }
+      if (response.ok) return finishPairing(deviceId, authKey);
       throw new Error(`Pairing failed: invalid response - ${text}`);
     }
 
@@ -287,24 +236,12 @@ export function createPhilipsConnection(
       throw new Error(`Pairing confirmation failed: ${data.error_id}`);
     }
 
-    const validated = validatePhilipsCredentials({ deviceId, authKey });
-    credentials = validated;
-    return validated;
-  }
-
-  function setCredentials(creds: PhilipsCredentials): void {
-    credentials = creds;
-  }
-
-  function hasCredentials(): boolean {
-    return credentials !== undefined;
+    return finishPairing(deviceId, authKey);
   }
 
   return {
     request,
     startPairing,
     confirmPairing,
-    setCredentials,
-    hasCredentials,
   };
 }

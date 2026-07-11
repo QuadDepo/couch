@@ -32,6 +32,7 @@ export function fakeWebos() {
     getInputSocket: async () => socket,
     on: (event, callback) => {
       listeners.set(event, callback as (...args: unknown[]) => void);
+      return () => listeners.delete(event);
     },
     isConnected: () => connected,
     isPaired: () => true,

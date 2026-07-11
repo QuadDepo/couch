@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, SimulatedClock, waitFor } from "xstate";
-import { PAIRING_CONNECT_TIMEOUT, PAIRING_USER_INPUT_TIMEOUT } from "../../constants";
+import {
+  HEARTBEAT_INTERVAL,
+  PAIRING_CONNECT_TIMEOUT,
+  PAIRING_USER_INPUT_TIMEOUT,
+} from "../../constants";
 import type { PairingEvent, PairingInput } from "./actors/pairing";
 import type { SessionEvent, SessionInput } from "./actors/session";
 import { tizenDeviceMachine } from "./device";
@@ -199,11 +203,25 @@ describe("tizenDeviceMachine", () => {
     });
 
     test("should transition heartbeat checking to waiting on HEARTBEAT_FAILED", () => {
-      const actor = loadedWithCredentials();
+      const clock = new SimulatedClock();
+      const actor = createActor(testMachine, {
+        input: {
+          platform: "samsung-tizen",
+          deviceId: "test-id",
+          deviceName: "Samsung TV",
+          deviceIp: "192.168.1.200",
+          credentials: { token: "test-token", mac: "" },
+        },
+        clock,
+      });
+      actor.start();
       actor.send({ type: "CONNECT" });
-      actor.send({ type: "CONNECTION_LOST", error: "fail" });
-      // After CONNECTION_LOST with canRetry, we're in retrying + heartbeat goes to waiting
-      // Heartbeat FAILED also triggers retrying at session level
+      actor.send({ type: "CONNECTED" });
+
+      clock.increment(HEARTBEAT_INTERVAL);
+      expect(actor.getSnapshot().matches({ session: { heartbeat: "checking" } })).toBe(true);
+
+      actor.send({ type: "HEARTBEAT_FAILED", error: "no heartbeat response" });
       expect(actor.getSnapshot().matches({ session: { heartbeat: "waiting" } })).toBe(true);
     });
   });

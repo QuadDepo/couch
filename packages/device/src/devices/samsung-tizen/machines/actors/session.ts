@@ -32,17 +32,20 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
       timeout: 15000,
     });
 
-    let isConnected = false;
+    // Tracks whether we have reported a live session, so a close that follows a
+    // failed connect (already surfaced via error/connect rejection) is not
+    // reported a second time. Readiness itself comes from connection.isConnected().
+    let sessionEstablished = false;
 
     connection.on("connect", () => {
-      isConnected = true;
+      sessionEstablished = true;
       logger.info("Tizen", `Connected to ${input.deviceName}`);
       sendBack({ type: "CONNECTED" });
     });
 
     connection.on("close", () => {
-      if (isConnected) {
-        isConnected = false;
+      if (sessionEstablished) {
+        sessionEstablished = false;
         logger.info("Tizen", `Connection closed to ${input.deviceName}`);
         sendBack({ type: "CONNECTION_LOST", error: "Connection closed" });
       }
@@ -55,7 +58,7 @@ export const sessionActor = fromCallback<SessionEvent, SessionInput>(
 
     receive((event) => {
       if (event.type === "CHECK_HEARTBEAT") {
-        if (isConnected && connection.isConnected()) {
+        if (connection.isConnected()) {
           sendBack({ type: "HEARTBEAT_OK" });
         } else {
           logger.warn("Tizen", "Heartbeat failed - connection lost");

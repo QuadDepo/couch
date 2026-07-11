@@ -1,7 +1,9 @@
 import { logger } from "../../utils/logger";
-import { createConnectionEvents } from "./connectionEvents";
+import { createConnectionEvents } from "../shared/connectionEvents";
+import { cancellationError } from "./cancellation";
 import type {
   ConnectionConfig,
+  ConnectionEvent,
   RemoteInputSocket,
   WebOSConnection,
   WebOSRequestMessage,
@@ -14,8 +16,12 @@ import { createRequestChannel } from "./requestChannel";
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_RECONNECT_MS = 5000;
 
-function cancellationError(signal?: AbortSignal): Error {
-  return signal?.reason instanceof Error ? signal.reason : new Error("Operation cancelled");
+function parseSocketPath(payload: unknown): string {
+  if (payload && typeof payload === "object") {
+    const value = (payload as Record<string, unknown>).socketPath;
+    if (typeof value === "string") return value;
+  }
+  throw new Error("No socket path in response");
 }
 
 export function createWebOSConnection(config: ConnectionConfig): WebOSConnection {
@@ -27,7 +33,13 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
   let paired = !!config.clientKey;
   let clientKey = config.clientKey;
   let autoReconnect = config.reconnect ?? DEFAULT_RECONNECT_MS;
-  const events = createConnectionEvents();
+  const events = createConnectionEvents<ConnectionEvent>([
+    "connect",
+    "close",
+    "error",
+    "prompt",
+    "message",
+  ]);
 
   const channel = createRequestChannel({
     ip: config.ip,
@@ -143,12 +155,11 @@ export function createWebOSConnection(config: ConnectionConfig): WebOSConnection
 
   async function getInputSocket(options?: WebOSRequestOptions): Promise<RemoteInputSocket> {
     if (inputSocket) return inputSocket;
-    const data = await channel.request<{ socketPath: string }>(URI_POINTER_INPUT, {}, options);
-    if (!data.socketPath) throw new Error("No socket path in response");
+    const socketPath = await channel.request(URI_POINTER_INPUT, {}, options, parseSocketPath);
     inputSocket = await openPointerInput({
       ...options,
       ip: config.ip,
-      socketPath: data.socketPath,
+      socketPath,
       timeout,
       useSsl,
       onClose: () => {

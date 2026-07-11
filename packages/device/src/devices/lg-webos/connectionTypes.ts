@@ -6,7 +6,7 @@ export interface WebOSConnection {
   subscribe(uri: string, payload: object, callback: (data: any) => void): Promise<void>;
   getInputSocket(options?: WebOSRequestOptions): Promise<RemoteInputSocket>;
   // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
-  on(event: ConnectionEvent, callback: (...args: any[]) => void): void;
+  on(event: ConnectionEvent, callback: (...args: any[]) => void): () => void;
   isConnected(): boolean;
   isPaired(): boolean;
   getClientKey(): string | undefined;
@@ -40,7 +40,7 @@ export interface WebOSResponseMessage {
 
 export interface ConnectionConfig {
   ip: string;
-  mac: string;
+  mac?: string;
   clientKey?: string;
   timeout?: number;
   reconnect?: number;

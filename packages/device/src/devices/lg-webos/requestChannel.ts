@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs";
 import { logger } from "../../utils/logger";
+import { cancellationError } from "./cancellation";
 import type {
   WebOSRequestMessage,
   WebOSRequestOptions,
@@ -11,13 +12,12 @@ import { getKeyFilePath, PAIRING_MANIFEST } from "./protocol";
 const LOG_TRUNCATE_LENGTH = 200;
 
 function throwIfAborted(signal?: AbortSignal): void {
-  if (!signal?.aborted) return;
-  throw signal.reason instanceof Error ? signal.reason : new Error("Operation cancelled");
+  if (signal?.aborted) throw cancellationError(signal);
 }
 
 interface RequestChannelOptions {
   ip: string;
-  mac: string;
+  mac?: string;
   timeout: number;
   getClientKey: () => string | undefined;
   setClientKey: (clientKey: string) => void;
@@ -30,6 +30,8 @@ export function createRequestChannel(options: RequestChannelOptions) {
   // biome-ignore lint/suspicious/noExplicitAny: WebOS subscription payloads have dynamic shapes that vary by URI
   const subscriptions = new Map<string, (data: any) => void>();
   let cidCount = 0;
+  // WebOS correlates each response to its request by `cid`: an 8-hex random
+  // prefix plus a 4-hex per-connection counter, e.g. "1a2b3c4d0000".
   const cidPrefix = `0000000${Math.floor(Math.random() * 0xffffffff).toString(16)}`.slice(-8);
   const getCid = () => cidPrefix + `000${(cidCount++).toString(16)}`.slice(-4);
 
@@ -63,6 +65,9 @@ export function createRequestChannel(options: RequestChannelOptions) {
     uri: string,
     payload: object = {},
     requestOptions: WebOSRequestOptions = {},
+    // Responses are untyped on the wire; callers wanting a concrete T pass a
+    // parser that narrows the payload rather than blindly asserting it.
+    parse: (payload: unknown) => T = (value) => value as T,
   ): Promise<T> {
     throwIfAborted(requestOptions.signal);
     const id = getCid();
@@ -70,7 +75,7 @@ export function createRequestChannel(options: RequestChannelOptions) {
       ...requestOptions,
       timeout: options.timeout,
       timeoutMessage: "Request timeout",
-      onResolve: (value) => value as T,
+      onResolve: parse,
     });
     try {
       send({ id, type: "request", uri, payload });
@@ -119,14 +124,15 @@ export function createRequestChannel(options: RequestChannelOptions) {
       return;
     }
     if (pending.has(message.id)) {
-      if (payload && (payload.errorCode || payload.errorText || !payload.returnValue)) {
-        pending.reject(
-          message.id,
-          new Error(
-            `Request failed: ${payload?.errorText || payload?.errorCode || "Unknown error"}`,
-          ),
-        );
-      } else pending.resolve(message.id, payload);
+      const isFailed =
+        !!payload && (!!payload.errorCode || !!payload.errorText || !payload.returnValue);
+
+      if (isFailed) {
+        const failureMessage = String(payload?.errorText || payload?.errorCode || "Unknown error");
+        pending.reject(message.id, new Error(`Request failed: ${failureMessage}`));
+      } else {
+        pending.resolve(message.id, payload);
+      }
       return;
     }
     if (payload) subscriptions.get(message.id)?.(payload);

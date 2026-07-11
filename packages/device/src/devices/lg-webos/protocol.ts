@@ -149,18 +149,16 @@ let keysDirInitialized = false;
 function getKeysDir(): string {
   const dir = path.join(homedir(), ".config", "couch", "webos-keys");
   if (!keysDirInitialized) {
-    try {
-      mkdirSync(dir, { recursive: true });
-    } catch {
-      // Directory already exists
-    }
+    // Recursive mkdir is a no-op when the directory exists; any error it does
+    // throw (permissions, a file in the way) is real and should surface.
+    mkdirSync(dir, { recursive: true });
     keysDirInitialized = true;
   }
   return dir;
 }
 
-export function getKeyFilePath(ip: string, mac: string): string {
+export function getKeyFilePath(ip: string, mac?: string): string {
   const safeIp = ip.replace(/\./g, "");
-  const safeMac = mac.replace(/:/g, "");
+  const safeMac = mac?.replace(/:/g, "") ?? "";
   return path.join(getKeysDir(), `keyfile_${safeIp}_${safeMac}`);
 }

@@ -1,4 +1,5 @@
 import { logger } from "../../utils/logger";
+import { cancellationError } from "./cancellation";
 import type { RemoteInputSocket, WebOSRequestOptions } from "./connectionTypes";
 import { WEBSOCKET_PORT, WEBSOCKET_SSL_PORT } from "./protocol";
 
@@ -10,11 +11,17 @@ interface PointerInputOptions extends WebOSRequestOptions {
   onClose: () => void;
 }
 
+// The TV may hand back either an absolute ws(s):// URL or a bare path to append
+// to the same host/port used for the main socket.
+function buildSocketUrl(ip: string, socketPath: string, useSsl: boolean): string {
+  if (socketPath.startsWith("ws://") || socketPath.startsWith("wss://")) return socketPath;
+  const scheme = useSsl ? "wss" : "ws";
+  const port = useSsl ? WEBSOCKET_SSL_PORT : WEBSOCKET_PORT;
+  return `${scheme}://${ip}:${port}${socketPath}`;
+}
+
 export function openPointerInput(options: PointerInputOptions): Promise<RemoteInputSocket> {
-  const socketUrl =
-    options.socketPath.startsWith("ws://") || options.socketPath.startsWith("wss://")
-      ? options.socketPath
-      : `${options.useSsl ? "wss" : "ws"}://${options.ip}:${options.useSsl ? WEBSOCKET_SSL_PORT : WEBSOCKET_PORT}${options.socketPath}`;
+  const socketUrl = buildSocketUrl(options.ip, options.socketPath, options.useSsl);
   const webSocket = new WebSocket(socketUrl, { tls: { rejectUnauthorized: false } });
 
   return new Promise((resolve, reject) => {
@@ -40,12 +47,7 @@ export function openPointerInput(options: PointerInputOptions): Promise<RemoteIn
       }
       reject(error instanceof Error ? error : new Error(String(error)));
     };
-    const abort = () =>
-      fail(
-        options.signal?.reason instanceof Error
-          ? options.signal.reason
-          : new Error("Operation cancelled"),
-      );
+    const abort = () => fail(cancellationError(options.signal));
     const onError = (error: unknown) => {
       logger.error("WebOS", `Input socket error: ${error}`);
       fail(error);

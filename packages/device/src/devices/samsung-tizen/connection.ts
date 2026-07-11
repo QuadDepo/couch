@@ -1,4 +1,5 @@
 import { logger } from "../../utils/logger";
+import { createConnectionEvents } from "../shared/connectionEvents";
 import {
   buildDeviceInfoUrl,
   buildKeyCommand,
@@ -10,7 +11,7 @@ import {
 const DEFAULT_TIMEOUT_MS = 15000;
 const LOG_TRUNCATE_LENGTH = 200;
 
-export type ConnectionEvent = "connect" | "close" | "error" | "prompt" | "message";
+export type ConnectionEvent = "connect" | "close" | "error" | "message";
 
 interface ConnectionConfig {
   ip: string;
@@ -25,7 +26,7 @@ export interface TizenConnection {
   sendText(text: string): Promise<void>;
   sendInputEnd(): Promise<void>;
   // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
-  on(event: ConnectionEvent, callback: (...args: any[]) => void): void;
+  on(event: ConnectionEvent, callback: (...args: any[]) => void): () => void;
   isConnected(): boolean;
   getToken(): string | undefined;
 }
@@ -45,23 +46,7 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
   let connected = false;
   let sessionToken = config.token;
 
-  // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
-  const listeners: Map<ConnectionEvent, Set<(...args: any[]) => void>> = new Map([
-    ["connect", new Set()],
-    ["close", new Set()],
-    ["error", new Set()],
-    ["prompt", new Set()],
-    ["message", new Set()],
-  ]);
-
-  function emit(event: ConnectionEvent, ...args: unknown[]): void {
-    const callbacks = listeners.get(event);
-    if (callbacks) {
-      for (const cb of callbacks) {
-        cb(...args);
-      }
-    }
-  }
+  const events = createConnectionEvents<ConnectionEvent>(["connect", "close", "error", "message"]);
 
   async function fetchMac(): Promise<string | undefined> {
     try {
@@ -93,16 +78,20 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
     );
 
     return new Promise<void>((resolve, reject) => {
-      let resolved = false;
+      let settled = false;
+      const finish = (error?: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        if (error) reject(error instanceof Error ? error : new Error(String(error)));
+        else resolve();
+      };
+
       const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          reject(new Error("Connection timeout"));
-          if (ws) {
-            ws.close();
-            ws = null;
-          }
-        }
+        if (settled) return;
+        finish(new Error("Connection timeout"));
+        ws?.close();
+        ws = null;
       }, timeout);
 
       try {
@@ -118,38 +107,23 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
         });
 
         ws.addEventListener("message", (event) => {
-          handleMessage(String(event.data), () => {
-            if (!resolved) {
-              resolved = true;
-              clearTimeout(timeoutId);
-              resolve();
-            }
-          });
+          handleMessage(String(event.data), () => finish());
         });
 
         ws.addEventListener("close", (event) => {
           logger.info("Tizen", `WebSocket closed: code=${event.code}`);
           connected = false;
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeoutId);
-            reject(new Error(`Connection closed: code=${event.code}`));
-          }
-          emit("close", event);
+          finish(new Error(`Connection closed: code=${event.code}`));
+          events.emit("close", event);
         });
 
         ws.addEventListener("error", (error) => {
           logger.error("Tizen", `WebSocket error: ${error}`);
-          emit("error", error);
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeoutId);
-            reject(error);
-          }
+          events.emit("error", error);
+          finish(error);
         });
       } catch (error) {
-        clearTimeout(timeoutId);
-        reject(error);
+        finish(error);
       }
     });
   }
@@ -166,7 +140,7 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
     }
 
     logger.debug("Tizen", `Received event: ${message.event}`);
-    emit("message", message);
+    events.emit("message", message);
 
     if (message.event === "ms.channel.connect") {
       const token = message.data?.token;
@@ -174,7 +148,7 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
         sessionToken = token;
         logger.info("Tizen", "Received token from TV");
       }
-      emit("connect");
+      events.emit("connect");
       onConnected();
 
       fetchMac().then((mac) => {
@@ -185,28 +159,24 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
     }
   }
 
-  async function sendKey(key: string): Promise<void> {
+  function send(command: string, logMessage: string): void {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       throw new Error("Not connected");
     }
-    ws.send(buildKeyCommand(key));
-    logger.debug("Tizen", `Sent key: ${key}`);
+    ws.send(command);
+    logger.debug("Tizen", logMessage);
+  }
+
+  async function sendKey(key: string): Promise<void> {
+    send(buildKeyCommand(key), `Sent key: ${key}`);
   }
 
   async function sendText(text: string): Promise<void> {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      throw new Error("Not connected");
-    }
-    ws.send(buildTextCommand(text));
-    logger.debug("Tizen", `Sent text: ${text}`);
+    send(buildTextCommand(text), `Sent text: ${text}`);
   }
 
   async function sendInputEnd(): Promise<void> {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      throw new Error("Not connected");
-    }
-    ws.send(buildTextEndCommand());
-    logger.debug("Tizen", "Sent InputEnd (confirm)");
+    send(buildTextEndCommand(), "Sent InputEnd (confirm)");
   }
 
   function disconnect(): void {
@@ -223,10 +193,7 @@ export function createTizenConnection(config: ConnectionConfig): TizenConnection
     sendKey,
     sendText,
     sendInputEnd,
-    // biome-ignore lint/suspicious/noExplicitAny: Event callbacks have varying argument types per event
-    on(event: ConnectionEvent, callback: (...args: any[]) => void) {
-      listeners.get(event)?.add(callback);
-    },
+    on: events.on,
     isConnected: () => connected,
     getToken: () => sessionToken,
   };
