@@ -82,9 +82,10 @@ describe("DeviceInventory preflight", () => {
       registry: {
         getRegistration: () => ({
           ...registration(fakeDriver()),
-          getCapabilities: () => ({
-            "control.press": { support: "stable", readiness: "ready" },
-          }),
+          getCapabilities: () =>
+            new Map<OperationKind, OperationCapability>([
+              ["control.press", { support: "stable", readiness: "ready" }],
+            ]),
         }),
       },
     });

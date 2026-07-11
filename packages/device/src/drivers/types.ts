@@ -33,10 +33,7 @@ export interface DriverRegistration {
     options?: { signal?: AbortSignal },
   ) =>
     | ReadonlyMap<OperationKind, OperationCapability>
-    | Record<string, OperationCapability>
-    | Promise<
-        ReadonlyMap<OperationKind, OperationCapability> | Record<string, OperationCapability>
-      >;
+    | Promise<ReadonlyMap<OperationKind, OperationCapability>>;
 }
 
 export interface DriverRegistry {

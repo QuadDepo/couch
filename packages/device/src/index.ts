@@ -1,10 +1,7 @@
 // Types
 
-// App constants
-export { APP_NAME } from "./constants/app";
 // Actor types
 export type { DeviceActor, DeviceSnapshot, StoredDeviceActor } from "./devices/actors";
-export { capabilities as androidTVCapabilities } from "./devices/android-tv/capabilities";
 export type {
   AndroidTVDeviceMachine,
   AndroidTVDeviceMachineActor,
@@ -14,7 +11,6 @@ export {
   androidTVDeviceMachine,
   INSTRUCTION_STEPS,
 } from "./devices/android-tv/machines/device";
-export { capabilities as androidTvRemoteCapabilities } from "./devices/android-tv-remote/capabilities";
 export type {
   AndroidTvRemoteDeviceMachine,
   AndroidTvRemoteDeviceMachineActor,
@@ -23,16 +19,12 @@ export type {
 export { androidTvRemoteDeviceMachine } from "./devices/android-tv-remote/machines/device";
 // Common device events
 export type { CommonDeviceEvent } from "./devices/commonEvents";
-// Device constants
-export { calculateRetryDelay, HEARTBEAT_INTERVAL } from "./devices/constants";
 // Factory
 export {
   implementedPlatforms,
   isPlatformImplemented,
   wrapPlatformCredentials,
 } from "./devices/factory";
-// Capabilities (renamed to avoid collision)
-export { capabilities as webosCapabilities } from "./devices/lg-webos/capabilities";
 // Machine types
 export type {
   WebOSDeviceMachine,
@@ -40,7 +32,6 @@ export type {
 } from "./devices/lg-webos/machines/device";
 // Machines
 export { webosDeviceMachine } from "./devices/lg-webos/machines/device";
-export { capabilities as philipsCapabilities } from "./devices/philips-tv/capabilities";
 export type {
   PhilipsDeviceMachine,
   PhilipsDeviceMachineActor,
@@ -49,7 +40,6 @@ export { philipsDeviceMachine } from "./devices/philips-tv/machines/device";
 // Platform registry
 export type { ImplementedPlatform, PlatformRegistration } from "./devices/registry";
 export { platformRegistry } from "./devices/registry";
-export { capabilities as tizenCapabilities } from "./devices/samsung-tizen/capabilities";
 export type {
   TizenDeviceMachine,
   TizenDeviceMachineActor,
@@ -97,18 +87,14 @@ export type {
   Support,
 } from "./operations/types";
 export { isOperationKind } from "./operations/types";
-// SDK availability check
-export { checkSDKAvailability, type SDKAvailability } from "./sdk-check";
 export type { DeviceSession, ExecuteOptions } from "./sessions/deviceSession";
-export { DeviceSessionError } from "./sessions/deviceSession";
 export type {
   ConnectionStatus,
   RemoteKey,
   TVDevice,
   TVPlatform,
 } from "./types/index";
-export { isRemoteKey, REMOTE_KEYS } from "./types/index";
+export { isRemoteKey } from "./types/index";
 // Utils
 export { atomicWrite } from "./utils/atomicWrite";
 export { logger } from "./utils/logger";
-export { isValidIp } from "./utils/network";

@@ -21,7 +21,7 @@ export interface DeviceSession {
   close(): Promise<void>;
 }
 
-export class DeviceSessionError extends Error {
+class DeviceSessionError extends Error {
   constructor(
     readonly code: string,
     message: string,

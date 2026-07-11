@@ -5,7 +5,6 @@ import type { DeviceDriver, DriverRegistration } from "../drivers/types";
 import { createDeviceLock, DEFAULT_DEVICE_LOCK_DIRECTORY } from "../locks/deviceLock";
 import { evaluateRequirement } from "../operations/requirements";
 import type { OperationCapability, OperationKind } from "../operations/types";
-import { isOperationKind } from "../operations/types";
 import { DeviceSessionImpl } from "../sessions/deviceSession";
 import { awaitWithAbort, throwIfAborted } from "../sessions/timing";
 import { loadDevices } from "./loadInventory";
@@ -17,20 +16,6 @@ import {
   type InventoryLoader,
   type InventoryTarget,
 } from "./types";
-
-async function capabilitiesFor(
-  registration: DriverRegistration,
-  target: InventoryTarget,
-  signal?: AbortSignal,
-): Promise<ReadonlyMap<OperationKind, OperationCapability>> {
-  const capabilities = await registration.getCapabilities(target, { signal });
-  if (capabilities instanceof Map) return capabilities;
-  const result = new Map<OperationKind, OperationCapability>();
-  for (const [kind, capability] of Object.entries(capabilities)) {
-    if (isOperationKind(kind)) result.set(kind, capability);
-  }
-  return result;
-}
 
 function requireRegistration(
   registry: NonNullable<DeviceInventoryOptions["registry"]>,
@@ -128,7 +113,10 @@ export function createDeviceInventory(options: DeviceInventoryOptions = {}): Dev
       const target = await findTarget(id, query.signal);
       const registration = requireRegistration(registry, target);
       throwIfAborted(query.signal);
-      return awaitWithAbort(capabilitiesFor(registration, target, query.signal), query.signal);
+      return awaitWithAbort(
+        Promise.resolve(registration.getCapabilities(target, { signal: query.signal })),
+        query.signal,
+      );
     },
 
     async openSession(id, openOptions) {
@@ -136,7 +124,7 @@ export function createDeviceInventory(options: DeviceInventoryOptions = {}): Dev
       const registration = requireRegistration(registry, target);
       throwIfAborted(openOptions.signal);
       const capabilities = await awaitWithAbort(
-        capabilitiesFor(registration, target, openOptions.signal),
+        Promise.resolve(registration.getCapabilities(target, { signal: openOptions.signal })),
         openOptions.signal,
       );
       const allowExperimental = openOptions.allowExperimental ?? [];
