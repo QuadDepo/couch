@@ -62,7 +62,7 @@ describe("DeviceInventory", () => {
 
     await expect(
       inventory.openSession(testDevice.id, { require: ["control.press"] }),
-    ).rejects.toMatchObject({ code: "unsupported-operation" });
+    ).rejects.toMatchObject({ code: "UNSUPPORTED_OPERATION" });
     expect(driver.calls).toEqual([]);
   });
 

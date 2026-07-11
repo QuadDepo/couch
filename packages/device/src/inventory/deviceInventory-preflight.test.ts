@@ -73,7 +73,7 @@ describe("DeviceInventory preflight", () => {
 
     await expect(
       inventory.openSession(testDevice.id, { require: ["control.press"] }),
-    ).rejects.toMatchObject({ code: "experimental-operation" });
+    ).rejects.toMatchObject({ code: "EXPERIMENTAL_OPERATION" });
   });
 
   test("normalizes capability records from custom registrations", async () => {

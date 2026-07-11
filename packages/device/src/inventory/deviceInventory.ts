@@ -1,7 +1,9 @@
 import { createDiagnosticEvent, emitDiagnostic } from "../diagnostics/events";
-import { createDriverRegistry, getLockResourceId } from "../drivers/registry";
+import { deviceLockResourceId } from "../drivers/lockResourceId";
+import { createDriverRegistry } from "../drivers/registry";
 import type { DeviceDriver, DriverRegistration } from "../drivers/types";
 import { createDeviceLock, DEFAULT_DEVICE_LOCK_DIRECTORY } from "../locks/deviceLock";
+import { evaluateRequirement } from "../operations/requirements";
 import type { OperationCapability, OperationKind } from "../operations/types";
 import { isOperationKind } from "../operations/types";
 import { DeviceSessionImpl } from "../sessions/deviceSession";
@@ -37,8 +39,8 @@ function requireRegistration(
   const registration = registry.getRegistration(describeDevice(target));
   if (!registration) {
     throw new DeviceInventoryError(
-      "driver-not-found",
-      `No driver is registered for ${target.platform}`,
+      "DRIVER_NOT_FOUND",
+      `No operation driver is available for ${target.platform} (device ${target.id})`,
     );
   }
   return registration;
@@ -52,20 +54,39 @@ function checkRequirements(
 ): void {
   for (const kind of require) {
     const capability = capabilities.get(kind);
-    if (capability?.readiness !== "ready" || capability.support === "unsupported") {
+    const block = evaluateRequirement(capability, kind, allowExperimental);
+    if (!block) continue;
+
+    if (block.reason === "experimental") {
       throw new DeviceInventoryError(
-        "unsupported-operation",
-        `${kind} is not ready for ${target.id}`,
+        "EXPERIMENTAL_OPERATION",
+        `${kind} requires explicit target approval for ${target.id}`,
         "unsupported",
       );
     }
-    if (capability.support === "experimental" && !allowExperimental.includes(kind)) {
+
+    if (block.reason === "missing") {
       throw new DeviceInventoryError(
-        "experimental-operation",
-        `${kind} requires explicit target approval`,
+        "UNSUPPORTED_OPERATION",
+        `${kind} is not offered by any driver for ${target.id}`,
         "unsupported",
       );
     }
+
+    if (block.reason === "not-ready") {
+      throw new DeviceInventoryError(
+        "UNSUPPORTED_OPERATION",
+        `${kind} is not ready for ${target.id} (readiness: ${block.readiness})`,
+        "unsupported",
+      );
+    }
+
+    const detail = capability?.reason ? `: ${capability.reason}` : "";
+    throw new DeviceInventoryError(
+      "UNSUPPORTED_OPERATION",
+      `${kind} is unsupported for ${target.id}${detail}`,
+      "unsupported",
+    );
   }
 }
 
@@ -89,7 +110,7 @@ export function createDeviceInventory(options: DeviceInventoryOptions = {}): Dev
   async function findTarget(id: string, signal?: AbortSignal): Promise<InventoryTarget> {
     throwIfAborted(signal);
     const target = (await awaitWithAbort(inventory(), signal)).find((item) => item.id === id);
-    if (!target) throw new DeviceInventoryError("device-not-found", `Device ${id} was not found`);
+    if (!target) throw new DeviceInventoryError("DEVICE_NOT_FOUND", `Device ${id} was not found`);
     return target;
   }
 
@@ -121,7 +142,7 @@ export function createDeviceInventory(options: DeviceInventoryOptions = {}): Dev
       const allowExperimental = openOptions.allowExperimental ?? [];
       checkRequirements(capabilities, target, openOptions.require, allowExperimental);
       throwIfAborted(openOptions.signal);
-      const lockHandle = await lock.acquire(getLockResourceId(target, registration), {
+      const lockHandle = await lock.acquire(deviceLockResourceId(target), {
         runId,
         signal: openOptions.signal,
       });
@@ -133,7 +154,7 @@ export function createDeviceInventory(options: DeviceInventoryOptions = {}): Dev
         throwIfAborted(openOptions.signal);
         if (!(await driver.isReady())) {
           throw new DeviceInventoryError(
-            "driver-not-ready",
+            "DRIVER_NOT_READY",
             `Driver ${registration.driverId} is not ready`,
           );
         }
