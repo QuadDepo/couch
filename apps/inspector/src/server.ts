@@ -2,6 +2,12 @@ import type { ServerWebSocket } from "bun";
 
 type Client = ServerWebSocket<undefined>;
 
+const PORT = 8080;
+
+// RFC 6455 WebSocket close codes.
+const WS_CLOSE_GOING_AWAY = 1001;
+const WS_CLOSE_UNSUPPORTED = 1003;
+
 let nodeClient: Client | null = null;
 let bridgeClient: Client | null = null;
 
@@ -14,7 +20,7 @@ function identifyClient(ws: Client): string {
 }
 
 Bun.serve({
-  port: 8080,
+  port: PORT,
   fetch(req, server) {
     const url = new URL(req.url);
 
@@ -44,20 +50,20 @@ Bun.serve({
         parsed = JSON.parse(msg);
       } catch {
         console.warn(`[!] Non-JSON message from ${identifyClient(ws)}, closing`);
-        ws.close(1003, "Unsupported format");
+        ws.close(WS_CLOSE_UNSUPPORTED, "Unsupported format");
         return;
       }
 
       if (typeof parsed !== "object" || parsed === null) {
         console.warn(`[!] Non-object message from ${identifyClient(ws)}, closing`);
-        ws.close(1003, "Unsupported format");
+        ws.close(WS_CLOSE_UNSUPPORTED, "Unsupported format");
         return;
       }
 
       const rawType = (parsed as Record<string, unknown>).type;
       if (rawType !== undefined && typeof rawType !== "string") {
         console.warn(`[!] Message with non-string "type" from ${identifyClient(ws)}, closing`);
-        ws.close(1003, "Unsupported format");
+        ws.close(WS_CLOSE_UNSUPPORTED, "Unsupported format");
         return;
       }
       const type = rawType;
@@ -65,7 +71,7 @@ Bun.serve({
       if (type === "BRIDGE_CONNECT") {
         if (bridgeClient && bridgeClient !== ws) {
           console.log(`[~] Replacing previous bridge connection`);
-          bridgeClient.close(1001, "New bridge connected");
+          bridgeClient.close(WS_CLOSE_GOING_AWAY, "New bridge connected");
         }
         bridgeClient = ws;
         console.log(`[+] Bridge connected`);
@@ -102,7 +108,7 @@ Bun.serve({
 console.log(`
 XState Inspector Bridge Server
 ==============================
-1. Open http://localhost:8080 in your browser
+1. Open http://localhost:${PORT} in your browser
 2. Allow the pop-up for stately.ai/inspect
 3. Run your app: XSTATE_INSPECT=true bun dev
 `);

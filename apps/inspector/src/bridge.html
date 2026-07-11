@@ -65,8 +65,8 @@
 
             try {
                 inspectorWindow.postMessage(data, '*');
-            } catch (e) {
-                console.error("[Bridge] postMessage error:", e);
+            } catch (error) {
+                console.error("[Bridge] postMessage error:", error);
             }
         }
 
@@ -86,8 +86,8 @@
                 try {
                     const data = JSON.parse(event.data);
                     forwardToInspector(data);
-                } catch (e) {
-                    console.error("[Bridge] Parse error:", e);
+                } catch (error) {
+                    console.error("[Bridge] Parse error:", error);
                 }
             };
 
