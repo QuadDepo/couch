@@ -1,11 +1,11 @@
 // Thrown when a varint's bytes are all present but the value is malformed
 // (continuation bit never clears within the legal width). More input can never
 // make it valid, so callers must surface/discard rather than wait.
-export class InvalidVarintError extends Error {}
+class InvalidVarintError extends Error {}
 
 // Thrown when a varint is cut off mid-encoding: the bytes seen so far are valid
 // but the terminating byte has not arrived. Callers should wait for more data.
-export class IncompleteVarintError extends Error {}
+class IncompleteVarintError extends Error {}
 
 // Protobuf varint encoding: each byte uses 7 bits for data + 1 continuation bit (MSB).
 // If MSB is set, more bytes follow. Final byte has MSB unset.
