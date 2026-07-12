@@ -35,6 +35,12 @@ export interface TvTestContext {
   expect: {
     foreground(record?: OperationRecord): void;
     equal<T>(actual: T, expected: T, message?: string): void;
+    poll<T>(
+      actual: () => T | Promise<T>,
+      options?: { attempts?: number; intervalMs?: number },
+    ): {
+      equal(expected: T, message?: string): Promise<void>;
+    };
     visualRegion(name: string, options: VisualRegionOptions): Promise<void>;
   };
 }

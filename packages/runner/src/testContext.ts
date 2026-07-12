@@ -523,6 +523,35 @@ export function buildTestContext(params: {
         recordAssertion(assertions, "equal", passed, failureMessage);
         if (!passed) throw new AssertionFailure(failureMessage);
       },
+      poll(actual, options = {}) {
+        const attempts = options.attempts ?? 3;
+        const intervalMs = options.intervalMs ?? 1_000;
+        if (!Number.isInteger(attempts) || attempts <= 0) {
+          throw new Error("expect.poll attempts must be a positive integer");
+        }
+        if (!Number.isFinite(intervalMs) || intervalMs < 0) {
+          throw new Error("expect.poll intervalMs must be a non-negative number");
+        }
+        return {
+          async equal(expected, message) {
+            let observed: typeof expected;
+            for (let attempt = 1; attempt <= attempts; attempt += 1) {
+              signal?.throwIfAborted();
+              observed = await actual();
+              signal?.throwIfAborted();
+              if (Object.is(observed, expected)) {
+                recordAssertion(assertions, "poll.equal", true, message ?? "Values are equal");
+                return;
+              }
+              if (attempt < attempts) await wait(intervalMs, signal);
+            }
+            const failureMessage =
+              message ?? `Expected ${String(expected)}, received ${String(observed!)}`;
+            recordAssertion(assertions, "poll.equal", false, failureMessage);
+            throw new AssertionFailure(failureMessage);
+          },
+        };
+      },
       visualRegion,
     },
   };
