@@ -8,6 +8,7 @@ import type {
   OperationKind,
   OperationRecord,
 } from "@couch/device";
+import type { LanguageModel } from "ai";
 import {
   assertRealContained,
   prepareArtifactDirectory,
@@ -64,6 +65,7 @@ export interface RunTvTestOptions {
   configPath?: string;
   artifactDirectory?: string;
   diagnostics?: readonly string[];
+  aiModel?: LanguageModel;
 }
 
 function safeName(name: string): string {
@@ -403,6 +405,8 @@ export async function runTvTest(
       visualProfile: target.visualProfile
         ? config.visualProfiles?.[target.visualProfile]
         : undefined,
+      aiModel: options.aiModel ?? config.ai?.model,
+      aiTimeoutMs: config.ai?.timeoutMs,
       signal: options.signal,
     });
     await test.run(context);

@@ -5,7 +5,10 @@ import {
   type RemoteKey,
 } from "@couch/device";
 import { isRecord } from "./guards";
+import type { OutputSpecification, ScreenQuestionResult } from "./screenQuestion";
 import type { VisualRectangle } from "./visual";
+
+export { jsonSchema, Output } from "ai";
 
 export interface VisualRegionOptions {
   region: string;
@@ -21,7 +24,13 @@ export interface TvTestContext {
       foreground(): Promise<OperationRecord>;
     };
     press(key: RemoteKey, options?: { times?: number; intervalMs?: number }): Promise<void>;
-    screen: { capture(name?: string): Promise<OperationRecord> };
+    screen: {
+      capture(name?: string): Promise<OperationRecord>;
+      ask<OUTPUT extends OutputSpecification>(options: {
+        question: string;
+        output: OUTPUT;
+      }): Promise<ScreenQuestionResult<OUTPUT>>;
+    };
   };
   expect: {
     foreground(record?: OperationRecord): void;

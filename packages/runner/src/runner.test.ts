@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type {
   DeviceInventory,
   DeviceOperation,
@@ -9,7 +10,35 @@ import type {
   OperationKind,
   OperationRecord,
 } from "@couch/device";
+import { MockLanguageModelV4 } from "ai/test";
 import { runTvTest } from "./runner";
+
+const mockUsage = {
+  inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+  outputTokens: { total: 1, text: 1, reasoning: 0 },
+};
+
+const SCREEN_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+);
+const SCREEN_JPEG = Buffer.from(
+  "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAAB//8AAKACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AACwgAAQABAQERAP/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//dAAQAAf/aAAgBAQAAPwD8A6//2Q==",
+  "base64",
+);
+
+function screenQuestionModel(text: string) {
+  return new MockLanguageModelV4({
+    modelId: "mock-vision",
+    doGenerate: {
+      content: [{ type: "text", text }],
+      finishReason: { unified: "stop", raw: "stop" },
+      usage: mockUsage,
+      warnings: [],
+      response: { id: "response", timestamp: new Date(0), modelId: "mock-response-model" },
+    },
+  });
+}
 
 test("runs through one session and publishes canonical ordered records", async () => {
   const root = await mkdtemp(join(tmpdir(), "couch-runner-"));
@@ -17,7 +46,7 @@ test("runs through one session and publishes canonical ordered records", async (
   const testPath = join(root, "trace.tv.ts");
   await Bun.write(
     configPath,
-    `export default { configVersion: 1, targets: { lab: { deviceId: "android-1", app: { id: "com.example.app", activity: ".Main" } } } };`,
+    `export default { configVersion: 1, ai: { model: "unused/model" }, targets: { lab: { deviceId: "android-1", app: { id: "com.example.app", activity: ".Main" } } } };`,
   );
   await Bun.write(
     testPath,
@@ -255,4 +284,138 @@ test.each([
       format: "jpg",
       path: expect.stringMatching(/\.jpg$/),
     });
+});
+
+test.each([
+  ["android-tv", "png", "image/png", "detail", "passed", 0],
+  ["webos", "jpg", "image/jpeg", "detail", "passed", 0],
+  ["android-tv", "png", "image/png", "home", "failed", 1],
+  ["android-tv", "png", "image/png", "invalid", "infrastructure-failed", 2],
+  ["android-tv", "png", "image/png", "cancelled", "cancelled", 143],
+] as const)("asks one schema-driven screen question on %s with %s result", async (platform, format, mediaType, answer, status, exitCode) => {
+  const root = await mkdtemp(join(tmpdir(), "couch-runner-screen-question-"));
+  const configPath = join(root, "couch.config.ts");
+  const testPath = join(root, "ask.tv.ts");
+  const aiImport = pathToFileURL(join(process.cwd(), "node_modules/ai/dist/index.js")).href;
+  await Bun.write(
+    configPath,
+    `export default { configVersion: 1, ai: { model: "configured/model" }, targets: { lab: { deviceId: "tv", app: { id: "app" }${platform === "webos" ? ', allowExperimental: ["screen.capture"]' : ""} } } };`,
+  );
+  await Bun.write(
+    testPath,
+    `import { Output } from ${JSON.stringify(aiImport)}; export default { name: "ask", requires: ["screen.capture"], async run({ tv, expect }) { const answer = await tv.screen.ask({ question: "Which screen?", output: Output.choice({ options: ["home", "detail"] }) }); expect.equal(answer.output, "detail"); } };`,
+  );
+  const executed: DeviceOperation[] = [];
+  const session: DeviceSession = {
+    capabilities: new Map(),
+    async execute(operation) {
+      executed.push(operation);
+      if (operation.kind === "screen.capture") {
+        await Bun.write(operation.path, format === "png" ? SCREEN_PNG : SCREEN_JPEG);
+      }
+      return {
+        id: crypto.randomUUID(),
+        ordinal: executed.length,
+        kind: operation.kind,
+        adapterId: "mock",
+        status: "succeeded",
+        confirmation: "protocol-response",
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        input: operation,
+        artifacts:
+          operation.kind === "screen.capture"
+            ? [{ path: operation.path, type: "screen-capture", mimeType: mediaType }]
+            : [],
+      };
+    },
+    close: async () => undefined,
+  };
+  const inventory: DeviceInventory = {
+    listDevices: async () => [],
+    getDevice: async () => ({ id: "tv", name: "TV", platform, ip: "192.0.2.1" }),
+    getCapabilities: async () => new Map(),
+    openSession: async () => session,
+  };
+
+  const controller = new AbortController();
+  const aiModel =
+    answer === "cancelled"
+      ? new MockLanguageModelV4({
+          doGenerate: () => {
+            controller.abort(new Error("terminated during screen question"));
+            throw controller.signal.reason;
+          },
+        })
+      : screenQuestionModel(
+          answer === "invalid" ? "invalid provider response" : JSON.stringify({ result: answer }),
+        );
+  const outcome = await runTvTest({
+    file: testPath,
+    targetAlias: "lab",
+    inventory,
+    configPath,
+    artifactDirectory: join(root, "artifacts"),
+    aiModel,
+    signal: controller.signal,
+    signalExitCode: () => (answer === "cancelled" ? 143 : undefined),
+  });
+
+  expect(outcome.result).toMatchObject({ status, exitCode });
+  const captures = executed.filter((operation) => operation.kind === "screen.capture");
+  expect(captures).toHaveLength(1);
+  expect(captures[0]).toMatchObject({ format, path: expect.stringContaining("screen-question-1") });
+  expect(outcome.trace?.artifacts).toHaveLength(1);
+});
+
+test("screen questions fail before capture without a configured model", async () => {
+  const root = await mkdtemp(join(tmpdir(), "couch-runner-screen-question-missing-"));
+  const configPath = join(root, "couch.config.ts");
+  const testPath = join(root, "ask.tv.ts");
+  const aiImport = pathToFileURL(join(process.cwd(), "node_modules/ai/dist/index.js")).href;
+  await Bun.write(
+    configPath,
+    `export default { configVersion: 1, targets: { lab: { deviceId: "tv", app: { id: "app" } } } };`,
+  );
+  await Bun.write(
+    testPath,
+    `import { Output } from ${JSON.stringify(aiImport)}; export default { name: "ask missing", requires: ["screen.capture"], async run({ tv }) { await tv.screen.ask({ question: "Which screen?", output: Output.choice({ options: ["home", "detail"] }) }); } };`,
+  );
+  const executed: DeviceOperation[] = [];
+  const session: DeviceSession = {
+    capabilities: new Map(),
+    async execute(operation) {
+      executed.push(operation);
+      return {
+        id: crypto.randomUUID(),
+        ordinal: executed.length,
+        kind: operation.kind,
+        adapterId: "mock",
+        status: "succeeded",
+        confirmation: "protocol-response",
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        input: operation,
+        artifacts: [],
+      };
+    },
+    close: async () => undefined,
+  };
+  const inventory: DeviceInventory = {
+    listDevices: async () => [],
+    getDevice: async () => ({ id: "tv", name: "TV", platform: "android-tv", ip: "192.0.2.1" }),
+    getCapabilities: async () => new Map(),
+    openSession: async () => session,
+  };
+
+  const outcome = await runTvTest({
+    file: testPath,
+    targetAlias: "lab",
+    inventory,
+    configPath,
+    artifactDirectory: join(root, "artifacts"),
+  });
+
+  expect(outcome.result).toMatchObject({ status: "infrastructure-failed", exitCode: 2 });
+  expect(executed.filter((operation) => operation.kind === "screen.capture")).toHaveLength(0);
 });

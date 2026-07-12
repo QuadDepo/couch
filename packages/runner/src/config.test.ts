@@ -3,6 +3,31 @@ import type { CouchTestConfig } from "./config";
 import { resolveTarget, validateConfig } from "./config";
 
 describe("runner config", () => {
+  test("validates explicit AI model configuration", () => {
+    const config = validateConfig({
+      configVersion: 1,
+      ai: { model: "openai/gpt-5.4", timeoutMs: 2_000 },
+      targets: { lab: { deviceId: "android-1", app: { id: "app" } } },
+    });
+
+    expect(config.ai).toEqual({ model: "openai/gpt-5.4", timeoutMs: 2_000 });
+  });
+
+  test.each([
+    [{ model: "" }, "non-empty string"],
+    [{ model: "openai/gpt-5.4", timeoutMs: 0 }, "positive finite"],
+    [{ model: "openai/gpt-5.4", apiKey: "secret" }, "device credentials"],
+    [{ model: "openai/gpt-5.4", fallback: "other/model" }, "not supported"],
+  ] as const)("rejects invalid AI config %#", (ai, message) => {
+    expect(() =>
+      validateConfig({
+        configVersion: 1,
+        ai,
+        targets: { lab: { deviceId: "android-1", app: { id: "app" } } },
+      }),
+    ).toThrow(message);
+  });
+
   test("resolves a stable alias with explicit Android application configuration", () => {
     const config = validateConfig({
       configVersion: 1,

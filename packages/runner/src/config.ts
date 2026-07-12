@@ -49,8 +49,20 @@ export interface TestTargetConfig {
 
 export interface CouchTestConfig {
   configVersion: 1;
+  ai?: { model: string; timeoutMs?: number };
   targets: Record<string, TestTargetConfig>;
   visualProfiles?: Record<string, RenderingProfileConfig>;
+}
+
+function validateAi(value: unknown): CouchTestConfig["ai"] {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) throw new Error("config.ai must be an object");
+  assertKnownKeys(value, ["model", "timeoutMs"], "config.ai");
+  const timeoutMs = positiveFinite(value.timeoutMs, "config.ai.timeoutMs");
+  return {
+    model: requiredString(value.model, "config.ai.model"),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  };
 }
 
 export interface ResolvedCouchTestConfig extends Omit<CouchTestConfig, "visualProfiles"> {
@@ -58,7 +70,7 @@ export interface ResolvedCouchTestConfig extends Omit<CouchTestConfig, "visualPr
 }
 
 const SECRET_KEYS =
-  /(?:credential|password|token|secret|pairing|client.?key|certificate|private.?key|(?:^|[_-]|device)ip$|address|mac)/i;
+  /(?:credential|password|token|secret|pairing|api.?key|client.?key|certificate|private.?key|(?:^|[_-]|device)ip$|address|mac)/i;
 
 function assertKnownKeys(
   value: Record<string, unknown>,
@@ -329,7 +341,7 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
 export function validateConfig(value: unknown): ResolvedCouchTestConfig {
   assertNoCredentials(value);
   if (!isRecord(value)) throw new Error("couch.config.ts must export an object");
-  assertKnownKeys(value, ["configVersion", "targets", "visualProfiles"], "config");
+  assertKnownKeys(value, ["configVersion", "ai", "targets", "visualProfiles"], "config");
   if (value.configVersion !== 1) throw new Error("Unsupported couch configVersion");
   if (!isRecord(value.targets)) throw new Error("Config targets are required");
 
@@ -342,12 +354,13 @@ export function validateConfig(value: unknown): ResolvedCouchTestConfig {
     targets[alias] = validateTarget(alias, rawTarget);
   }
   const visualProfiles = validateVisualProfiles(value.visualProfiles);
+  const ai = validateAi(value.ai);
   for (const [alias, target] of Object.entries(targets)) {
     if (target.visualProfile && !visualProfiles[target.visualProfile]) {
       throw new Error(`targets.${alias}.visualProfile was not found in visualProfiles`);
     }
   }
-  return { configVersion: 1, targets, visualProfiles };
+  return { configVersion: 1, ...(ai ? { ai } : {}), targets, visualProfiles };
 }
 
 export async function loadConfig(

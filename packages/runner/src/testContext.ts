@@ -1,6 +1,7 @@
 import { access, readFile, unlink } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import type { ArtifactReference, DeviceSession, OperationRecord } from "@couch/device";
+import type { LanguageModel } from "ai";
 import {
   assertRealContained,
   publishBytes,
@@ -10,6 +11,7 @@ import {
 import type { ResolvedRenderingProfileConfig, TestTargetConfig } from "./config";
 import type { TvTestContext, VisualRegionOptions } from "./defineTvTest";
 import type { AssertionRecord } from "./runner";
+import { answerScreenQuestion } from "./screenQuestion";
 import {
   comparablePixelCount,
   compareVisualFiles,
@@ -135,6 +137,8 @@ export function buildTestContext(params: {
   artifacts: ArtifactReference[];
   visualProfile?: ResolvedRenderingProfileConfig;
   captureFormat?: "png" | "jpg";
+  aiModel?: LanguageModel;
+  aiTimeoutMs?: number;
   signal?: AbortSignal;
 }): TvTestContext {
   const {
@@ -145,6 +149,8 @@ export function buildTestContext(params: {
     assertions,
     artifacts,
     visualProfile,
+    aiModel,
+    aiTimeoutMs = 15_000,
     signal,
     captureFormat = "png",
   } = params;
@@ -155,6 +161,7 @@ export function buildTestContext(params: {
       format: captureFormat,
       path: resolveContained(directory, captureName(name, captureFormat)),
     });
+  let screenQuestionCount = 0;
 
   const visualRegion = async (name: string, options: VisualRegionOptions) => {
     const failInfrastructure = (
@@ -479,6 +486,24 @@ export function buildTestContext(params: {
       },
       screen: {
         capture: (name = `actual.${captureFormat}`) => capture(name),
+        async ask(options) {
+          if (!aiModel) throw new Error("tv.screen.ask requires AI model configuration");
+          screenQuestionCount += 1;
+          const path = resolveContained(
+            directory,
+            captureName(`screen-question-${screenQuestionCount}`, captureFormat),
+          );
+          await capture(`screen-question-${screenQuestionCount}`);
+          return answerScreenQuestion({
+            image: new Uint8Array(await readFile(path)),
+            mediaType: captureFormat === "jpg" ? "image/jpeg" : "image/png",
+            question: options.question,
+            output: options.output,
+            model: aiModel,
+            timeoutMs: aiTimeoutMs,
+            signal,
+          });
+        },
       },
     },
     expect: {
