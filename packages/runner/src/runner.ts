@@ -1,4 +1,5 @@
 import { basename, resolve } from "node:path";
+import { setTimeout as wait } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import type {
   ArtifactReference,
@@ -55,6 +56,7 @@ export interface AssertionRecord {
 }
 
 const DEFAULT_CLEANUP_TIMEOUT_MS = 5_000;
+const WEBOS_EXIT_SETTLE_MS = 250;
 
 export interface RunTvTestOptions {
   file: string;
@@ -181,6 +183,22 @@ function createExecute(params: {
     }
     return record;
   };
+}
+
+async function resetForegroundWebosApp(
+  execute: ExecuteOperation,
+  appId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  let foreground = await execute({ kind: "app.foreground", appId }, true);
+  for (let attempt = 0; attempt < 2 && foreground.metadata?.foreground === true; attempt += 1) {
+    await execute({ kind: "control.press", key: "EXIT" }, true);
+    await wait(WEBOS_EXIT_SETTLE_MS, undefined, { signal });
+    foreground = await execute({ kind: "app.foreground", appId }, true);
+  }
+  if (foreground.metadata?.foreground === true) {
+    throw new Error(`LG webOS app remained foreground after EXIT reset: ${appId}`);
+  }
 }
 
 function classifyFailure(
@@ -394,10 +412,7 @@ export async function runTvTest(
     if (device.platform === "android-tv") {
       await execute({ kind: "app.stop", appId: target.app.id }, true);
     } else if (device.platform === "webos") {
-      const foreground = await execute({ kind: "app.foreground", appId: target.app.id }, true);
-      if (foreground.metadata?.foreground === true) {
-        await execute({ kind: "control.press", key: "EXIT" }, true);
-      }
+      await resetForegroundWebosApp(execute, target.app.id, options.signal);
     }
 
     const context = buildTestContext({

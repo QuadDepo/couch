@@ -123,9 +123,40 @@ test("runs through one session and publishes canonical ordered records", async (
 });
 
 test.each([
-  true,
-  false,
-])("resets a foreground LG webOS app before launch: %s", async (foreground) => {
+  [
+    "awake",
+    [true, false],
+    [
+      { kind: "app.foreground", appId: "com.example.app" },
+      { kind: "control.press", key: "EXIT" },
+      { kind: "app.foreground", appId: "com.example.app" },
+      { kind: "app.launch", appId: "com.example.app" },
+      { kind: "app.foreground", appId: "com.example.app" },
+    ],
+  ],
+  [
+    "standby",
+    [true, true, false],
+    [
+      { kind: "app.foreground", appId: "com.example.app" },
+      { kind: "control.press", key: "EXIT" },
+      { kind: "app.foreground", appId: "com.example.app" },
+      { kind: "control.press", key: "EXIT" },
+      { kind: "app.foreground", appId: "com.example.app" },
+      { kind: "app.launch", appId: "com.example.app" },
+      { kind: "app.foreground", appId: "com.example.app" },
+    ],
+  ],
+  [
+    "another app",
+    [false],
+    [
+      { kind: "app.foreground", appId: "com.example.app" },
+      { kind: "app.launch", appId: "com.example.app" },
+      { kind: "app.foreground", appId: "com.example.app" },
+    ],
+  ],
+] as const)("resets an LG webOS app before launch when TV is %s", async (_, states, expected) => {
   const root = await mkdtemp(join(tmpdir(), "couch-runner-webos-"));
   const configPath = join(root, "couch.config.ts");
   const testPath = join(root, "launch.tv.ts");
@@ -155,7 +186,7 @@ test.each([
         input: operation,
         artifacts: [],
         ...(operation.kind === "app.foreground"
-          ? { metadata: { foreground: foregroundChecks++ === 0 ? foreground : true } }
+          ? { metadata: { foreground: states[foregroundChecks++] ?? true } }
           : {}),
       };
     },
@@ -186,12 +217,7 @@ test.each([
   });
 
   expect(outcome.result.status).toBe("passed");
-  expect(executed).toEqual([
-    { kind: "app.foreground", appId: "com.example.app" },
-    ...(foreground ? ([{ kind: "control.press", key: "EXIT" }] as const) : []),
-    { kind: "app.launch", appId: "com.example.app" },
-    { kind: "app.foreground", appId: "com.example.app" },
-  ]);
+  expect(executed).toEqual(expected);
 });
 
 test("rejects unsupported webOS stop cleanup during preflight", async () => {
