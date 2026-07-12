@@ -122,7 +122,10 @@ test("runs through one session and publishes canonical ordered records", async (
   expect(JSON.parse(await Bun.file(join(directory, "result.json")).text()).resultVersion).toBe(1);
 });
 
-test("runs the mandatory nonvisual LG webOS lifecycle path", async () => {
+test.each([
+  true,
+  false,
+])("resets a foreground LG webOS app before launch: %s", async (foreground) => {
   const root = await mkdtemp(join(tmpdir(), "couch-runner-webos-"));
   const configPath = join(root, "couch.config.ts");
   const testPath = join(root, "launch.tv.ts");
@@ -135,6 +138,7 @@ test("runs the mandatory nonvisual LG webOS lifecycle path", async () => {
     `export default { name: "webos launch", requires: ["app.launch", "app.foreground"], async run({ tv, expect }) { await tv.app.launch(); expect.foreground(await tv.app.foreground()); } };`,
   );
   const executed: DeviceOperation[] = [];
+  let foregroundChecks = 0;
   const session: DeviceSession = {
     capabilities: new Map(),
     async execute(operation) {
@@ -150,7 +154,9 @@ test("runs the mandatory nonvisual LG webOS lifecycle path", async () => {
         completedAt: new Date().toISOString(),
         input: operation,
         artifacts: [],
-        ...(operation.kind === "app.foreground" ? { metadata: { foreground: true } } : {}),
+        ...(operation.kind === "app.foreground"
+          ? { metadata: { foreground: foregroundChecks++ === 0 ? foreground : true } }
+          : {}),
       };
     },
     close: async () => undefined,
@@ -166,7 +172,7 @@ test("runs the mandatory nonvisual LG webOS lifecycle path", async () => {
     }),
     getCapabilities: async () => new Map(),
     openSession: async (_id, options) => {
-      expect(options.require).toEqual(["app.launch", "app.foreground"]);
+      expect(options.require).toEqual(["app.foreground", "control.press", "app.launch"]);
       return session;
     },
   };
@@ -180,8 +186,12 @@ test("runs the mandatory nonvisual LG webOS lifecycle path", async () => {
   });
 
   expect(outcome.result.status).toBe("passed");
-  expect(executed.map((operation) => operation.kind)).toEqual(["app.launch", "app.foreground"]);
-  expect(executed[0]).toEqual({ kind: "app.launch", appId: "com.example.app" });
+  expect(executed).toEqual([
+    { kind: "app.foreground", appId: "com.example.app" },
+    ...(foreground ? ([{ kind: "control.press", key: "EXIT" }] as const) : []),
+    { kind: "app.launch", appId: "com.example.app" },
+    { kind: "app.foreground", appId: "com.example.app" },
+  ]);
 });
 
 test("rejects unsupported webOS stop cleanup during preflight", async () => {
@@ -203,7 +213,12 @@ test("rejects unsupported webOS stop cleanup during preflight", async () => {
     getCapabilities: async () => new Map(),
     openSession: async (_id, options) => {
       opened = true;
-      expect(options.require).toEqual(["app.stop", "app.launch"]);
+      expect(options.require).toEqual([
+        "app.stop",
+        "app.foreground",
+        "control.press",
+        "app.launch",
+      ]);
       throw new Error("app.stop is not offered by any driver for webos-1");
     },
   };
@@ -217,14 +232,18 @@ test("rejects unsupported webOS stop cleanup during preflight", async () => {
   });
 
   expect(opened).toBe(true);
-  expect(outcome.result).toMatchObject({ status: "infrastructure-failed", exitCode: 2 });
+  expect(outcome.result).toMatchObject({
+    status: "infrastructure-failed",
+    exitCode: 2,
+    error: { message: "app.stop is not offered by any driver for webos-1" },
+  });
   expect(outcome.trace?.operations).toEqual([]);
 });
 
 test.each([
   [false, "infrastructure-failed", 0, undefined],
-  [true, "passed", 1, undefined],
-  [true, "infrastructure-failed", 0, "wrong.png"],
+  [true, "passed", 2, undefined],
+  [true, "infrastructure-failed", 1, "wrong.png"],
 ] as const)("webOS capture approval=%s name=%s", async (allowed, status, count, name) => {
   const root = await mkdtemp(join(tmpdir(), "couch-runner-webos-capture-"));
   const configPath = join(root, "couch.config.ts");
@@ -279,8 +298,8 @@ test.each([
 
   expect(outcome.result.status).toBe(status);
   expect(executed).toHaveLength(count);
-  if (count)
-    expect(executed[0]).toMatchObject({
+  if (status === "passed")
+    expect(executed.find((operation) => operation.kind === "screen.capture")).toMatchObject({
       format: "jpg",
       path: expect.stringMatching(/\.jpg$/),
     });

@@ -16,12 +16,32 @@ export default defineTvTest({
       intervalMs: 300,
     });
 
+    await sleep(1000);
+
+    console.log("Asking AI whether The Devil Wears Prada 2 has focus...");
+
     const focus = await tv.screen.ask({
-      question: "Is a content poster, tile, or menu item visibly focused?",
+      question: "Does The Devil Wears Prada 2 have focus?",
       output: Output.choice({
         options: ["focused", "not-focused", "uncertain"] as const,
       }),
     });
+    console.log("AI response:", focus.output);
     expect.equal(focus.output, "focused");
+
+    await tv.press("LEFT", {
+      times: 1,
+      intervalMs: 300,
+    });
+
+    await sleep(500);
+
+    const focusAfterLeft = await tv.screen.ask({
+      question: "Is the sidebar menu open?",
+      output: Output.choice({
+        options: ["open", "closed", "uncertain"] as const,
+      }),
+    });
+    expect.equal(focusAfterLeft.output, "open");
   },
 });

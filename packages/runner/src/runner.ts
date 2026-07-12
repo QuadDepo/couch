@@ -88,6 +88,7 @@ function requiredOperations(
   return [
     ...new Set<OperationKind>([
       ...(platform === "android-tv" || cleanup === "stop" ? (["app.stop"] as const) : []),
+      ...(platform === "webos" ? (["app.foreground", "control.press"] as const) : []),
       ...test.requires,
     ]),
   ];
@@ -392,6 +393,11 @@ export async function runTvTest(
     });
     if (device.platform === "android-tv") {
       await execute({ kind: "app.stop", appId: target.app.id }, true);
+    } else if (device.platform === "webos") {
+      const foreground = await execute({ kind: "app.foreground", appId: target.app.id }, true);
+      if (foreground.metadata?.foreground === true) {
+        await execute({ kind: "control.press", key: "EXIT" }, true);
+      }
     }
 
     const context = buildTestContext({
