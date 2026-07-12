@@ -5,11 +5,13 @@ import type { LanguageModel } from "ai";
 import {
   assertRealContained,
   publishBytes,
+  publishJson,
   resolveContained,
   safeArtifactSegment,
 } from "./artifacts";
 import type { ResolvedRenderingProfileConfig, TestTargetConfig } from "./config";
 import type { TvTestContext, VisualRegionOptions } from "./defineTvTest";
+import { runNavigationAgent } from "./navigationAgent";
 import type { AssertionRecord } from "./runner";
 import { answerScreenQuestion } from "./screenQuestion";
 import {
@@ -162,6 +164,7 @@ export function buildTestContext(params: {
       path: resolveContained(directory, captureName(name, captureFormat)),
     });
   let screenQuestionCount = 0;
+  let agentRunCount = 0;
 
   const visualRegion = async (name: string, options: VisualRegionOptions) => {
     const failInfrastructure = (
@@ -466,6 +469,42 @@ export function buildTestContext(params: {
 
   return {
     tv: {
+      agent: {
+        async run(goal, options = {}) {
+          if (!aiModel) throw new Error("tv.agent.run requires AI model configuration");
+          agentRunCount += 1;
+          let captureCount = 0;
+          const result = await runNavigationAgent(
+            {
+              execute,
+              async capture() {
+                captureCount += 1;
+                const name = `agent-run-${agentRunCount}-screen-${captureCount}`;
+                const record = await capture(name);
+                const path = resolveContained(directory, captureName(name, captureFormat));
+                return {
+                  record,
+                  bytes: new Uint8Array(await readFile(path)),
+                  mediaType: captureFormat === "jpg" ? "image/jpeg" : "image/png",
+                };
+              },
+              model: aiModel,
+              signal,
+              timeoutMs: aiTimeoutMs,
+              settleMs: target.agent?.settleMs,
+              async publishArtifact(value) {
+                const path = resolveContained(directory, `agent-run-${agentRunCount}.json`);
+                await publishJson(path, value);
+                artifacts.push({ path, type: "agent-run", mimeType: "application/json" });
+              },
+            },
+            { goal, ...options },
+          );
+          if (result.status !== "completed") {
+            throw new AssertionFailure(result.reason ?? `Navigation ${result.status}`);
+          }
+        },
+      },
       app: {
         launch: () =>
           execute({

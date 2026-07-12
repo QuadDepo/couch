@@ -19,6 +19,9 @@ export interface VisualRegionOptions {
 
 export interface TvTestContext {
   tv: {
+    agent: {
+      run(goal: string, options?: { maxSteps?: number }): Promise<void>;
+    };
     app: {
       launch(): Promise<OperationRecord>;
       foreground(): Promise<OperationRecord>;

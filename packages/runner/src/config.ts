@@ -45,6 +45,7 @@ export interface TestTargetConfig {
   foregroundTimeoutMs?: number;
   cleanupTimeoutMs?: number;
   visualProfile?: string;
+  agent?: { settleMs: number };
 }
 
 export interface CouchTestConfig {
@@ -280,6 +281,7 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
       "foregroundTimeoutMs",
       "cleanupTimeoutMs",
       "visualProfile",
+      "agent",
     ],
     `targets.${alias}`,
   );
@@ -320,6 +322,14 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
     `targets.${alias}.cleanupTimeoutMs`,
   );
   const visualProfile = optionalString(rawTarget.visualProfile, `targets.${alias}.visualProfile`);
+  const agent = (() => {
+    if (rawTarget.agent === undefined) return undefined;
+    if (!isRecord(rawTarget.agent)) throw new Error(`targets.${alias}.agent must be an object`);
+    assertKnownKeys(rawTarget.agent, ["settleMs"], `targets.${alias}.agent`);
+    return {
+      settleMs: nonNegativeInteger(rawTarget.agent.settleMs, `targets.${alias}.agent.settleMs`),
+    };
+  })();
 
   return {
     deviceId,
@@ -335,6 +345,7 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
     ...(foregroundTimeoutMs !== undefined ? { foregroundTimeoutMs } : {}),
     ...(cleanupTimeoutMs !== undefined ? { cleanupTimeoutMs } : {}),
     ...(visualProfile !== undefined ? { visualProfile } : {}),
+    ...(agent !== undefined ? { agent } : {}),
   };
 }
 

@@ -124,6 +124,25 @@ describe("runner config", () => {
     expect(config.targets.webos?.app).toEqual({ id: "com.example.app" });
   });
 
+  test("validates target agent settle calibration", () => {
+    const config = validateConfig({
+      configVersion: 1,
+      targets: {
+        lab: { deviceId: "android-1", app: { id: "app" }, agent: { settleMs: 500 } },
+      },
+    });
+
+    expect(config.targets.lab?.agent).toEqual({ settleMs: 500 });
+    expect(() =>
+      validateConfig({
+        configVersion: 1,
+        targets: {
+          lab: { deviceId: "android-1", app: { id: "app" }, agent: { settleMs: -1 } },
+        },
+      }),
+    ).toThrow("non-negative integer");
+  });
+
   test("validates named rendering profiles, regions, masks, and thresholds", () => {
     const input = {
       configVersion: 1,
