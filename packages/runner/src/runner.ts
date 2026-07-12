@@ -36,11 +36,17 @@ export interface TestTrace {
   artifacts: readonly ArtifactReference[];
 }
 
+export type TestResultErrorStage =
+  | "pre-agent-screen-question"
+  | "agent-startup"
+  | "agent-run"
+  | "post-agent-assertion";
+
 export interface TestResult {
   resultVersion: 1;
   status: "passed" | "failed" | "infrastructure-failed" | "cancelled";
   exitCode: 0 | 1 | 2 | 130 | 143;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; stage?: TestResultErrorStage };
   cleanupError?: { code: string; message: string };
   assertions: readonly AssertionRecord[];
 }
@@ -205,6 +211,7 @@ function classifyFailure(
   error: unknown,
   assertions: readonly AssertionRecord[],
   options: RunTvTestOptions,
+  stage?: TestResultErrorStage,
 ): TestResult {
   const signalCode = options.signalExitCode?.();
   const cancelled = options.signal?.aborted || signalCode !== undefined;
@@ -216,6 +223,7 @@ function classifyFailure(
     error: {
       code: cancelled ? "cancelled" : assertion ? "assertion-failed" : "infrastructure-failed",
       message: errorMessage(error),
+      ...(stage ? { stage } : {}),
     },
     assertions,
   };
@@ -368,6 +376,7 @@ export async function runTvTest(
   };
   let target: TestTargetConfig | undefined;
   let device: DeviceDescriptor | undefined;
+  let failureStage: TestResultErrorStage | undefined;
 
   const leafName = basename(options.file) ?? "tv-test";
   try {
@@ -429,6 +438,9 @@ export async function runTvTest(
       aiModel: options.aiModel ?? config.ai?.model,
       aiTimeoutMs: config.ai?.timeoutMs,
       signal: options.signal,
+      onStageChange: (stage) => {
+        failureStage = stage;
+      },
     });
     await test.run(context);
     result = { resultVersion: 1, status: "passed", exitCode: 0, assertions };
@@ -441,7 +453,7 @@ export async function runTvTest(
           directory = undefined;
         });
     }
-    result = classifyFailure(error, assertions, options);
+    result = classifyFailure(error, assertions, options, failureStage);
   } finally {
     result = await runSessionCleanup({ session, target, operations, artifacts, result, options });
   }

@@ -40,6 +40,35 @@ function screenQuestionModel(text: string) {
   });
 }
 
+function navigationTerminationModel(termination: "model-length" | "step-limit") {
+  return new MockLanguageModelV4({
+    modelId: "mock-navigation",
+    doGenerate:
+      termination === "model-length"
+        ? {
+            content: [],
+            finishReason: { unified: "length", raw: "max_output_tokens" },
+            usage: mockUsage,
+            warnings: [],
+            response: { id: "response", timestamp: new Date(0), modelId: "mock-navigation" },
+          }
+        : {
+            content: [
+              {
+                type: "tool-call",
+                toolCallId: "observe-1",
+                toolName: "observe",
+                input: "{}",
+              },
+            ],
+            finishReason: { unified: "tool-calls", raw: "tool-calls" },
+            usage: mockUsage,
+            warnings: [],
+            response: { id: "response", timestamp: new Date(0), modelId: "mock-navigation" },
+          },
+  });
+}
+
 test("runs through one session and publishes canonical ordered records", async () => {
   const root = await mkdtemp(join(tmpdir(), "couch-runner-"));
   const configPath = join(root, "couch.config.ts");
@@ -463,4 +492,132 @@ test("screen questions fail before capture without a configured model", async ()
 
   expect(outcome.result).toMatchObject({ status: "infrastructure-failed", exitCode: 2 });
   expect(executed.filter((operation) => operation.kind === "screen.capture")).toHaveLength(0);
+});
+
+test.each([
+  ["model-length", "infrastructure-failed", 2],
+  ["step-limit", "failed", 1],
+] as const)("classifies agent %s at the agent-run stage", async (termination, status, exitCode) => {
+  const root = await mkdtemp(join(tmpdir(), "couch-runner-agent-classification-"));
+  const configPath = join(root, "couch.config.ts");
+  const testPath = join(root, "agent.tv.ts");
+  await Bun.write(
+    configPath,
+    `export default { configVersion: 1, targets: { lab: { deviceId: "tv", app: { id: "app" } } } };`,
+  );
+  await Bun.write(
+    testPath,
+    `export default { name: "agent classification", requires: ["screen.capture"], async run({ tv }) { await tv.agent.run("Wait for the screen"${termination === "step-limit" ? ", { maxSteps: 1 }" : ""}); } };`,
+  );
+  const executed: DeviceOperation[] = [];
+  const session: DeviceSession = {
+    capabilities: new Map(),
+    async execute(operation) {
+      executed.push(operation);
+      if (operation.kind === "screen.capture") await Bun.write(operation.path, SCREEN_PNG);
+      return {
+        id: crypto.randomUUID(),
+        ordinal: executed.length,
+        kind: operation.kind,
+        adapterId: "mock",
+        status: "succeeded",
+        confirmation: "protocol-response",
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        input: operation,
+        artifacts: [],
+      };
+    },
+    close: async () => undefined,
+  };
+  const inventory: DeviceInventory = {
+    listDevices: async () => [],
+    getDevice: async () => ({
+      id: "tv",
+      name: "TV",
+      platform: "android-tv",
+      ip: "192.0.2.1",
+    }),
+    getCapabilities: async () => new Map(),
+    openSession: async () => session,
+  };
+
+  const outcome = await runTvTest({
+    file: testPath,
+    targetAlias: "lab",
+    inventory,
+    configPath,
+    artifactDirectory: join(root, "artifacts"),
+    aiModel: navigationTerminationModel(termination),
+  });
+
+  expect(outcome.result).toMatchObject({
+    status,
+    exitCode,
+    error: { stage: "agent-run" },
+  });
+});
+
+test("screen-question capture failures before an agent run include their stage", async () => {
+  const root = await mkdtemp(join(tmpdir(), "couch-runner-screen-question-capture-failure-"));
+  const configPath = join(root, "couch.config.ts");
+  const testPath = join(root, "ask.tv.ts");
+  const aiImport = pathToFileURL(join(process.cwd(), "node_modules/ai/dist/index.js")).href;
+  await Bun.write(
+    configPath,
+    `export default { configVersion: 1, ai: { model: "configured/model" }, targets: { lab: { deviceId: "tv", app: { id: "app" } } } };`,
+  );
+  await Bun.write(
+    testPath,
+    `import { Output } from ${JSON.stringify(aiImport)}; export default { name: "ask capture failure", requires: ["screen.capture"], async run({ tv }) { await tv.screen.ask({ question: "Which screen?", output: Output.choice({ options: ["home", "detail"] }) }); await tv.agent.run("never reached"); } };`,
+  );
+  const executed: DeviceOperation[] = [];
+  const session: DeviceSession = {
+    capabilities: new Map(),
+    async execute(operation) {
+      executed.push(operation);
+      const failed = operation.kind === "screen.capture";
+      return {
+        id: crypto.randomUUID(),
+        ordinal: executed.length,
+        kind: operation.kind,
+        adapterId: "mock",
+        status: failed ? "failed" : "succeeded",
+        confirmation: "protocol-response",
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        input: operation,
+        artifacts: [],
+        ...(failed ? { error: { code: "capture-failed", message: "camera unavailable" } } : {}),
+      };
+    },
+    close: async () => undefined,
+  };
+  const inventory: DeviceInventory = {
+    listDevices: async () => [],
+    getDevice: async () => ({ id: "tv", name: "TV", platform: "android-tv", ip: "192.0.2.1" }),
+    getCapabilities: async () => new Map(),
+    openSession: async () => session,
+  };
+
+  const outcome = await runTvTest({
+    file: testPath,
+    targetAlias: "lab",
+    inventory,
+    configPath,
+    artifactDirectory: join(root, "artifacts"),
+    aiModel: screenQuestionModel(JSON.stringify({ result: "home" })),
+  });
+
+  expect(outcome.result).toMatchObject({
+    status: "infrastructure-failed",
+    exitCode: 2,
+    error: { code: "infrastructure-failed", stage: "pre-agent-screen-question" },
+  });
+  expect(executed.map((operation) => operation.kind)).toEqual(["app.stop", "screen.capture"]);
+  const directory = outcome.artifactDirectory;
+  if (!directory) throw new Error("Expected artifacts");
+  expect(JSON.parse(await Bun.file(join(directory, "result.json")).text())).toMatchObject({
+    error: { stage: "pre-agent-screen-question" },
+  });
 });

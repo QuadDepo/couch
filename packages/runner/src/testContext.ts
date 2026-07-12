@@ -6,13 +6,14 @@ import {
   assertRealContained,
   publishBytes,
   publishJson,
+  publishText,
   resolveContained,
   safeArtifactSegment,
 } from "./artifacts";
 import type { ResolvedRenderingProfileConfig, TestTargetConfig } from "./config";
 import type { TvTestContext, VisualRegionOptions } from "./defineTvTest";
 import { runNavigationAgent } from "./navigationAgent";
-import type { AssertionRecord } from "./runner";
+import type { AssertionRecord, TestResultErrorStage } from "./runner";
 import { answerScreenQuestion } from "./screenQuestion";
 import {
   comparablePixelCount,
@@ -142,6 +143,7 @@ export function buildTestContext(params: {
   aiModel?: LanguageModel;
   aiTimeoutMs?: number;
   signal?: AbortSignal;
+  onStageChange?: (stage?: TestResultErrorStage) => void;
 }): TvTestContext {
   const {
     execute,
@@ -155,6 +157,7 @@ export function buildTestContext(params: {
     aiTimeoutMs = 15_000,
     signal,
     captureFormat = "png",
+    onStageChange,
   } = params;
 
   const capture = (name: string) =>
@@ -165,6 +168,7 @@ export function buildTestContext(params: {
     });
   let screenQuestionCount = 0;
   let agentRunCount = 0;
+  let completedAgentRun = false;
 
   const visualRegion = async (name: string, options: VisualRegionOptions) => {
     const failInfrastructure = (
@@ -471,8 +475,10 @@ export function buildTestContext(params: {
     tv: {
       agent: {
         async run(goal, options = {}) {
+          onStageChange?.("agent-startup");
           if (!aiModel) throw new Error("tv.agent.run requires AI model configuration");
           agentRunCount += 1;
+          onStageChange?.("agent-run");
           let captureCount = 0;
           const result = await runNavigationAgent(
             {
@@ -497,12 +503,22 @@ export function buildTestContext(params: {
                 await publishJson(path, value);
                 artifacts.push({ path, type: "agent-run", mimeType: "application/json" });
               },
+              async publishLog(value) {
+                const path = resolveContained(directory, `agent-run-${agentRunCount}.log`);
+                await publishText(path, value);
+                artifacts.push({ path, type: "agent-run-log", mimeType: "text/plain" });
+              },
             },
             { goal, ...options },
           );
           if (result.status !== "completed") {
-            throw new AssertionFailure(result.reason ?? `Navigation ${result.status}`);
+            if (result.terminationReason.startsWith("model-")) {
+              throw new Error(result.reason);
+            }
+            throw new AssertionFailure(result.reason);
           }
+          completedAgentRun = true;
+          onStageChange?.();
         },
       },
       app: {
@@ -526,6 +542,7 @@ export function buildTestContext(params: {
       screen: {
         capture: (name = `actual.${captureFormat}`) => capture(name),
         async ask(options) {
+          onStageChange?.(completedAgentRun ? "post-agent-assertion" : "pre-agent-screen-question");
           if (!aiModel) throw new Error("tv.screen.ask requires AI model configuration");
           screenQuestionCount += 1;
           const path = resolveContained(
@@ -533,7 +550,7 @@ export function buildTestContext(params: {
             captureName(`screen-question-${screenQuestionCount}`, captureFormat),
           );
           await capture(`screen-question-${screenQuestionCount}`);
-          return answerScreenQuestion({
+          const result = await answerScreenQuestion({
             image: new Uint8Array(await readFile(path)),
             mediaType: captureFormat === "jpg" ? "image/jpeg" : "image/png",
             question: options.question,
@@ -542,6 +559,8 @@ export function buildTestContext(params: {
             timeoutMs: aiTimeoutMs,
             signal,
           });
+          if (!completedAgentRun) onStageChange?.();
+          return result;
         },
       },
     },
