@@ -20,7 +20,7 @@ export function fakeWebos() {
       connected = true;
       listeners.get("connect")?.();
     },
-    disconnect: () => {
+    disconnect: async () => {
       connected = false;
       calls.push("disconnect");
     },

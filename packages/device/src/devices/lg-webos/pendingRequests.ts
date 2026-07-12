@@ -41,7 +41,13 @@ export function createPendingRequests() {
         const removeAbortListener = () => options.signal?.removeEventListener("abort", abort);
 
         requests.set(id, {
-          resolve: (value) => resolve(options.onResolve(value)),
+          resolve: (value) => {
+            try {
+              resolve(options.onResolve(value));
+            } catch (error) {
+              rejectPromise(error instanceof Error ? error : new Error(String(error)));
+            }
+          },
           reject: rejectPromise,
           timeoutId,
           removeAbortListener,

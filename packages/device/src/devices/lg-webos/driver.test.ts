@@ -48,14 +48,20 @@ describe("LG webOS driver", () => {
 
   test("does not report transport-write when input transport rejects a write", async () => {
     const { connection } = fakeWebos();
+    let sockets = 0;
+    let sends = 0;
     const failingConnection: WebOSConnection = {
       ...connection,
-      getInputSocket: async () => ({
-        send: () => {
-          throw new Error("socket closed");
-        },
-        close: () => undefined,
-      }),
+      getInputSocket: async () => {
+        sockets += 1;
+        return {
+          send: () => {
+            sends += 1;
+            throw new Error("socket closed after write may have started");
+          },
+          close: () => undefined,
+        };
+      },
     };
     const driver = createLgWebosDriver(
       { ip: "192.0.2.20", credentials },
@@ -63,8 +69,9 @@ describe("LG webOS driver", () => {
     );
     await driver.open();
     await expect(driver.execute({ kind: "control.press", key: "LEFT" })).rejects.toThrow(
-      "socket closed",
+      "socket closed after write may have started",
     );
+    expect({ sockets, sends }).toEqual({ sockets: 1, sends: 1 });
   });
 
   test("preserves the webOS enter flow and reports its transport-write strength", async () => {

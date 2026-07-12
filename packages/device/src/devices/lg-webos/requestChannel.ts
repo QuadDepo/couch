@@ -12,12 +12,13 @@ import type {
 import { createPendingRequests } from "./pendingRequests";
 import { getKeyFilePath, PAIRING_MANIFEST } from "./protocol";
 
-const RESPONSE_TYPES = new Set(["registered", "response", "purchased"]);
+const RESPONSE_TYPES = new Set(["registered", "response", "purchased", "error"]);
 
 function parseResponseMessage(value: unknown): WebOSResponseMessage | undefined {
   if (!isRecord(value) || typeof value.id !== "string" || !value.id) return undefined;
   if (typeof value.type !== "string" || !RESPONSE_TYPES.has(value.type)) return undefined;
   if (value.payload !== undefined && !isRecord(value.payload)) return undefined;
+  if (value.error !== undefined && typeof value.error !== "string") return undefined;
   return value as unknown as WebOSResponseMessage;
 }
 
@@ -44,7 +45,7 @@ interface RequestChannelOptions {
   getClientKey: () => string | undefined;
   setClientKey: (clientKey: string) => void;
   send: (message: WebOSRequestMessage) => void;
-  emit: (event: "connect" | "prompt" | "message", ...args: unknown[]) => void;
+  emit: (event: "prompt" | "message", ...args: unknown[]) => void;
 }
 
 export function createRequestChannel(options: RequestChannelOptions) {
@@ -133,7 +134,6 @@ export function createRequestChannel(options: RequestChannelOptions) {
       if (error) logger.error("WebOS", `Failed to save client key: ${error}`);
     });
     pending.resolve(message.id, message);
-    options.emit("connect");
   }
 
   function handleResponse(message: WebOSResponseMessage): void {
@@ -161,11 +161,16 @@ export function createRequestChannel(options: RequestChannelOptions) {
     if (payload) subscriptions.get(message.id)?.(payload);
   }
 
+  function reset(error: Error): void {
+    pending.rejectAll(error);
+    subscriptions.clear();
+  }
+
   return {
     register,
     request,
     subscribe,
-    rejectAll: pending.rejectAll,
+    reset,
     handleMessage(data: string | Buffer) {
       let parsed: unknown;
       try {
@@ -182,7 +187,14 @@ export function createRequestChannel(options: RequestChannelOptions) {
         return;
       }
       if (message.type === "registered") handleRegistered(message);
-      else handleResponse(message);
+      else if (message.type === "error") {
+        pending.reject(
+          message.id,
+          sanitizeWebosRequestError(
+            new Error(`Request failed: ${message.error ?? "Unknown error"}`),
+          ),
+        );
+      } else handleResponse(message);
     },
   };
 }

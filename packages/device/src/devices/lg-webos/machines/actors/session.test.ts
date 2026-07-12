@@ -22,6 +22,60 @@ async function waitForCall(calls: string[], expected: string): Promise<void> {
 }
 
 describe("LG webOS session actor", () => {
+  test("waits for transport teardown after an established error before releasing the lock", async () => {
+    const calls: string[] = [];
+    let reportError: ((error: unknown) => void) | undefined;
+    let settleTeardown!: () => void;
+    const teardown = new Promise<void>((resolve) => {
+      settleTeardown = resolve;
+    });
+    const actor = createActor(
+      createLgWebosSessionActor({
+        lockDirectory: "/tmp/couch-session-test",
+        createConnection: () =>
+          ({
+            on: (event: string, callback: (error: unknown) => void) => {
+              if (event === "error") reportError = callback;
+            },
+          }) as unknown as WebOSConnection,
+        createDriver: () => ({
+          driverId: "lg-ssap",
+          open: () => calls.push("open"),
+          isReady: () => true,
+          execute: async () => ({ confirmation: "protocol-response" }),
+          close: async () => {
+            calls.push("close");
+            await teardown;
+          },
+        }),
+        createLock: () => ({
+          acquire: async () => ({
+            owner: {
+              pid: process.pid,
+              runId: "test",
+              acquiredAt: "now",
+              resourceId: "device:living-room-webos",
+              token: "token",
+            },
+            release: async () => calls.push("release"),
+          }),
+        }),
+      }),
+      { input },
+    );
+    actor.start();
+    await waitForCall(calls, "open");
+
+    reportError?.(new Error("main transport failed"));
+    actor.stop();
+    await waitForCall(calls, "close");
+    expect(calls).not.toContain("release");
+
+    settleTeardown();
+    await awaitSessionHandoff("device:living-room-webos");
+    expect(calls).toEqual(["open", "close", "release"]);
+  });
+
   test("publishes teardown before releasing the device lock", async () => {
     const calls: string[] = [];
     let settleOperation!: () => void;

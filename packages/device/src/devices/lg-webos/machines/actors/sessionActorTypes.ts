@@ -1,7 +1,7 @@
 import type { DeviceDriver } from "../../../../drivers/types";
 import type { DeviceLock } from "../../../../locks/deviceLock";
 import type { DeviceSessionEvent } from "../../../commonEvents";
-import type { WebOSConnection } from "../../connectionTypes";
+import type { ConnectionConfig, WebOSConnection } from "../../connectionTypes";
 import type { WebOSCredentials } from "../../credentials";
 import type { LgWebosDriverConfig } from "../../driver";
 
@@ -24,13 +24,6 @@ export interface LgWebosSessionDependencies {
     },
   ) => DeviceDriver;
   createLock?: (directory: string) => DeviceLock;
-  createConnection?: (config: {
-    ip: string;
-    mac: string;
-    clientKey?: string;
-    timeout: number;
-    reconnect: number;
-    useSsl: boolean;
-  }) => WebOSConnection;
+  createConnection?: (config: ConnectionConfig) => WebOSConnection;
   lockDirectory?: string;
 }

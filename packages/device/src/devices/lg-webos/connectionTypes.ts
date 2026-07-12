@@ -1,6 +1,6 @@
 export interface WebOSConnection {
   connect(options?: WebOSRequestOptions): Promise<void>;
-  disconnect(): void;
+  disconnect(): Promise<void>;
   request<T>(uri: string, payload?: object, options?: WebOSRequestOptions): Promise<T>;
   // biome-ignore lint/suspicious/noExplicitAny: WebOS subscription payloads have dynamic shapes that vary by URI
   subscribe(uri: string, payload: object, callback: (data: any) => void): Promise<void>;
@@ -33,8 +33,9 @@ export interface WebOSRequestMessage {
 
 export interface WebOSResponseMessage {
   id: string;
-  type: "registered" | "response" | "purchased";
+  type: "registered" | "response" | "purchased" | "error";
   payload?: Record<string, unknown>;
+  error?: string;
   "client-key"?: string;
 }
 
@@ -43,6 +44,5 @@ export interface ConnectionConfig {
   mac?: string;
   clientKey?: string;
   timeout?: number;
-  reconnect?: number;
   useSsl?: boolean;
 }

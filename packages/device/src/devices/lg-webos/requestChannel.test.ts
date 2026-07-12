@@ -70,6 +70,44 @@ describe("webOS request channel", () => {
     expect(payloads).toEqual([{ returnValue: true, mute: false }]);
   });
 
+  test("clears subscription callbacks when the transport tears down", async () => {
+    const { value, sent } = channel();
+    const payloads: unknown[] = [];
+    await value.subscribe("ssap://audio/getStatus", {}, (payload) => payloads.push(payload));
+    const subscription = sent[0];
+
+    value.reset(new Error("transport closed"));
+    value.handleMessage(
+      JSON.stringify({
+        id: subscription?.id,
+        type: "response",
+        payload: { returnValue: true, mute: true },
+      }),
+    );
+
+    expect(payloads).toEqual([]);
+  });
+
+  test("keeps subscriptions after rejecting pending requests for a malformed frame", async () => {
+    const { value, sent } = channel();
+    const payloads: unknown[] = [];
+    await value.subscribe("ssap://audio/getStatus", {}, (payload) => payloads.push(payload));
+    const subscription = sent[0];
+    const request = value.request("ssap://audio/getVolume");
+
+    value.handleMessage("not json");
+    await expect(request).rejects.toMatchObject({ code: "WEBOS_INVALID_RESPONSE" });
+    value.handleMessage(
+      JSON.stringify({
+        id: subscription?.id,
+        type: "response",
+        payload: { returnValue: true, mute: true },
+      }),
+    );
+
+    expect(payloads).toEqual([{ returnValue: true, mute: true }]);
+  });
+
   test("sanitizes permission failures before rejecting the request", async () => {
     const { value, sent } = channel();
     const result = value.request("ssap://tv/executeOneShot");
@@ -90,6 +128,26 @@ describe("webOS request channel", () => {
       message:
         "LG webOS denied the operation; explicitly re-pair the TV outside the test before retrying.",
     });
+  });
+
+  test("preserves authorization classification for protocol error envelopes", async () => {
+    const { value, sent } = channel();
+    const result = value.register();
+    value.handleMessage(
+      JSON.stringify({
+        id: sent[0]?.id,
+        type: "error",
+        error: "403 denied for ssap://secret?client-key=raw-pairing-material",
+      }),
+    );
+
+    const error = await result.catch((caught) => caught);
+    expect(error).toMatchObject({
+      code: "WEBOS_AUTHORIZATION_REQUIRED",
+      message:
+        "LG webOS denied the operation; explicitly re-pair the TV outside the test before retrying.",
+    });
+    expect(JSON.stringify(error)).not.toMatch(/secret|client-key|pairing-material|ssap:/);
   });
 
   test.each([
@@ -149,6 +207,24 @@ describe("webOS request channel", () => {
     await expect(registration).rejects.toMatchObject({ code: "WEBOS_INVALID_RESPONSE" });
     expect(clientKeys).toEqual([]);
     expect(events).not.toContain("connect");
+  });
+
+  test("rejects when a response parser rejects a malformed payload", async () => {
+    const { value, sent } = channel();
+    const result = value.request("ssap://pointer", {}, {}, () => {
+      throw new Error("Malformed pointer payload");
+    });
+
+    expect(() =>
+      value.handleMessage(
+        JSON.stringify({
+          id: sent[0]?.id,
+          type: "response",
+          payload: { returnValue: true },
+        }),
+      ),
+    ).not.toThrow();
+    await expect(result).rejects.toThrow("Malformed pointer payload");
   });
 
   test("logs only outgoing envelope metadata", async () => {

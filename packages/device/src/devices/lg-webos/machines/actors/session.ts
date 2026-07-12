@@ -27,7 +27,6 @@ export function createLgWebosSessionActor(dependencies: LgWebosSessionDependenci
         mac: input.credentials.mac ?? "",
         clientKey: input.credentials.clientKey,
         timeout: 15000,
-        reconnect: 0,
         useSsl,
       });
 

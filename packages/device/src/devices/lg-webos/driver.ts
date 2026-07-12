@@ -5,7 +5,7 @@ import { createDriverLifecycle } from "../shared/driverLifecycle";
 import { sanitizeWebosRequestError } from "./authorization";
 import { downloadWebosCapture } from "./capture";
 import { createWebOSConnection } from "./connection";
-import type { RemoteInputSocket, WebOSConnection, WebOSRequestOptions } from "./connectionTypes";
+import type { WebOSConnection, WebOSRequestOptions } from "./connectionTypes";
 import type { WebOSCredentials } from "./credentials";
 import { getInputSocketCommand, isInputSocketKey, keymap } from "./keymap";
 import { createMuteState } from "./muteState";
@@ -74,11 +74,9 @@ export function createLgWebosDriver(
       mac: config.credentials.mac || undefined,
       clientKey: config.credentials.clientKey,
       timeout: 15000,
-      reconnect: 0,
       useSsl: config.useSsl ?? config.credentials.useSsl,
     });
 
-  let inputSocket: RemoteInputSocket | null = null;
   const muteState = createMuteState(connection, dependencies.onMuteStateChanged);
 
   const lifecycle = createDriverLifecycle({
@@ -86,7 +84,6 @@ export function createLgWebosDriver(
     disconnect: () => connection.disconnect(),
     afterConnect: () => muteState.subscribe(),
     beforeDisconnect: () => {
-      inputSocket = null;
       muteState.reset();
     },
     hasLiveConnection: () => connection.isConnected(),
@@ -94,18 +91,12 @@ export function createLgWebosDriver(
 
   connection.on("close", () => {
     lifecycle.markClosed();
-    inputSocket = null;
     muteState.reset();
   });
   connection.on("error", () => {
     lifecycle.markClosed();
   });
 
-  const ensureInputSocket = async (options?: WebOSRequestOptions): Promise<RemoteInputSocket> => {
-    if (inputSocket) return inputSocket;
-    inputSocket = await connection.getInputSocket(options);
-    return inputSocket;
-  };
   const request = async <T>(uri: string, payload: object, options: WebOSRequestOptions) => {
     try {
       return await connection.request<T>(uri, payload, options);
@@ -130,7 +121,7 @@ export function createLgWebosDriver(
           const keyCode = keymap[operation.key];
           if (!keyCode) throw new Error(`Unsupported LG webOS key: ${operation.key}`);
           if (isInputSocketKey(String(keyCode))) {
-            const socket = await ensureInputSocket(commandOptions);
+            const socket = await connection.getInputSocket(commandOptions);
             socket.send("button", { name: getInputSocketCommand(keyCode) });
             return { confirmation: "transport-write" };
           }
@@ -143,7 +134,7 @@ export function createLgWebosDriver(
           if (operation.text === "\n") {
             await request(URI_SEND_ENTER_KEY, {}, commandOptions);
             await waitForInputSocket(options.signal);
-            const socket = await ensureInputSocket(commandOptions);
+            const socket = await connection.getInputSocket(commandOptions);
             socket.send("button", { name: "ENTER" });
             return { confirmation: "transport-write" };
           } else if (operation.text === "\b") {

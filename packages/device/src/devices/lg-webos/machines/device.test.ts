@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { createActor, fromCallback, waitFor } from "xstate";
+import { fakeWebos } from "../driverTestSupport";
 import type { PairingEvent, PairingInput } from "./actors/pairing";
+import { createPairingActor } from "./actors/pairing";
 import { webosDeviceMachine } from "./device";
 import { noopActor, setupActor } from "./deviceTestSupport";
 
@@ -70,5 +72,23 @@ describe("webosDeviceMachine SSL retry", () => {
     expect(starts).toBe(2);
     expect(actor.getSnapshot().matches({ pairing: { active: "connecting" } })).toBe(true);
     expect(actor.getSnapshot().context.promptReceived).toBe(false);
+  });
+
+  test("pairing cleanup runs after a live connect event without reporting failure", async () => {
+    const { connection, calls } = fakeWebos();
+    const machine = webosDeviceMachine.provide({
+      actors: {
+        pairingConnection: createPairingActor(() => connection),
+        connectionManager: noopActor,
+      },
+    });
+    const actor = createActor(machine, { input: { platform: "lg-webos" } }).start();
+
+    actor.send({ type: "SET_DEVICE_INFO", name: "LG TV", ip: "192.168.1.200" });
+    const snapshot = await waitFor(actor, (state) => state.matches("disconnected"));
+
+    expect(snapshot.context.credentials?.clientKey).toBe("client-key");
+    expect(calls).toEqual(["disconnect"]);
+    actor.stop();
   });
 });
