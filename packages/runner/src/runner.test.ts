@@ -11,6 +11,7 @@ import type {
   OperationRecord,
 } from "@couch/device";
 import { MockLanguageModelV4 } from "ai/test";
+import type { TestEvent } from "./events";
 import { runTvTest } from "./runner";
 
 const mockUsage = {
@@ -58,7 +59,7 @@ function navigationTerminationModel(termination: "model-length" | "step-limit") 
                 type: "tool-call",
                 toolCallId: "observe-1",
                 toolName: "observe",
-                input: "{}",
+                input: JSON.stringify({ decision: "Observe the current screen" }),
               },
             ],
             finishReason: { unified: "tool-calls", raw: "tool-calls" },
@@ -82,6 +83,7 @@ test("runs through one session and publishes canonical ordered records", async (
     `export default { name: "tracer", requires: ["app.launch", "app.foreground", "control.press", "screen.capture"], async run({ tv, expect }) { await tv.app.launch(); const foreground = await tv.app.foreground(); expect.foreground(foreground); await tv.press("LEFT", { times: 3 }); await tv.screen.capture(); } };`,
   );
   const operationRecords: OperationRecord[] = [];
+  const events: TestEvent[] = [];
   let closed = 0;
   const session: DeviceSession = {
     capabilities: new Map(),
@@ -131,6 +133,10 @@ test("runs through one session and publishes canonical ordered records", async (
     inventory: inventoryStub,
     configPath,
     artifactDirectory: join(root, "artifacts"),
+    onEvent(event) {
+      events.push(event);
+      throw new Error("reporter failed");
+    },
   });
   expect(outcome.result.status).toBe("passed");
   expect(outcome.trace?.operations.map((record) => record.kind)).toEqual([
@@ -143,6 +149,25 @@ test("runs through one session and publishes canonical ordered records", async (
     "screen.capture",
   ]);
   expect(closed).toBe(1);
+  expect(events.map((event) => event.type)).toEqual([
+    "run-start",
+    "device-operation-start",
+    "device-operation-finish",
+    "device-operation-start",
+    "device-operation-finish",
+    "device-operation-start",
+    "device-operation-finish",
+    "assertion",
+    "device-operation-start",
+    "device-operation-finish",
+    "device-operation-start",
+    "device-operation-finish",
+    "device-operation-start",
+    "device-operation-finish",
+    "device-operation-start",
+    "device-operation-finish",
+    "run-finish",
+  ]);
   const directory = outcome.artifactDirectory;
   expect(directory).toBeDefined();
   if (!directory) throw new Error("Expected artifact directory");

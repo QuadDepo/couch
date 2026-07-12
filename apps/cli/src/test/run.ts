@@ -1,5 +1,5 @@
 import type { DeviceInventory } from "@couch/device";
-import { runTvTest } from "@couch/runner/runner";
+import { runTvTest, type TestEventObserver } from "@couch/runner/runner";
 import { cancellationError } from "../commandOutput";
 import { errorDetails, FAILURE_EXIT, UsageError } from "../errors";
 import { parseOptions } from "../parseOptions";
@@ -24,6 +24,7 @@ export async function runTest(
   signals: SignalControl,
   diagnostics: string[],
   executeTest: typeof runTvTest = runTvTest,
+  onEvent?: TestEventObserver,
 ): Promise<TestCommandResult> {
   let outcome: Awaited<ReturnType<typeof runTvTest>>;
   try {
@@ -34,6 +35,7 @@ export async function runTest(
       signal: signals.signal,
       signalExitCode: () => signals.exitCode,
       diagnostics,
+      onEvent,
     });
   } catch (error) {
     return {

@@ -14,6 +14,7 @@ import { formatPressResult, parsePress, runPress } from "./remote/press";
 import type { ParsedPress } from "./remote/types";
 import { formatScreenshotResult, parseScreenshot, runScreenshot } from "./screenshot/capture";
 import type { ParsedScreenshot } from "./screenshot/types";
+import { createTestReporter } from "./test/reporter";
 import { formatTestResult, parseTest, runTest } from "./test/run";
 import type { ParsedTest } from "./test/types";
 
@@ -146,6 +147,7 @@ export async function runCli(
           signals,
           diagnostics,
           dependencies.runTvTest,
+          command.json ? undefined : createTestReporter(stderr),
         );
         writeResult(result, command.json, formatTestResult(result), stdout, stderr);
         return result.exitCode;

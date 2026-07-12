@@ -23,13 +23,15 @@ const images = {
 } as const;
 
 function response(toolName: string, input: unknown) {
+  const toolInput =
+    input && typeof input === "object" ? { decision: `Use ${toolName}`, ...input } : input;
   return {
     content: [
       {
         type: "tool-call" as const,
         toolCallId: crypto.randomUUID(),
         toolName,
-        input: JSON.stringify(input),
+        input: JSON.stringify(toolInput),
       },
     ],
     finishReason: { unified: "tool-calls" as const, raw: "tool-calls" },

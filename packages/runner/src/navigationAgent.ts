@@ -1,5 +1,6 @@
 import type { DeviceOperation, OperationRecord } from "@couch/device";
 import { hasToolCall, isStepCount, jsonSchema, type LanguageModel, ToolLoopAgent, tool } from "ai";
+import { emitRunEvent, sanitizeEventText, type TestEventObserver } from "./events";
 import { imageDimensions } from "./visual";
 
 const NAVIGATION_KEYS = ["UP", "DOWN", "LEFT", "RIGHT", "OK", "BACK"] as const;
@@ -152,6 +153,7 @@ export interface NavigationAgentDependencies {
   settle?(ms: number, signal?: AbortSignal): Promise<void>;
   publishArtifact?(artifact: NavigationRunArtifact): Promise<void>;
   publishLog?(content: string): Promise<void>;
+  onEvent?: TestEventObserver;
 }
 
 export interface NavigationAgentResult {
@@ -221,16 +223,36 @@ function safeGoal(goal: string): string {
 
 function safeInput(name: string, input: unknown): Record<string, unknown> {
   if (!input || typeof input !== "object") return {};
+  const explicit = {
+    ...("decision" in input ? { decision: clean(input.decision, "") } : {}),
+    ...("reason" in input ? { reason: clean(input.reason, "") } : {}),
+  };
+  const typedText =
+    "text" in input && typeof (input as { text?: unknown }).text === "string"
+      ? (input as { text: string }).text
+      : undefined;
+  const redactTyped = (value: string | undefined) =>
+    typedText ? value?.split(typedText).join("[redacted]") : value;
+  const safeExplicit = {
+    ...explicit,
+    ...(explicit.decision ? { decision: redactTyped(explicit.decision) } : {}),
+    ...(explicit.reason ? { reason: redactTyped(explicit.reason) } : {}),
+  };
   let expectedVisibleChange =
     "expectedVisibleChange" in input
       ? clean(input.expectedVisibleChange, "Expected visible change")
       : undefined;
   if (name === "press" && "key" in input) {
-    return { key: String(input.key), ...(expectedVisibleChange ? { expectedVisibleChange } : {}) };
+    return {
+      ...safeExplicit,
+      key: String(input.key),
+      ...(expectedVisibleChange ? { expectedVisibleChange } : {}),
+    };
   }
   if (name === "type" && "text" in input && typeof input.text === "string") {
     expectedVisibleChange = expectedVisibleChange?.split(input.text).join("[redacted]");
     return {
+      ...safeExplicit,
       length: [...input.text].length,
       value: "[redacted]",
       ...(expectedVisibleChange ? { expectedVisibleChange } : {}),
@@ -238,14 +260,19 @@ function safeInput(name: string, input: unknown): Record<string, unknown> {
   }
   if (name === "assess" && "outcome" in input && "evidence" in input) {
     return {
+      ...safeExplicit,
       outcome: String(input.outcome),
       evidence: clean(input.evidence, "No evidence supplied"),
     };
   }
   if (name === "finish" && "status" in input && "reason" in input) {
-    return { status: String(input.status), reason: clean(input.reason, "No reason") };
+    return {
+      ...safeExplicit,
+      status: String(input.status),
+      reason: clean(input.reason, "No reason"),
+    };
   }
-  return {};
+  return safeExplicit;
 }
 
 function capturePath(record: OperationRecord): string | undefined {
@@ -331,6 +358,12 @@ export async function runNavigationAgent(
 
   const startedMs = Date.now();
   const startedAt = new Date(startedMs).toISOString();
+  emitRunEvent(dependencies.onEvent, {
+    type: "agent-start",
+    goal: safeGoal(goal),
+    maxSteps,
+    at: startedAt,
+  });
   const events: NavigationRunArtifact["events"][number][] = [];
   const recordedSteps: Parameters<
     NonNullable<ConstructorParameters<typeof ToolLoopAgent>[0]["onStepEnd"]>
@@ -361,6 +394,35 @@ export async function runNavigationAgent(
     | undefined;
   let finish: { status: "completed" | "blocked"; reason: string } | undefined;
   let toolFailure: NavigationAgentError | undefined;
+
+  const toolStart = (toolCallId: string, toolName: string, input: unknown) => {
+    emitRunEvent(dependencies.onEvent, {
+      type: "agent-tool-start",
+      toolCallId,
+      toolName,
+      input: safeInput(toolName, input),
+      at: new Date().toISOString(),
+    });
+  };
+  const toolFinish = (toolCallId: string, toolName: string, success: boolean, error?: unknown) => {
+    emitRunEvent(dependencies.onEvent, {
+      type: "agent-tool-finish",
+      toolCallId,
+      toolName,
+      success,
+      ...(error
+        ? {
+            error: {
+              message: sanitizeEventText(
+                error instanceof Error ? error.message : error,
+                "Tool failed",
+              ),
+            },
+          }
+        : {}),
+      at: new Date().toISOString(),
+    });
+  };
 
   const acceptCapture = async (): Promise<{
     frame: NavigationFrame;
@@ -521,6 +583,8 @@ export async function runNavigationAgent(
     expectedVisibleChange: string,
     toolCallId: string,
     eventName: "press" | "type" | "retry" = name,
+    decision: string,
+    reason = expectedVisibleChange,
   ): Promise<{ summary: string; frame: NavigationFrame }> => {
     if (mutationCount >= maxSteps) {
       throw new NavigationAgentError("step-limit", "tool-validation", "Mutation limit reached");
@@ -531,6 +595,23 @@ export async function runNavigationAgent(
     const beforeCaptureOrdinal = lastOrdinal;
     const retryCount = eventName === "retry" ? 1 : 0;
     const operationIds: string[] = [];
+    const redactActionText = (value: string) =>
+      operation.kind === "control.text" ? value.split(operation.text).join("[redacted]") : value;
+    const safeDecision = redactActionText(decision);
+    const safeReason = redactActionText(reason);
+    toolStart(toolCallId, eventName, {
+      ...operation,
+      expectedVisibleChange,
+      decision,
+      reason,
+    });
+    emitRunEvent(dependencies.onEvent, {
+      type: "agent-decision",
+      toolName: eventName,
+      decision: sanitizeEventText(safeDecision, eventName),
+      reason: sanitizeEventText(safeReason, "Expected visible change"),
+      at: new Date().toISOString(),
+    });
     try {
       const record = await dependencies.execute(operation);
       if (record.status !== "succeeded" || record.kind !== operation.kind) {
@@ -569,6 +650,7 @@ export async function runNavigationAgent(
         ),
         settleMs,
       });
+      toolFinish(toolCallId, eventName, true);
       return {
         summary: `Fresh screenshot ${capture.metadata.ordinal} captured after ${eventName}.`,
         frame: capture.frame,
@@ -597,6 +679,7 @@ export async function runNavigationAgent(
             : {}),
         },
       });
+      toolFinish(toolCallId, eventName, false, navigationError);
       throw navigationError;
     }
   };
@@ -605,16 +688,27 @@ export async function runNavigationAgent(
     observe: tool({
       description:
         "Capture a fresh screenshot without changing the TV. Use for loading, animation, delayed focus, stale or ambiguous state.",
-      inputSchema: jsonSchema<Record<string, never>>({
+      inputSchema: jsonSchema<{ decision: string }>({
         type: "object",
-        properties: {},
+        properties: {
+          decision: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
+        },
+        required: ["decision"],
         additionalProperties: false,
       }),
       onInputAvailable: () => {
         rejectBatch();
         requirePhase("observe");
       },
-      execute: async (_input, { toolCallId }) => {
+      execute: async ({ decision }, { toolCallId }) => {
+        toolStart(toolCallId, "observe", { decision });
+        emitRunEvent(dependencies.onEvent, {
+          type: "agent-decision",
+          toolName: "observe",
+          decision: clean(decision, "observe"),
+          reason: clean(decision, "Refresh the visible screen"),
+          at: new Date().toISOString(),
+        });
         try {
           observationCount += 1;
           consecutiveObservations += 1;
@@ -653,6 +747,7 @@ export async function runNavigationAgent(
             ...(transition ? { transition } : {}),
             settleMs: 0,
           });
+          toolFinish(toolCallId, "observe", true);
           return {
             summary: transition
               ? `Fresh screenshot ${capture.metadata.ordinal} captured. Retry denied because the screen changed; replan from this screenshot.`
@@ -686,6 +781,7 @@ export async function runNavigationAgent(
                 : {}),
             },
           });
+          toolFinish(toolCallId, "observe", false, toolFailure);
           throw toolFailure;
         }
       },
@@ -697,13 +793,15 @@ export async function runNavigationAgent(
       inputSchema: jsonSchema<{
         key: (typeof NAVIGATION_KEYS)[number];
         expectedVisibleChange: string;
+        decision: string;
       }>({
         type: "object",
         properties: {
           key: { type: "string", enum: [...NAVIGATION_KEYS] },
           expectedVisibleChange: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
+          decision: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
         },
-        required: ["key", "expectedVisibleChange"],
+        required: ["key", "expectedVisibleChange", "decision"],
         additionalProperties: false,
       }),
       onInputAvailable: ({ input }) => {
@@ -717,20 +815,32 @@ export async function runNavigationAgent(
           );
         }
       },
-      execute: ({ key, expectedVisibleChange }, { toolCallId }) =>
-        action({ kind: "control.press", key }, "press", expectedVisibleChange, toolCallId),
+      execute: ({ key, expectedVisibleChange, decision }, { toolCallId }) =>
+        action(
+          { kind: "control.press", key },
+          "press",
+          expectedVisibleChange,
+          toolCallId,
+          "press",
+          decision,
+        ),
       toModelOutput: ({ output }) => modelOutput(output),
     }),
     type: tool({
       description:
         "Enter text only when the latest screenshot visibly shows the intended editable field focused, then inspect the returned screenshot.",
-      inputSchema: jsonSchema<{ text: string; expectedVisibleChange: string }>({
+      inputSchema: jsonSchema<{
+        text: string;
+        expectedVisibleChange: string;
+        decision: string;
+      }>({
         type: "object",
         properties: {
           text: { type: "string", minLength: 1, maxLength: MAX_TEXT_LENGTH },
           expectedVisibleChange: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
+          decision: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
         },
-        required: ["text", "expectedVisibleChange"],
+        required: ["text", "expectedVisibleChange", "decision"],
         additionalProperties: false,
       }),
       onInputAvailable: ({ input }) => {
@@ -747,23 +857,33 @@ export async function runNavigationAgent(
           );
         }
       },
-      execute: ({ text, expectedVisibleChange }, { toolCallId }) =>
-        action({ kind: "control.text", text }, "type", expectedVisibleChange, toolCallId),
+      execute: ({ text, expectedVisibleChange, decision }, { toolCallId }) =>
+        action(
+          { kind: "control.text", text },
+          "type",
+          expectedVisibleChange,
+          toolCallId,
+          "type",
+          decision,
+        ),
       toModelOutput: ({ output }) => modelOutput(output),
     }),
     retry: tool({
       description:
         "Replay the runner-stored action once. Available only after two fresh screenshots prove the screen did not visibly change.",
-      inputSchema: jsonSchema<Record<string, never>>({
+      inputSchema: jsonSchema<{ decision: string }>({
         type: "object",
-        properties: {},
+        properties: {
+          decision: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
+        },
+        required: ["decision"],
         additionalProperties: false,
       }),
       onInputAvailable: () => {
         rejectBatch();
         requirePhase("retry");
       },
-      execute: async (_input, { toolCallId }) => {
+      execute: async ({ decision }, { toolCallId }) => {
         if (!pendingTransition) {
           throw new NavigationAgentError(
             "tool-validation-error",
@@ -777,6 +897,7 @@ export async function runNavigationAgent(
           pendingTransition.expectedVisibleChange,
           toolCallId,
           "retry",
+          decision,
         );
       },
       toModelOutput: ({ output }) => modelOutput(output),
@@ -784,7 +905,11 @@ export async function runNavigationAgent(
     assess: tool({
       description:
         "Assess the pending action against its expected visible change using only the latest screenshot. Use no-change only when the entire visible screen is literally unchanged; any visible change is unexpected.",
-      inputSchema: jsonSchema<{ outcome: TransitionAssessment; evidence: string }>({
+      inputSchema: jsonSchema<{
+        outcome: TransitionAssessment;
+        evidence: string;
+        decision: string;
+      }>({
         type: "object",
         properties: {
           outcome: {
@@ -792,8 +917,9 @@ export async function runNavigationAgent(
             enum: ["achieved", "no-change", "unexpected", "uncertain"],
           },
           evidence: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
+          decision: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
         },
-        required: ["outcome", "evidence"],
+        required: ["outcome", "evidence", "decision"],
         additionalProperties: false,
       }),
       onInputAvailable: ({ input }) => {
@@ -807,8 +933,17 @@ export async function runNavigationAgent(
           );
         }
       },
-      execute: async ({ outcome, evidence }, { toolCallId }) => {
+      execute: async ({ outcome, evidence, decision }, { toolCallId }) => {
+        toolStart(toolCallId, "assess", { outcome, evidence, decision });
+        emitRunEvent(dependencies.onEvent, {
+          type: "agent-decision",
+          toolName: "assess",
+          decision: clean(decision, outcome),
+          reason: clean(evidence, "No evidence supplied"),
+          at: new Date().toISOString(),
+        });
         if (!pendingTransition) {
+          toolFinish(toolCallId, "assess", false, "No transition is awaiting assessment");
           throw new NavigationAgentError(
             "tool-validation-error",
             "tool-validation",
@@ -860,6 +995,7 @@ export async function runNavigationAgent(
           pendingTransition.observedAfterAssessment = false;
           phase = "observation-required";
         }
+        toolFinish(toolCallId, "assess", true);
         return {
           outcome,
           evidence: safeEvidence,
@@ -870,13 +1006,18 @@ export async function runNavigationAgent(
     finish: tool({
       description:
         "Stop. Use completed only when the latest fresh screenshot visibly proves the whole goal; otherwise use blocked.",
-      inputSchema: jsonSchema<{ status: "completed" | "blocked"; reason: string }>({
+      inputSchema: jsonSchema<{
+        status: "completed" | "blocked";
+        reason: string;
+        decision: string;
+      }>({
         type: "object",
         properties: {
           status: { type: "string", enum: ["completed", "blocked"] },
           reason: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
+          decision: { type: "string", minLength: 1, maxLength: MAX_REASON_LENGTH },
         },
-        required: ["status", "reason"],
+        required: ["status", "reason", "decision"],
         additionalProperties: false,
       }),
       onInputAvailable: () => {
@@ -884,6 +1025,14 @@ export async function runNavigationAgent(
         requirePhase("finish");
       },
       execute: async (input, { toolCallId }) => {
+        toolStart(toolCallId, "finish", input);
+        emitRunEvent(dependencies.onEvent, {
+          type: "agent-decision",
+          toolName: "finish",
+          decision: clean(input.decision, input.status),
+          reason: clean(input.reason, "No reason supplied"),
+          at: new Date().toISOString(),
+        });
         if (input.status === "completed" && !freshEvidence) {
           toolFailure = new NavigationAgentError(
             "completion-without-fresh-evidence",
@@ -900,6 +1049,7 @@ export async function runNavigationAgent(
             settleMs: 0,
             error: { stage: toolFailure.stage, message: toolFailure.message },
           });
+          toolFinish(toolCallId, "finish", false, toolFailure);
           throw toolFailure;
         }
         finish = { status: input.status, reason: clean(input.reason, "No reason supplied") };
@@ -912,6 +1062,7 @@ export async function runNavigationAgent(
           operationIds: [],
           settleMs: 0,
         });
+        toolFinish(toolCallId, "finish", true);
         return finish;
       },
     }),
@@ -1032,6 +1183,21 @@ export async function runNavigationAgent(
     terminationReason: result.terminationReason,
     reason: result.reason,
   });
+  emitRunEvent(dependencies.onEvent, {
+    type: "agent-complete",
+    status: result.status,
+    terminationReason: result.terminationReason,
+    reason: sanitizeEventText(result.reason, "Navigation finished"),
+    at: completedAt,
+  });
+  if (caught) {
+    emitRunEvent(dependencies.onEvent, {
+      type: "agent-failure",
+      stage: caught.stage,
+      reason: sanitizeEventText(caught.message, "Navigation failed"),
+      at: completedAt,
+    });
+  }
   const sdkSteps = generated?.steps ?? recordedSteps;
   const artifact: NavigationRunArtifact = {
     schemaVersion: 1,
@@ -1097,6 +1263,12 @@ export async function runNavigationAgent(
     await dependencies.publishLog?.(logArtifact(artifact));
     await dependencies.publishArtifact?.(artifact);
   } catch {
+    emitRunEvent(dependencies.onEvent, {
+      type: "agent-failure",
+      stage: "artifact-publication",
+      reason: "Navigation artifact publication failed",
+      at: new Date().toISOString(),
+    });
     throw new NavigationAgentError(
       "artifact-publication-error",
       "artifact-publication",

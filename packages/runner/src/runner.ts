@@ -22,8 +22,12 @@ import type { TestTargetConfig } from "./config";
 import { loadConfig, resolveTarget } from "./config";
 import type { TvTestDefinition } from "./defineTvTest";
 import { assertTvTestDefinition } from "./defineTvTest";
+import { emitRunEvent, sanitizeOperationInput, type TestEventObserver } from "./events";
 import { assertExitCodeAligns } from "./result";
 import { AssertionFailure, buildTestContext, type ExecuteOperation } from "./testContext";
+
+export type { TestEvent, TestEventObserver } from "./events";
+export { sanitizeEventText } from "./events";
 
 export interface TestTrace {
   traceVersion: 1;
@@ -74,6 +78,7 @@ export interface RunTvTestOptions {
   artifactDirectory?: string;
   diagnostics?: readonly string[];
   aiModel?: LanguageModel;
+  onEvent?: TestEventObserver;
 }
 
 function safeName(name: string): string {
@@ -172,22 +177,57 @@ function createExecute(params: {
   operations: OperationRecord[];
   artifacts: ArtifactReference[];
   signal?: AbortSignal;
+  onEvent?: TestEventObserver;
 }): ExecuteOperation {
-  const { session, target, declared, operations, artifacts, signal } = params;
+  const { session, target, declared, operations, artifacts, signal, onEvent } = params;
   return async (operation, runnerOwned = false) => {
     if (!runnerOwned && !declared.has(operation.kind)) {
       throw new Error(`TV test used undeclared operation: ${operation.kind}`);
     }
-    const record = await session.execute(operation, {
-      signal,
-      timeoutMs: target.operationTimeoutMs,
+    const { kind, ...input } = operation;
+    let finished = false;
+    emitRunEvent(onEvent, {
+      type: "device-operation-start",
+      kind,
+      input: sanitizeOperationInput(input),
+      ...(runnerOwned ? { runnerOwned: true } : {}),
+      at: new Date().toISOString(),
     });
-    operations.push(record);
-    artifacts.push(...record.artifacts);
-    if (record.status !== "succeeded") {
-      throw new Error(record.error?.message ?? `${record.kind} failed`);
+    try {
+      const record = await session.execute(operation, {
+        signal,
+        timeoutMs: target.operationTimeoutMs,
+      });
+      operations.push(record);
+      artifacts.push(...record.artifacts);
+      emitRunEvent(onEvent, {
+        type: "device-operation-finish",
+        operationId: record.id,
+        kind: record.kind,
+        status: record.status,
+        ...(record.error
+          ? { error: { code: record.error.code, message: record.error.message } }
+          : {}),
+        at: new Date().toISOString(),
+      });
+      finished = true;
+      if (record.status !== "succeeded") {
+        throw new Error(record.error?.message ?? `${record.kind} failed`);
+      }
+      return record;
+    } catch (error) {
+      if (!finished) {
+        emitRunEvent(onEvent, {
+          type: "device-operation-finish",
+          operationId: "unknown",
+          kind,
+          status: "failed",
+          error: { code: "operation-failed", message: errorMessage(error) },
+          at: new Date().toISOString(),
+        });
+      }
+      throw error;
     }
-    return record;
   };
 }
 
@@ -241,8 +281,16 @@ async function runSessionCleanup(params: {
   let result = params.result;
 
   if (session && target?.cleanup === "stop") {
+    let cleanupFinished = false;
     try {
       const cleanupOperationTimeoutMs = target.operationTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
+      emitRunEvent(options.onEvent, {
+        type: "device-operation-start",
+        kind: "app.stop",
+        input: sanitizeOperationInput({ appId: target.app.id }),
+        runnerOwned: true,
+        at: new Date().toISOString(),
+      });
       const cleanupRecord = await withTimeout(
         session.execute(
           { kind: "app.stop", appId: target.app.id },
@@ -253,6 +301,17 @@ async function runSessionCleanup(params: {
       );
       operations.push(cleanupRecord);
       artifacts.push(...cleanupRecord.artifacts);
+      emitRunEvent(options.onEvent, {
+        type: "device-operation-finish",
+        operationId: cleanupRecord.id,
+        kind: cleanupRecord.kind,
+        status: cleanupRecord.status,
+        ...(cleanupRecord.error
+          ? { error: { code: cleanupRecord.error.code, message: cleanupRecord.error.message } }
+          : {}),
+        at: new Date().toISOString(),
+      });
+      cleanupFinished = true;
       if (cleanupRecord.status !== "succeeded") {
         result.cleanupError = {
           code: cleanupRecord.error?.code ?? "cleanup-failed",
@@ -260,6 +319,16 @@ async function runSessionCleanup(params: {
         };
       }
     } catch (error) {
+      if (!cleanupFinished) {
+        emitRunEvent(options.onEvent, {
+          type: "device-operation-finish",
+          operationId: "unknown",
+          kind: "app.stop",
+          status: "failed",
+          error: { code: "cleanup-failed", message: errorMessage(error) },
+          at: new Date().toISOString(),
+        });
+      }
       result.cleanupError = { code: "cleanup-failed", message: errorMessage(error) };
     }
   }
@@ -362,6 +431,13 @@ export async function runTvTest(
 ): Promise<{ result: TestResult; trace?: TestTrace; artifactDirectory?: string }> {
   const startedAt = new Date().toISOString();
   const runId = crypto.randomUUID();
+  emitRunEvent(options.onEvent, {
+    type: "run-start",
+    runId,
+    targetAlias: options.targetAlias,
+    file: options.file,
+    at: startedAt,
+  });
   const operations: OperationRecord[] = [];
   const artifacts: ArtifactReference[] = [];
   const assertions: AssertionRecord[] = [];
@@ -417,6 +493,7 @@ export async function runTvTest(
       operations,
       artifacts,
       signal: options.signal,
+      onEvent: options.onEvent,
     });
     if (device.platform === "android-tv") {
       await execute({ kind: "app.stop", appId: target.app.id }, true);
@@ -441,6 +518,7 @@ export async function runTvTest(
       onStageChange: (stage) => {
         failureStage = stage;
       },
+      onEvent: options.onEvent,
     });
     await test.run(context);
     result = { resultVersion: 1, status: "passed", exitCode: 0, assertions };
@@ -469,7 +547,21 @@ export async function runTvTest(
       device,
       options,
     });
+    emitRunEvent(options.onEvent, {
+      type: "run-finish",
+      runId,
+      status: publishedResult.status,
+      exitCode: publishedResult.exitCode,
+      at: new Date().toISOString(),
+    });
     return { result: publishedResult, trace, artifactDirectory: directory };
   }
+  emitRunEvent(options.onEvent, {
+    type: "run-finish",
+    runId,
+    status: result.status,
+    exitCode: result.exitCode,
+    at: new Date().toISOString(),
+  });
   return { result };
 }

@@ -12,6 +12,7 @@ import {
 } from "./artifacts";
 import type { ResolvedRenderingProfileConfig, TestTargetConfig } from "./config";
 import type { TvTestContext, VisualRegionOptions } from "./defineTvTest";
+import { emitRunEvent, sanitizeEventText, type TestEventObserver } from "./events";
 import { runNavigationAgent } from "./navigationAgent";
 import type { AssertionRecord, TestResultErrorStage } from "./runner";
 import { answerScreenQuestion } from "./screenQuestion";
@@ -77,9 +78,10 @@ function recordAssertion(
     artifacts?: readonly ArtifactReference[];
     errorCode?: string;
     metadata?: Record<string, unknown>;
+    onEvent?: TestEventObserver;
   } = {},
 ): void {
-  assertions.push({
+  const assertion: AssertionRecord = {
     id: crypto.randomUUID(),
     matcher,
     status: passed ? "passed" : "failed",
@@ -89,6 +91,18 @@ function recordAssertion(
       ? {}
       : { error: { code: details.errorCode ?? "assertion-failed", message: failureMessage } }),
     ...(details.metadata ? { metadata: details.metadata } : {}),
+  };
+  assertions.push(assertion);
+  emitRunEvent(details.onEvent, {
+    type: "assertion",
+    assertion: {
+      id: assertion.id,
+      matcher: assertion.matcher,
+      label: sanitizeEventText(failureMessage, assertion.matcher),
+      status: assertion.status,
+      ...(assertion.error ? { error: assertion.error } : {}),
+    },
+    at: new Date().toISOString(),
   });
 }
 
@@ -144,6 +158,7 @@ export function buildTestContext(params: {
   aiTimeoutMs?: number;
   signal?: AbortSignal;
   onStageChange?: (stage?: TestResultErrorStage) => void;
+  onEvent?: TestEventObserver;
 }): TvTestContext {
   const {
     execute,
@@ -158,6 +173,7 @@ export function buildTestContext(params: {
     signal,
     captureFormat = "png",
     onStageChange,
+    onEvent,
   } = params;
 
   const capture = (name: string) =>
@@ -183,6 +199,7 @@ export function buildTestContext(params: {
       recordAssertion(assertions, "visualRegion", false, message, {
         ...details,
         errorCode: code,
+        onEvent,
       });
       throw new Error(message);
     };
@@ -414,6 +431,7 @@ export function buildTestContext(params: {
       const assertionArtifacts = [expectedArtifact, actualArtifact];
       recordAssertion(assertions, "visualRegion", false, message, {
         operationIds,
+        onEvent,
         artifacts: assertionArtifacts,
         errorCode: "visual-layout-mismatch",
         metadata: {
@@ -450,6 +468,7 @@ export function buildTestContext(params: {
       operationIds,
       artifacts: assertionArtifacts,
       metadata,
+      onEvent,
     });
     if (!passed) throw new AssertionFailure(message);
   };
@@ -464,6 +483,7 @@ export function buildTestContext(params: {
         recordAssertion(assertions, "foreground", false, message, {
           operationIds: [record.id],
           artifacts: record.artifacts,
+          onEvent,
         });
         throw new AssertionFailure(message);
       }
@@ -476,7 +496,21 @@ export function buildTestContext(params: {
       agent: {
         async run(goal, options = {}) {
           onStageChange?.("agent-startup");
-          if (!aiModel) throw new Error("tv.agent.run requires AI model configuration");
+          if (!aiModel) {
+            emitRunEvent(onEvent, {
+              type: "agent-start",
+              goal: sanitizeEventText(goal, "Navigation goal"),
+              maxSteps: options.maxSteps ?? 20,
+              at: new Date().toISOString(),
+            });
+            emitRunEvent(onEvent, {
+              type: "agent-failure",
+              stage: "agent-startup",
+              reason: "tv.agent.run requires AI model configuration",
+              at: new Date().toISOString(),
+            });
+            throw new Error("tv.agent.run requires AI model configuration");
+          }
           agentRunCount += 1;
           onStageChange?.("agent-run");
           let captureCount = 0;
@@ -496,6 +530,7 @@ export function buildTestContext(params: {
               },
               model: aiModel,
               signal,
+              onEvent,
               timeoutMs: aiTimeoutMs,
               settleMs: target.agent?.settleMs,
               async publishArtifact(value) {
@@ -543,24 +578,64 @@ export function buildTestContext(params: {
         capture: (name = `actual.${captureFormat}`) => capture(name),
         async ask(options) {
           onStageChange?.(completedAgentRun ? "post-agent-assertion" : "pre-agent-screen-question");
-          if (!aiModel) throw new Error("tv.screen.ask requires AI model configuration");
+          if (!aiModel) {
+            emitRunEvent(onEvent, {
+              type: "screen-question-start",
+              question: sanitizeEventText(options.question, "Screen question"),
+              at: new Date().toISOString(),
+            });
+            emitRunEvent(onEvent, {
+              type: "screen-question-finish",
+              status: "failed",
+              error: { message: "tv.screen.ask requires AI model configuration" },
+              at: new Date().toISOString(),
+            });
+            throw new Error("tv.screen.ask requires AI model configuration");
+          }
           screenQuestionCount += 1;
           const path = resolveContained(
             directory,
             captureName(`screen-question-${screenQuestionCount}`, captureFormat),
           );
-          await capture(`screen-question-${screenQuestionCount}`);
-          const result = await answerScreenQuestion({
-            image: new Uint8Array(await readFile(path)),
-            mediaType: captureFormat === "jpg" ? "image/jpeg" : "image/png",
-            question: options.question,
-            output: options.output,
-            model: aiModel,
-            timeoutMs: aiTimeoutMs,
-            signal,
+          emitRunEvent(onEvent, {
+            type: "screen-question-start",
+            question: sanitizeEventText(options.question, "Screen question"),
+            at: new Date().toISOString(),
           });
-          if (!completedAgentRun) onStageChange?.();
-          return result;
+          try {
+            await capture(`screen-question-${screenQuestionCount}`);
+            const result = await answerScreenQuestion({
+              image: new Uint8Array(await readFile(path)),
+              mediaType: captureFormat === "jpg" ? "image/jpeg" : "image/png",
+              question: options.question,
+              output: options.output,
+              model: aiModel,
+              timeoutMs: aiTimeoutMs,
+              signal,
+            });
+            emitRunEvent(onEvent, {
+              type: "screen-question-finish",
+              status: "succeeded",
+              modelId: result.modelId,
+              result: sanitizeEventText(JSON.stringify(result.output), "answered"),
+              at: new Date().toISOString(),
+            });
+            if (!completedAgentRun) onStageChange?.();
+            return result;
+          } catch (error) {
+            emitRunEvent(onEvent, {
+              type: "screen-question-finish",
+              status: "failed",
+              error: {
+                message: sanitizeEventText(
+                  error instanceof Error ? error.message : error,
+                  "Screen question failed",
+                ),
+              },
+              at: new Date().toISOString(),
+            });
+            throw error;
+          }
         },
       },
     },
@@ -571,6 +646,7 @@ export function buildTestContext(params: {
         recordAssertion(assertions, "foreground", passed, "Configured app is not foreground", {
           operationIds: candidate ? [candidate.id] : [],
           artifacts: candidate?.artifacts ?? [],
+          onEvent,
         });
         if (!passed) throw new AssertionFailure("Configured app is not foreground");
       },
@@ -578,7 +654,7 @@ export function buildTestContext(params: {
         const passed = Object.is(actual, expected);
         const failureMessage =
           message ?? `Expected ${String(expected)}, received ${String(actual)}`;
-        recordAssertion(assertions, "equal", passed, failureMessage);
+        recordAssertion(assertions, "equal", passed, failureMessage, { onEvent });
         if (!passed) throw new AssertionFailure(failureMessage);
       },
       poll(actual, options = {}) {
@@ -598,14 +674,25 @@ export function buildTestContext(params: {
               observed = await actual();
               signal?.throwIfAborted();
               if (Object.is(observed, expected)) {
-                recordAssertion(assertions, "poll.equal", true, message ?? "Values are equal");
+                recordAssertion(assertions, "poll.equal", true, message ?? "Values are equal", {
+                  onEvent,
+                });
                 return;
               }
-              if (attempt < attempts) await wait(intervalMs, signal);
+              if (attempt < attempts) {
+                emitRunEvent(onEvent, {
+                  type: "poll-retry",
+                  attempt,
+                  attempts,
+                  intervalMs,
+                  at: new Date().toISOString(),
+                });
+                await wait(intervalMs, signal);
+              }
             }
             const failureMessage =
               message ?? `Expected ${String(expected)}, received ${String(observed!)}`;
-            recordAssertion(assertions, "poll.equal", false, failureMessage);
+            recordAssertion(assertions, "poll.equal", false, failureMessage, { onEvent });
             throw new AssertionFailure(failureMessage);
           },
         };
