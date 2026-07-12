@@ -56,7 +56,7 @@ export interface AssertionRecord {
 }
 
 const DEFAULT_CLEANUP_TIMEOUT_MS = 5_000;
-const WEBOS_EXIT_SETTLE_MS = 250;
+const WEBOS_EXIT_SETTLE_MS = 500;
 
 export interface RunTvTestOptions {
   file: string;
