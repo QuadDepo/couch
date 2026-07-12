@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "build": "bun run build:js && bun run build:types",
-    "build:js": "bun build src/defineTvTest.ts src/config.ts src/runner.ts --outdir dist --root src --target bun --format esm",
+    "build:js": "bun build src/defineTvTest.ts src/config.ts src/runner.ts --outdir dist --root src --target bun --format esm --external odiff-bin",
     "build:types": "tsc -b tsconfig.json --force"
   },
   "exports": {
@@ -26,6 +26,7 @@
     }
   },
   "dependencies": {
-    "@couch/device": "workspace:*"
+    "@couch/device": "workspace:*",
+    "odiff-bin": "4.3.8"
   }
 }

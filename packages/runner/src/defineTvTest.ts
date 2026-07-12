@@ -5,6 +5,14 @@ import {
   type RemoteKey,
 } from "@couch/device";
 import { isRecord } from "./guards";
+import type { VisualRectangle } from "./visual";
+
+export interface VisualRegionOptions {
+  region: string;
+  threshold?: number;
+  maxDiffRatio?: number;
+  ignoreRegions?: readonly VisualRectangle[];
+}
 
 export interface TvTestContext {
   tv: {
@@ -18,6 +26,7 @@ export interface TvTestContext {
   expect: {
     foreground(record?: OperationRecord): void;
     equal<T>(actual: T, expected: T, message?: string): void;
+    visualRegion(name: string, options: VisualRegionOptions): Promise<void>;
   };
 }
 

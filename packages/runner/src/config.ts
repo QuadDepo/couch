@@ -2,6 +2,38 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isOperationKind, type OperationKind } from "@couch/device";
 import { isRecord } from "./guards";
+import type { VisualRectangle } from "./visual";
+
+export interface VisualRegionConfig extends VisualRectangle {
+  threshold?: number;
+  maxDiffRatio?: number;
+  ignoreRegions?: readonly VisualRectangle[];
+}
+
+export interface RenderingProfileConfig {
+  width: number;
+  height: number;
+  baselineDirectory: string;
+  threshold?: number;
+  maxDiffRatio?: number;
+  stableFrames?: number;
+  maxAttempts?: number;
+  pollIntervalMs?: number;
+  regions: Record<string, VisualRegionConfig>;
+}
+
+export interface ResolvedRenderingProfileConfig {
+  name: string;
+  width: number;
+  height: number;
+  baselineDirectory: string;
+  threshold: number;
+  maxDiffRatio: number;
+  stableFrames: number;
+  maxAttempts: number;
+  pollIntervalMs: number;
+  regions: Record<string, VisualRegionConfig>;
+}
 
 export interface TestTargetConfig {
   deviceId: string;
@@ -12,11 +44,17 @@ export interface TestTargetConfig {
   operationTimeoutMs?: number;
   foregroundTimeoutMs?: number;
   cleanupTimeoutMs?: number;
+  visualProfile?: string;
 }
 
 export interface CouchTestConfig {
   configVersion: 1;
   targets: Record<string, TestTargetConfig>;
+  visualProfiles?: Record<string, RenderingProfileConfig>;
+}
+
+export interface ResolvedCouchTestConfig extends Omit<CouchTestConfig, "visualProfiles"> {
+  visualProfiles: Record<string, ResolvedRenderingProfileConfig>;
 }
 
 const SECRET_KEYS =
@@ -50,6 +88,148 @@ function positiveFinite(value: unknown, path: string): number | undefined {
     throw new Error(`${path} must be a positive finite number`);
   }
   return value;
+}
+
+function finiteRange(value: unknown, path: string, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${path} must be between 0 and 1`);
+  }
+  return value;
+}
+
+function requiredPositiveInteger(value: unknown, path: string): number {
+  if (!Number.isInteger(value) || (value as number) <= 0) {
+    throw new Error(`${path} must be a positive integer`);
+  }
+  return value as number;
+}
+
+function optionalPositiveInteger(value: unknown, path: string, fallback: number): number {
+  return value === undefined ? fallback : requiredPositiveInteger(value, path);
+}
+
+function nonNegativeInteger(value: unknown, path: string): number {
+  if (!Number.isInteger(value) || (value as number) < 0) {
+    throw new Error(`${path} must be a non-negative integer`);
+  }
+  return value as number;
+}
+
+function rectangle(value: unknown, path: string, bounds: { width: number; height: number }) {
+  if (!isRecord(value)) throw new Error(`${path} must be an object`);
+  assertKnownKeys(value, ["x", "y", "width", "height"], path);
+  const result = {
+    x: nonNegativeInteger(value.x, `${path}.x`),
+    y: nonNegativeInteger(value.y, `${path}.y`),
+    width: requiredPositiveInteger(value.width, `${path}.width`),
+    height: requiredPositiveInteger(value.height, `${path}.height`),
+  };
+  if (result.x + result.width > bounds.width || result.y + result.height > bounds.height) {
+    throw new Error(`${path} must fit within the rendering profile`);
+  }
+  return result;
+}
+
+function validateVisualProfiles(value: unknown): Record<string, ResolvedRenderingProfileConfig> {
+  if (value === undefined) return {};
+  if (!isRecord(value)) throw new Error("config.visualProfiles must be an object");
+  const profiles: Record<string, ResolvedRenderingProfileConfig> = {};
+  for (const [name, raw] of Object.entries(value)) {
+    if (!/^[a-z0-9][a-z0-9._-]*$/i.test(name) || name === "." || name === ".." || !isRecord(raw)) {
+      throw new Error(`visualProfiles.${name} is invalid`);
+    }
+    assertKnownKeys(
+      raw,
+      [
+        "width",
+        "height",
+        "baselineDirectory",
+        "threshold",
+        "maxDiffRatio",
+        "stableFrames",
+        "maxAttempts",
+        "pollIntervalMs",
+        "regions",
+      ],
+      `visualProfiles.${name}`,
+    );
+    const width = requiredPositiveInteger(raw.width, `visualProfiles.${name}.width`);
+    const height = requiredPositiveInteger(raw.height, `visualProfiles.${name}.height`);
+    if (!isRecord(raw.regions)) throw new Error(`visualProfiles.${name}.regions must be an object`);
+    const regions: Record<string, VisualRegionConfig> = {};
+    for (const [regionName, rawRegion] of Object.entries(raw.regions)) {
+      if (!regionName.trim() || regionName === "." || regionName === "..") {
+        throw new Error(`visualProfiles.${name} region name is invalid`);
+      }
+      if (!isRecord(rawRegion))
+        throw new Error(`visualProfiles.${name}.regions.${regionName} must be an object`);
+      assertKnownKeys(
+        rawRegion,
+        ["x", "y", "width", "height", "threshold", "maxDiffRatio", "ignoreRegions"],
+        `visualProfiles.${name}.regions.${regionName}`,
+      );
+      const path = `visualProfiles.${name}.regions.${regionName}`;
+      const base = rectangle(
+        { x: rawRegion.x, y: rawRegion.y, width: rawRegion.width, height: rawRegion.height },
+        path,
+        { width, height },
+      );
+      const ignoreRegions = rawRegion.ignoreRegions;
+      if (ignoreRegions !== undefined && !Array.isArray(ignoreRegions)) {
+        throw new Error(`${path}.ignoreRegions must be an array`);
+      }
+      regions[regionName] = {
+        ...base,
+        ...(rawRegion.threshold === undefined
+          ? {}
+          : { threshold: finiteRange(rawRegion.threshold, `${path}.threshold`, 0) }),
+        ...(rawRegion.maxDiffRatio === undefined
+          ? {}
+          : { maxDiffRatio: finiteRange(rawRegion.maxDiffRatio, `${path}.maxDiffRatio`, 0) }),
+        ...(ignoreRegions === undefined
+          ? {}
+          : {
+              ignoreRegions: ignoreRegions.map((mask, index) =>
+                rectangle(mask, `${path}.ignoreRegions[${index}]`, { width, height }),
+              ),
+            }),
+      };
+    }
+    const stableFrames = optionalPositiveInteger(
+      raw.stableFrames,
+      `visualProfiles.${name}.stableFrames`,
+      2,
+    );
+    const maxAttempts = optionalPositiveInteger(
+      raw.maxAttempts,
+      `visualProfiles.${name}.maxAttempts`,
+      5,
+    );
+    if (maxAttempts < stableFrames) {
+      throw new Error(`visualProfiles.${name}.maxAttempts must cover stableFrames`);
+    }
+    profiles[name] = {
+      name,
+      width,
+      height,
+      baselineDirectory: requiredString(
+        raw.baselineDirectory,
+        `visualProfiles.${name}.baselineDirectory`,
+      ),
+      threshold: finiteRange(raw.threshold, `visualProfiles.${name}.threshold`, 0.1),
+      maxDiffRatio: finiteRange(raw.maxDiffRatio, `visualProfiles.${name}.maxDiffRatio`, 0),
+      stableFrames,
+      maxAttempts,
+      pollIntervalMs: optionalPositiveInteger(
+        raw.pollIntervalMs,
+        `visualProfiles.${name}.pollIntervalMs`,
+        250,
+      ),
+      regions,
+    };
+  }
+  return profiles;
 }
 
 function optionalOperationKinds(
@@ -87,6 +267,7 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
       "operationTimeoutMs",
       "foregroundTimeoutMs",
       "cleanupTimeoutMs",
+      "visualProfile",
     ],
     `targets.${alias}`,
   );
@@ -126,6 +307,7 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
     rawTarget.cleanupTimeoutMs,
     `targets.${alias}.cleanupTimeoutMs`,
   );
+  const visualProfile = optionalString(rawTarget.visualProfile, `targets.${alias}.visualProfile`);
 
   return {
     deviceId,
@@ -140,13 +322,14 @@ function validateTarget(alias: string, rawTarget: Record<string, unknown>): Test
     ...(operationTimeoutMs !== undefined ? { operationTimeoutMs } : {}),
     ...(foregroundTimeoutMs !== undefined ? { foregroundTimeoutMs } : {}),
     ...(cleanupTimeoutMs !== undefined ? { cleanupTimeoutMs } : {}),
+    ...(visualProfile !== undefined ? { visualProfile } : {}),
   };
 }
 
-export function validateConfig(value: unknown): CouchTestConfig {
+export function validateConfig(value: unknown): ResolvedCouchTestConfig {
   assertNoCredentials(value);
   if (!isRecord(value)) throw new Error("couch.config.ts must export an object");
-  assertKnownKeys(value, ["configVersion", "targets"], "config");
+  assertKnownKeys(value, ["configVersion", "targets", "visualProfiles"], "config");
   if (value.configVersion !== 1) throw new Error("Unsupported couch configVersion");
   if (!isRecord(value.targets)) throw new Error("Config targets are required");
 
@@ -158,10 +341,18 @@ export function validateConfig(value: unknown): CouchTestConfig {
     if (!isRecord(rawTarget)) throw new Error(`targets.${alias} must be an object`);
     targets[alias] = validateTarget(alias, rawTarget);
   }
-  return { configVersion: 1, targets };
+  const visualProfiles = validateVisualProfiles(value.visualProfiles);
+  for (const [alias, target] of Object.entries(targets)) {
+    if (target.visualProfile && !visualProfiles[target.visualProfile]) {
+      throw new Error(`targets.${alias}.visualProfile was not found in visualProfiles`);
+    }
+  }
+  return { configVersion: 1, targets, visualProfiles };
 }
 
-export async function loadConfig(path = resolve("couch.config.ts")): Promise<CouchTestConfig> {
+export async function loadConfig(
+  path = resolve("couch.config.ts"),
+): Promise<ResolvedCouchTestConfig> {
   const module = await import(`${pathToFileURL(path).href}?run=${crypto.randomUUID()}`);
   return validateConfig(module.default);
 }

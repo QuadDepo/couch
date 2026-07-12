@@ -50,6 +50,7 @@ export interface AssertionRecord {
   operationIds: readonly string[];
   artifacts: readonly ArtifactReference[];
   error?: { code: string; message: string };
+  metadata?: Record<string, unknown>;
 }
 
 const DEFAULT_CLEANUP_TIMEOUT_MS = 5_000;
@@ -397,7 +398,11 @@ export async function runTvTest(
       directory,
       operations,
       assertions,
+      artifacts,
       captureFormat: device.platform === "webos" ? "jpg" : "png",
+      visualProfile: target.visualProfile
+        ? config.visualProfiles?.[target.visualProfile]
+        : undefined,
       signal: options.signal,
     });
     await test.run(context);
